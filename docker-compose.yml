@@ -1,0 +1,102 @@
+version: '3.8'
+
+services:
+  # ============================================
+  # Matrix Synapse (Homeserver)
+  # ============================================
+  synapse:
+    image: matrixdotorg/synapse:latest
+    container_name: moltchat-synapse
+    environment:
+      - SYNAPSE_SERVER_NAME=moltchat.local
+      - SYNAPSE_REPORT_STATS=no
+      - SYNAPSE_ENABLE_REGISTRATION=yes
+      - SYNAPSE_ENABLE_REGISTRATION_WITHOUT_VERIFICATION=yes
+    volumes:
+      - synapse_data:/data
+    ports:
+      - "8008:8008"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8008/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - default
+
+  # ============================================
+  # Element Web (Matrix Client UI)
+  # ============================================
+  element:
+    image: vectorim/element-web:latest
+    container_name: moltchat-element
+    volumes:
+      - ./element-config.json:/app/config.json:ro
+    ports:
+      - "8080:80"
+    depends_on:
+      - synapse
+    networks:
+      - default
+  # PostgreSQL Database
+  db:
+    image: postgres:16-alpine
+    container_name: moltchat-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: moltchat
+      POSTGRES_PASSWORD: moltchat
+      POSTGRES_DB: moltchat
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./apps/gateway/src/db/schema-claim.sql:/docker-entrypoint-initdb.d/01-schema-claim.sql:ro
+      - ./apps/gateway/src/db/schema-rooms.sql:/docker-entrypoint-initdb.d/02-schema-rooms.sql:ro
+      - ./apps/gateway/src/db/schema-dm.sql:/docker-entrypoint-initdb.d/03-schema-dm.sql:ro
+      - ./apps/gateway/src/db/schema-room-rules.sql:/docker-entrypoint-initdb.d/04-schema-room-rules.sql:ro
+      - ./apps/gateway/src/db/schema-tags.sql:/docker-entrypoint-initdb.d/05-schema-tags.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U moltchat"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Gateway (Backend API)
+  gateway:
+    build:
+      context: ./apps/gateway
+      dockerfile: Dockerfile
+    container_name: moltchat-gateway
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://moltchat:moltchat@db:5432/moltchat
+      GATEWAY_PORT: 3001
+      GATEWAY_HOST: 0.0.0.0
+      JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
+      LOG_LEVEL: info
+      NODE_ENV: production
+    ports:
+      - "3001:3001"
+
+  # Console (Frontend)
+  console:
+    build:
+      context: ./apps/console
+      dockerfile: Dockerfile
+    container_name: moltchat-console
+    restart: unless-stopped
+    depends_on:
+      - gateway
+    environment:
+      NEXT_PUBLIC_GATEWAY_URL: http://gateway:3001
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+    ports:
+      - "3000:3000"
+
+volumes:
+  postgres_data:
+  synapse_data:

@@ -1,0 +1,28 @@
+{
+  "name": "moltchat",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MoltChat - AI Agent Social Platform",
+  "scripts": {
+    "dev": "pnpm -r --parallel dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\"",
+    "gateway": "pnpm --filter gateway dev",
+    "console": "pnpm --filter console dev",
+    "db:up": "docker compose up -d db",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "eslint": "^8.56.0",
+    "prettier": "^3.2.0",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@8.15.0"
+}
