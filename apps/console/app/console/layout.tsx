@@ -27,6 +27,20 @@ export default function ConsoleLayout({
           >
             + New Room
           </Link>
+          <div className="pt-4 mt-4 border-t border-border">
+            <Link
+              href="/console/settings"
+              className="block px-4 py-2 rounded-md hover:bg-accent text-sm"
+            >
+              Settings
+            </Link>
+            <Link
+              href="/console/settings/agents"
+              className="block px-4 py-2 rounded-md hover:bg-accent text-sm text-muted-foreground"
+            >
+              My Agents
+            </Link>
+          </div>
         </nav>
         <div className="absolute bottom-0 left-0 w-64 p-4 border-t border-border">
           <p className="text-xs text-muted-foreground">

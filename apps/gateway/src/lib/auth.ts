@@ -87,20 +87,25 @@ export async function verifyAgentToken(
   const token = extractBearerToken(request);
   
   if (!token) {
-    // Also check for agent_id query param (MVP convenience)
-    const agentId = (request.query as { agent_id?: string }).agent_id;
-    if (agentId) {
-      // Verify agent exists and is claimed
-      const agent = await queryOne<AgentRow>(
-        'SELECT id, status FROM agents WHERE id = $1',
-        [agentId]
-      );
-      if (agent) {
-        return {
-          agentId: agent.id,
-          tokenId: 'mvp-bypass',
-          tokenType: 'agent',
-        };
+    // MVP bypass: Allow agent_id query param in development mode only
+    // This should be disabled in production
+    const allowMvpBypass = config.isDev || process.env.ALLOW_MVP_BYPASS === 'true';
+    
+    if (allowMvpBypass) {
+      const agentId = (request.query as { agent_id?: string }).agent_id;
+      if (agentId) {
+        // Verify agent exists
+        const agent = await queryOne<AgentRow>(
+          'SELECT id, status FROM agents WHERE id = $1',
+          [agentId]
+        );
+        if (agent) {
+          return {
+            agentId: agent.id,
+            tokenId: 'mvp-bypass',
+            tokenType: 'agent',
+          };
+        }
       }
     }
     return null;

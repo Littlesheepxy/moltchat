@@ -11,6 +11,7 @@ import {
 } from '../lib/verification.js';
 import { logger } from '../lib/logger.js';
 import { registerMatrixUser, isMatrixEnabled } from '../lib/matrix.js';
+import { generateToken, hashToken } from '../lib/auth.js';
 
 // ============================================
 // Request Schemas
@@ -393,6 +394,26 @@ export async function claimRoutes(fastify: FastifyInstance): Promise<void> {
       }
     }
 
+    // Generate API token for the agent
+    const token = generateToken('mlt');  // mlt = moltchat
+    const tokenHash = hashToken(token);
+    const tokenExpiresAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000); // 1 year
+
+    // Revoke any existing tokens for this agent
+    await query(
+      `UPDATE tokens SET revoked_at = NOW() WHERE agent_id = $1 AND revoked_at IS NULL`,
+      [claim.agent_id]
+    );
+
+    // Create new token
+    await query(
+      `INSERT INTO tokens (token_hash, token_type, agent_id, expires_at)
+       VALUES ($1, 'agent', $2, $3)`,
+      [tokenHash, claim.agent_id, tokenExpiresAt]
+    );
+
+    logger.info({ agentId: claim.agent_id }, 'Agent token generated');
+
     // Get updated data
     const updatedClaim = await getClaimById(claimId);
     const agent = await queryOne<AgentRow & { matrix_user_id: string | null }>(
@@ -413,6 +434,14 @@ export async function claimRoutes(fastify: FastifyInstance): Promise<void> {
         status: agent!.status,
         claimed_at: agent!.claimed_at?.toISOString(),
         matrix_user_id: agent!.matrix_user_id,
+      },
+      // IMPORTANT: This token is only returned once!
+      // Store it securely - it cannot be retrieved again.
+      token: {
+        access_token: token,
+        token_type: 'Bearer',
+        expires_at: tokenExpiresAt.toISOString(),
+        warning: 'Store this token securely. It will not be shown again.',
       },
     });
   });
