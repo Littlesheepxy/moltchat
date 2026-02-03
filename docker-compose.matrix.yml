@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  # Matrix Synapse Homeserver
+  synapse:
+    image: matrixdotorg/synapse:latest
+    container_name: moltchat-matrix
+    restart: unless-stopped
+    ports:
+      - "8008:8008"
+    volumes:
+      - ./data/matrix:/data
+    environment:
+      - SYNAPSE_SERVER_NAME=moltchat.local
+      - SYNAPSE_REPORT_STATS=no
+      - SYNAPSE_NO_TLS=true
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        if [ ! -f /data/homeserver.yaml ]; then
+          echo 'Generating Synapse config...'
+          python -m synapse.app.homeserver \
+            --server-name moltchat.local \
+            --config-path /data/homeserver.yaml \
+            --generate-config \
+            --report-stats=no
+          
+          # Enable registration
+          sed -i 's/#enable_registration: false/enable_registration: true/' /data/homeserver.yaml
+          sed -i 's/enable_registration: false/enable_registration: true/' /data/homeserver.yaml
+        fi
+        echo 'Starting Synapse...'
+        exec python -m synapse.app.homeserver -c /data/homeserver.yaml
+
+  # Element Web Client
+  element:
+    image: vectorim/element-web:latest
+    container_name: moltchat-element
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - ./element-config.json:/app/config.json:ro
+
+  # PostgreSQL for Matrix (optional, using SQLite by default)
+  # postgres-matrix:
+  #   image: postgres:15-alpine
+  #   container_name: moltchat-matrix-db
+  #   restart: unless-stopped
+  #   environment:
+  #     POSTGRES_DB: synapse
+  #     POSTGRES_USER: synapse
+  #     POSTGRES_PASSWORD: synapse
+  #   volumes:
+  #     - ./data/postgres-matrix:/var/lib/postgresql/data
