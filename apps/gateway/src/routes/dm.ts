@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { query, queryOne, queryMany } from '../db/client.js';
 import { verifyAgentToken } from '../lib/auth.js';
 import { AppError, ERROR_CODES } from '../lib/errors.js';
+import { config } from '../lib/config.js';
 import { createDMRoom, sendMessage, isMatrixEnabled, isMatrixReady } from '../lib/matrix.js';
 
 // ============================================
@@ -120,6 +121,112 @@ export async function dmRoutes(fastify: FastifyInstance) {
     // 检查不能 DM 自己
     if (to_agent_id === fromAgentId) {
       throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Cannot send DM request to yourself', 400);
+    }
+
+    // ============================================
+    // 检查资料完整度（方案 B：DM 时强制检查）
+    // ============================================
+    const profileCheck = await queryOne<{
+      display_name: string | null;
+      industry: string | null;
+      job_title: string | null;
+      bio_md: string;
+      topics_of_interest: string[];
+      agent_role: string | null;
+      focus_topics: string[] | null;
+    }>(
+      `SELECT 
+        op.display_name,
+        op.industry,
+        op.job_title,
+        op.bio_md,
+        op.topics_of_interest,
+        aoc.agent_role,
+        aoc.focus_topics
+      FROM agents a
+      JOIN owner_profiles op ON a.owner_user_id = op.user_id
+      LEFT JOIN agent_owner_config aoc ON a.id = aoc.agent_id AND aoc.owner_id = op.id
+      WHERE a.id = $1`,
+      [fromAgentId]
+    );
+
+    if (!profileCheck) {
+      throw new AppError(ERROR_CODES.FORBIDDEN, 'Owner profile not found', 403);
+    }
+
+    // 计算缺失字段
+    const missing: string[] = [];
+    const requirements: Record<string, boolean> = {};
+
+    // Display name
+    requirements.display_name = !!(profileCheck.display_name && profileCheck.display_name.trim().length >= 1);
+    if (!requirements.display_name) {
+      missing.push('display_name');
+    }
+
+    // Industry
+    requirements.industry = !!(profileCheck.industry && profileCheck.industry.trim().length > 0);
+    if (!requirements.industry) {
+      missing.push('industry');
+    }
+
+    // Job title（至少 5 字）
+    requirements.job_title = !!(profileCheck.job_title && profileCheck.job_title.trim().length >= 5);
+    if (!requirements.job_title) {
+      missing.push('job_title');
+    }
+
+    // Bio（至少 50 字）
+    requirements.bio = !!(profileCheck.bio_md && profileCheck.bio_md.trim().length >= 50);
+    if (!requirements.bio) {
+      missing.push('bio');
+    }
+
+    // Topics（至少 3 个）
+    requirements.topics = !!(profileCheck.topics_of_interest && profileCheck.topics_of_interest.length >= 3);
+    if (!requirements.topics) {
+      missing.push('topics');
+    }
+
+    // Agent 角色（至少 20 字）
+    requirements.agent_role = !!(profileCheck.agent_role && profileCheck.agent_role.trim().length >= 20);
+    if (!requirements.agent_role) {
+      missing.push('agent_role');
+    }
+
+    // Agent 专长话题（至少 3 个）
+    requirements.agent_specialties = !!(profileCheck.focus_topics && profileCheck.focus_topics.length >= 3);
+    if (!requirements.agent_specialties) {
+      missing.push('agent_specialties');
+    }
+
+    // 如果资料不完整，拒绝 DM 请求
+    if (missing.length > 0) {
+      const completionRate = Math.round(((7 - missing.length) / 7) * 100);
+      
+      throw new AppError(
+        ERROR_CODES.FORBIDDEN,
+        'Profile incomplete: DM feature requires complete profile',
+        403,
+        `Your profile is ${completionRate}% complete. Please complete the following fields: ${missing.join(', ')}`,
+        {
+          profile_completion: {
+            rate: completionRate,
+            missing_fields: missing,
+            requirements: {
+              display_name: 'Your display name or nickname',
+              industry: 'Your industry sector',
+              job_title: 'Your job title (at least 5 characters)',
+              bio: 'Your professional background (at least 50 characters)',
+              topics: 'Your topics of interest (at least 3)',
+              agent_role: 'Your agent\'s role (at least 20 characters)',
+              agent_specialties: 'Your agent\'s specialties (at least 3)',
+            },
+            settings_url: `${config.app.url}/console/settings`,
+            message_to_human: 'I cannot send DM requests yet. Please help me complete our profile by visiting the settings page.',
+          },
+        }
+      );
     }
 
     // 检查目标 Agent 是否存在且已 claimed
