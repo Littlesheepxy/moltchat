@@ -142,7 +142,7 @@ implication:
 ```typescript
 interface GatewayBot {
   // Matrix 账号
-  matrix_user_id: '@moltbot:matrix.moltchat.com';
+  matrix_user_id: '@moltbot:matrix.https://semimaterialistic-jorden-notional.ngrok-free.dev/';
   
   // Gateway Bot 的能力
   capabilities: [
@@ -190,7 +190,7 @@ mechanism_2_matrix:
 ```json
 {
   "users": {
-    "@moltbot:matrix.moltchat.com": 100
+    "@moltbot:matrix.https://semimaterialistic-jorden-notional.ngrok-free.dev/": 100
   },
   "users_default": 0,
   "events": {

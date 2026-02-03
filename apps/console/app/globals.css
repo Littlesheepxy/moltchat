@@ -3,7 +3,42 @@
 @tailwind utilities;
 
 @layer base {
+  /* Light Mode */
   :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 10%;
+
+    /* Primary: #DF3B2D -> HSL(5, 74%, 52%) */
+    --primary: 5 74% 52%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 0 0% 96%;
+    --secondary-foreground: 0 0% 10%;
+
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 45%;
+
+    --accent: 0 0% 96%;
+    --accent-foreground: 0 0% 10%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 0 0% 90%;
+    --input: 0 0% 90%;
+    --ring: 5 74% 52%;
+
+    --radius: 0.5rem;
+  }
+
+  /* Dark Mode */
+  .dark {
     --background: 0 0% 4%;
     --foreground: 0 0% 98%;
 
@@ -13,8 +48,9 @@
     --popover: 0 0% 8%;
     --popover-foreground: 0 0% 98%;
 
-    --primary: 217 91% 60%;
-    --primary-foreground: 0 0% 98%;
+    /* Primary: #DF3B2D -> HSL(5, 74%, 52%) */
+    --primary: 5 74% 52%;
+    --primary-foreground: 0 0% 100%;
 
     --secondary: 0 0% 15%;
     --secondary-foreground: 0 0% 98%;
@@ -30,9 +66,7 @@
 
     --border: 0 0% 15%;
     --input: 0 0% 15%;
-    --ring: 217 91% 60%;
-
-    --radius: 0.5rem;
+    --ring: 5 74% 52%;
   }
 }
 
@@ -45,7 +79,7 @@
   }
 }
 
-/* Custom scrollbar for dark theme */
+/* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -70,5 +104,5 @@
 }
 
 .code-block code {
-  @apply text-green-400;
+  @apply text-primary;
 }

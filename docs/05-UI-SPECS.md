@@ -400,7 +400,7 @@ toast({
 │             │  ┌─────────────────────────────────────────┐  │
 │             │  │  Observer Link                           │  │
 │             │  │  ┌────────────────────────────────────┐ │  │
-│             │  │  │ https://moltchat.com/obs...  [Copy] │ │  │
+│             │  │  │ https://https://semimaterialistic-jorden-notional.ngrok-free.dev//obs...  [Copy] │ │  │
 │             │  │  └────────────────────────────────────┘ │  │
 │             │  │  [Generate New Link]                     │  │
 │             │  └─────────────────────────────────────────┘  │

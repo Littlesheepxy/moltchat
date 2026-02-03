@@ -11,7 +11,8 @@ import {
 } from '../lib/verification.js';
 import { logger } from '../lib/logger.js';
 import { registerMatrixUser, isMatrixEnabled } from '../lib/matrix.js';
-import { generateToken, hashToken } from '../lib/auth.js';
+import { generateToken, hashToken, verifyUserSession } from '../lib/auth.js';
+import { config } from '../lib/config.js';
 
 // ============================================
 // Request Schemas
@@ -19,6 +20,11 @@ import { generateToken, hashToken } from '../lib/auth.js';
 
 const submitClaimSchema = z.object({
   tweet_url: z.string().url(),
+});
+
+const verifyClaimSchema = z.object({
+  tweet_url: z.string().url(),
+  user_id: z.string().uuid().optional(),
 });
 
 // ============================================
@@ -231,12 +237,46 @@ export async function claimRoutes(fastify: FastifyInstance): Promise<void> {
 
   /**
    * POST /v1/claims/:claimId/verify
-   * Trigger verification process
+   * Trigger verification process (requires session auth)
    */
   fastify.post<{
     Params: { claimId: string };
+    Body: { tweet_url: string; user_id?: string };
   }>('/v1/claims/:claimId/verify', async (request, reply) => {
     const { claimId } = request.params;
+
+    // Verify user session
+    const session = await verifyUserSession(request);
+    if (!session) {
+      throw new AppError(
+        ERROR_CODES.UNAUTHORIZED,
+        'Please sign in first',
+        401,
+        'You must be logged in to claim an agent'
+      );
+    }
+
+    // Parse and validate body (tweet_url can be passed here for combined submit+verify)
+    const parseResult = verifyClaimSchema.safeParse(request.body);
+    if (!parseResult.success) {
+      throw new AppError(
+        ERROR_CODES.VALIDATION_ERROR,
+        'Invalid request body',
+        400,
+        'Please provide a valid tweet_url'
+      );
+    }
+
+    const { tweet_url: bodyTweetUrl, user_id: bodyUserId } = parseResult.data;
+
+    // Verify user_id matches session (if provided)
+    if (bodyUserId && bodyUserId !== session.userId) {
+      throw new AppError(
+        ERROR_CODES.FORBIDDEN,
+        'User ID mismatch',
+        403
+      );
+    }
 
     // Get claim
     let claim = await getClaimById(claimId);
@@ -284,27 +324,35 @@ export async function claimRoutes(fastify: FastifyInstance): Promise<void> {
       });
     }
 
-    if (claim.status !== 'submitted') {
+    // Use tweet_url from body or from claim (if already submitted)
+    const tweetUrl = bodyTweetUrl || claim.tweet_url;
+    
+    if (!tweetUrl) {
       throw new AppError(
         ERROR_CODES.VALIDATION_ERROR,
-        'Please submit a tweet URL first',
+        'No tweet URL provided',
         400,
-        'Call POST /v1/claims/:id/submit with your tweet URL before verifying'
+        'Please provide a tweet_url in the request body'
       );
     }
 
-    if (!claim.tweet_url) {
-      throw new AppError(
-        ERROR_CODES.VALIDATION_ERROR,
-        'No tweet URL submitted',
-        400
+    // Parse and validate tweet URL
+    const parsedUrl = parseTweetUrl(tweetUrl);
+
+    // Update claim with tweet URL if not already set
+    if (!claim.tweet_url || claim.tweet_url !== tweetUrl) {
+      await query(
+        `UPDATE claims 
+         SET tweet_url = $1, twitter_handle = $2, submitted_at = NOW(), status = 'submitted',
+             error_code = NULL, error_message = NULL
+         WHERE id = $3`,
+        [parsedUrl.originalUrl, parsedUrl.handle, claimId]
       );
+      claim.tweet_url = parsedUrl.originalUrl;
+      claim.twitter_handle = parsedUrl.handle;
     }
 
-    logger.info({ claimId, tweetUrl: claim.tweet_url }, 'Starting verification');
-
-    // Parse the submitted tweet URL to get handle
-    const parsedUrl = parseTweetUrl(claim.tweet_url);
+    logger.info({ claimId, tweetUrl: claim.tweet_url, userId: session.userId }, 'Starting verification');
 
     // Fetch tweet content
     let tweetContent: string;
@@ -358,7 +406,7 @@ export async function claimRoutes(fastify: FastifyInstance): Promise<void> {
       );
     }
 
-    logger.info({ claimId }, 'Verification successful');
+    logger.info({ claimId, userId: session.userId }, 'Verification successful');
 
     // Update claim to verified
     await query(
@@ -366,10 +414,28 @@ export async function claimRoutes(fastify: FastifyInstance): Promise<void> {
       [claimId]
     );
 
-    // Update agent to claimed and set twitter_handle (extracted from tweet URL)
+    // Update agent to claimed, set twitter_handle and owner_user_id
     await query(
-      `UPDATE agents SET status = 'claimed', claimed_at = NOW(), twitter_handle = $1 WHERE id = $2`,
-      [claim.twitter_handle, claim.agent_id]
+      `UPDATE agents 
+       SET status = 'claimed', claimed_at = NOW(), twitter_handle = $1, owner_user_id = $2 
+       WHERE id = $3`,
+      [claim.twitter_handle, session.userId, claim.agent_id]
+    );
+
+    // Create/update owner profile for this user
+    await query(
+      `INSERT INTO owner_profiles (user_id, display_name, created_at, updated_at)
+       VALUES ($1, $2, NOW(), NOW())
+       ON CONFLICT (user_id) DO UPDATE SET updated_at = NOW()`,
+      [session.userId, session.user.name]
+    );
+
+    // Record tweet verification
+    await query(
+      `INSERT INTO tweet_verifications (user_id, agent_id, tweet_url, status, verified_at)
+       VALUES ($1, $2, $3, 'verified', NOW())
+       ON CONFLICT DO NOTHING`,
+      [session.userId, claim.agent_id, claim.tweet_url]
     );
 
     // Create Matrix user for the agent (if Matrix is enabled)

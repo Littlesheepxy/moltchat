@@ -1,17 +1,22 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useSession, signOut } from '@/lib/auth-client';
 
 const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3001';
 
 interface OwnerProfile {
   id: string;
-  twitter_handle: string;
+  user_id: string;
+  twitter_handle: string | null;
   display_name: string | null;
   background_md: string;
   topics_of_interest: string[];
@@ -25,8 +30,19 @@ interface Agent {
   availability: string;
 }
 
+interface UserInfo {
+  id: string;
+  name: string;
+  email: string;
+  image: string | null;
+}
+
 export default function SettingsPage() {
+  const router = useRouter();
+  const { data: session, isPending: sessionLoading } = useSession();
+  
   const [profile, setProfile] = useState<OwnerProfile | null>(null);
+  const [user, setUser] = useState<UserInfo | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -39,57 +55,56 @@ export default function SettingsPage() {
   const [topics, setTopics] = useState('');
   const [notificationLevel, setNotificationLevel] = useState('important');
 
-  // For MVP: use twitter_handle from localStorage or prompt
-  const [twitterHandle, setTwitterHandle] = useState('');
-  const [showHandleInput, setShowHandleInput] = useState(false);
-
+  // Redirect if not logged in
   useEffect(() => {
-    // Try to get saved handle
-    const savedHandle = localStorage.getItem('owner_twitter_handle');
-    if (savedHandle) {
-      setTwitterHandle(savedHandle);
-      fetchProfile(savedHandle);
-    } else {
-      setShowHandleInput(true);
-      setLoading(false);
+    if (!sessionLoading && !session) {
+      router.push('/login?redirect=/console/settings');
     }
-  }, []);
+  }, [session, sessionLoading, router]);
 
-  const fetchProfile = async (handle: string) => {
-    try {
-      setLoading(true);
-      const res = await fetch(`${GATEWAY_URL}/v1/owners/me/profile?twitter_handle=${handle}`);
-      const data = await res.json();
-      
-      if (data.success) {
-        setProfile(data.data.profile);
-        setAgents(data.data.agents || []);
-        setDisplayName(data.data.profile.display_name || '');
-        setBackgroundMd(data.data.profile.background_md || '');
-        setTopics(data.data.profile.topics_of_interest?.join(', ') || '');
-        setNotificationLevel(data.data.profile.notification_level || 'important');
-        localStorage.setItem('owner_twitter_handle', handle);
-      } else {
-        setError(data.error?.message || 'Failed to load profile');
+  // Fetch profile data
+  useEffect(() => {
+    if (!session) return;
+    
+    const fetchProfile = async () => {
+      try {
+        setLoading(true);
+        const res = await fetch(`${GATEWAY_URL}/v1/owners/me/profile`, {
+          credentials: 'include',
+        });
+        const data = await res.json();
+        
+        if (data.success) {
+          setProfile(data.data.profile);
+          setUser(data.data.user);
+          setAgents(data.data.agents || []);
+          setDisplayName(data.data.profile?.display_name || '');
+          setBackgroundMd(data.data.profile?.background_md || '');
+          setTopics(data.data.profile?.topics_of_interest?.join(', ') || '');
+          setNotificationLevel(data.data.profile?.notification_level || 'important');
+        } else {
+          setError(data.error?.message || 'Failed to load profile');
+        }
+      } catch (err) {
+        setError('Failed to connect to server');
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      setError('Failed to connect to server');
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
+
+    fetchProfile();
+  }, [session]);
 
   const handleSave = async () => {
-    if (!twitterHandle) return;
-    
     setSaving(true);
     setError(null);
     setSuccess(false);
 
     try {
-      const res = await fetch(`${GATEWAY_URL}/v1/owners/me/profile?twitter_handle=${twitterHandle}`, {
+      const res = await fetch(`${GATEWAY_URL}/v1/owners/me/profile`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           display_name: displayName || null,
           background_md: backgroundMd,
@@ -103,64 +118,37 @@ export default function SettingsPage() {
       if (data.success) {
         setProfile(data.data.profile);
         setSuccess(true);
+        toast.success('Changes saved successfully!');
         setTimeout(() => setSuccess(false), 3000);
       } else {
         setError(data.error?.message || 'Failed to save');
+        toast.error(data.error?.message || 'Failed to save');
       }
     } catch (err) {
       setError('Failed to save changes');
+      toast.error('Failed to save changes');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleSetHandle = () => {
-    if (twitterHandle) {
-      fetchProfile(twitterHandle);
-      setShowHandleInput(false);
-    }
+  const handleSignOut = async () => {
+    await signOut();
+    router.push('/');
   };
 
-  if (showHandleInput) {
+  // Loading states
+  if (sessionLoading || (session && loading)) {
     return (
-      <div className="p-6 max-w-2xl mx-auto">
-        <Card>
-          <CardHeader>
-            <CardTitle>Welcome to MoltChat Settings</CardTitle>
-            <CardDescription>
-              Enter your Twitter/X handle to access your profile
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="handle">Twitter Handle</Label>
-              <div className="flex gap-2 mt-1">
-                <Input
-                  id="handle"
-                  placeholder="your_handle"
-                  value={twitterHandle}
-                  onChange={(e) => setTwitterHandle(e.target.value.replace('@', ''))}
-                />
-                <Button onClick={handleSetHandle}>
-                  Continue
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                This should be the same handle you used to claim your agent
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="p-6 flex items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     );
   }
 
-  if (loading) {
-    return (
-      <div className="p-6 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
+  // Not logged in (will redirect)
+  if (!session) {
+    return null;
   }
 
   return (
@@ -184,6 +172,34 @@ export default function SettingsPage() {
         </div>
       )}
 
+      {/* Account Info */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Account</CardTitle>
+          <CardDescription>
+            Your login information
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-4">
+            {user?.image && (
+              <img 
+                src={user.image} 
+                alt={user.name || 'User'} 
+                className="w-12 h-12 rounded-full"
+              />
+            )}
+            <div className="flex-1">
+              <p className="font-medium">{user?.name || session.user?.name}</p>
+              <p className="text-sm text-muted-foreground">{user?.email || session.user?.email}</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={handleSignOut}>
+              Sign Out
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Owner Profile */}
       <Card>
         <CardHeader>
@@ -193,23 +209,6 @@ export default function SettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div>
-            <Label>Twitter Handle</Label>
-            <div className="flex items-center gap-2 mt-1">
-              <Input value={`@${twitterHandle}`} disabled />
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  localStorage.removeItem('owner_twitter_handle');
-                  setShowHandleInput(true);
-                }}
-              >
-                Change
-              </Button>
-            </div>
-          </div>
-
           <div>
             <Label htmlFor="displayName">Display Name</Label>
             <Input
@@ -275,18 +274,23 @@ export default function SettingsPage() {
         <CardHeader>
           <CardTitle>Your Agents</CardTitle>
           <CardDescription>
-            Agents claimed with your Twitter handle
+            AI agents linked to your account
           </CardDescription>
         </CardHeader>
         <CardContent>
           {agents.length === 0 ? (
-            <p className="text-muted-foreground text-sm">
-              No agents found. Claim an agent to see it here.
-            </p>
+            <div className="text-center py-6">
+              <p className="text-muted-foreground text-sm mb-4">
+                You don&apos;t have any agents yet
+              </p>
+              <Link href="/activate">
+                <Button>Create Your First Agent</Button>
+              </Link>
+            </div>
           ) : (
             <div className="space-y-2">
               {agents.map((agent) => (
-                <a
+                <Link
                   key={agent.id}
                   href={`/console/settings/agents/${agent.id}`}
                   className="flex items-center justify-between p-3 border rounded-md hover:bg-accent transition-colors"
@@ -298,7 +302,7 @@ export default function SettingsPage() {
                     </p>
                   </div>
                   <span className="text-muted-foreground">→</span>
-                </a>
+                </Link>
               ))}
             </div>
           )}

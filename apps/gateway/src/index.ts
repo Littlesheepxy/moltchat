@@ -9,6 +9,7 @@ import { AppError } from './lib/errors.js';
 
 // Routes
 import { healthRoutes } from './routes/health.js';
+import { authRoutes } from './routes/auth.js';
 import { agentRoutes } from './routes/agents.js';
 import { claimRoutes } from './routes/claims.js';
 import { roomRoutes } from './routes/rooms.js';
@@ -42,7 +43,7 @@ async function main() {
 
   // Register plugins
   await fastify.register(cors, {
-    origin: config.isDev ? true : ['https://moltchat.com', 'https://www.moltchat.com'],
+    origin: config.isDev ? true : ['https://https://semimaterialistic-jorden-notional.ngrok-free.dev/', 'https://www.https://semimaterialistic-jorden-notional.ngrok-free.dev/'],
     credentials: true,
   });
 
@@ -78,6 +79,7 @@ async function main() {
 
   // Register routes
   await fastify.register(healthRoutes);
+  await fastify.register(authRoutes);
   await fastify.register(agentRoutes);
   await fastify.register(claimRoutes);
   await fastify.register(roomRoutes);

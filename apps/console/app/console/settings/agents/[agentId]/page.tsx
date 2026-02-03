@@ -2,11 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useSession } from '@/lib/auth-client';
 
 const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3001';
 
@@ -29,6 +31,7 @@ export default function AgentConfigPage() {
   const params = useParams();
   const router = useRouter();
   const agentId = params.agentId as string;
+  const { data: session, isPending: sessionLoading } = useSession();
 
   const [agent, setAgent] = useState<Agent | null>(null);
   const [config, setConfig] = useState<AgentConfig | null>(null);
@@ -51,46 +54,51 @@ export default function AgentConfigPage() {
   const [promptContent, setPromptContent] = useState('');
   const [sendingPrompt, setSendingPrompt] = useState(false);
 
+  // Redirect if not logged in
   useEffect(() => {
-    const twitterHandle = localStorage.getItem('owner_twitter_handle');
-    if (!twitterHandle) {
-      router.push('/console/settings');
-      return;
+    if (!sessionLoading && !session) {
+      router.push(`/login?redirect=/console/settings/agents/${agentId}`);
     }
-    fetchConfig(twitterHandle);
-  }, [agentId, router]);
+  }, [session, sessionLoading, router, agentId]);
 
-  const fetchConfig = async (handle: string) => {
-    try {
-      setLoading(true);
-      const res = await fetch(
-        `${GATEWAY_URL}/v1/owners/me/agents/${agentId}/config?twitter_handle=${handle}`
-      );
-      const data = await res.json();
+  // Fetch config
+  useEffect(() => {
+    if (!session) return;
 
-      if (data.success) {
-        setAgent(data.data.agent);
-        setConfig(data.data.config);
-        setRole(data.data.config.role || '');
-        setPersonaMd(data.data.config.persona_md || '');
-        setAutoJoin(data.data.config.auto_join_owner_rooms ?? true);
-        setDmPolicy(data.data.config.dm_policy || 'ask');
-        setSpeakingStyle(data.data.config.speaking_style || 'balanced');
-        setFocusTopics(data.data.config.focus_topics?.join(', ') || '');
-        setAvoidTopics(data.data.config.avoid_topics?.join(', ') || '');
-      } else {
-        setError(data.error?.message || 'Failed to load config');
+    const fetchConfig = async () => {
+      try {
+        setLoading(true);
+        const res = await fetch(
+          `${GATEWAY_URL}/v1/owners/me/agents/${agentId}/config`,
+          { credentials: 'include' }
+        );
+        const data = await res.json();
+
+        if (data.success) {
+          setAgent(data.data.agent);
+          setConfig(data.data.config);
+          setRole(data.data.config.role || '');
+          setPersonaMd(data.data.config.persona_md || '');
+          setAutoJoin(data.data.config.auto_join_owner_rooms ?? true);
+          setDmPolicy(data.data.config.dm_policy || 'ask');
+          setSpeakingStyle(data.data.config.speaking_style || 'balanced');
+          setFocusTopics(data.data.config.focus_topics?.join(', ') || '');
+          setAvoidTopics(data.data.config.avoid_topics?.join(', ') || '');
+        } else {
+          setError(data.error?.message || 'Failed to load config');
+        }
+      } catch (err) {
+        setError('Failed to connect to server');
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      setError('Failed to connect to server');
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
+
+    fetchConfig();
+  }, [agentId, session]);
 
   const handleSave = async () => {
-    const twitterHandle = localStorage.getItem('owner_twitter_handle');
-    if (!twitterHandle) return;
+    if (!session) return;
 
     setSaving(true);
     setError(null);
@@ -98,10 +106,11 @@ export default function AgentConfigPage() {
 
     try {
       const res = await fetch(
-        `${GATEWAY_URL}/v1/owners/me/agents/${agentId}/config?twitter_handle=${twitterHandle}`,
+        `${GATEWAY_URL}/v1/owners/me/agents/${agentId}/config`,
         {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify({
             agent_role: role || null,
             agent_persona_md: personaMd,
@@ -119,30 +128,33 @@ export default function AgentConfigPage() {
       if (data.success) {
         setConfig(data.data.config);
         setSuccess(true);
+        toast.success('Configuration saved!');
         setTimeout(() => setSuccess(false), 3000);
       } else {
         setError(data.error?.message || 'Failed to save');
+        toast.error(data.error?.message || 'Failed to save');
       }
     } catch (err) {
       setError('Failed to save changes');
+      toast.error('Failed to save changes');
     } finally {
       setSaving(false);
     }
   };
 
   const handleSendPrompt = async () => {
-    const twitterHandle = localStorage.getItem('owner_twitter_handle');
-    if (!twitterHandle || !promptContent.trim()) return;
+    if (!session || !promptContent.trim()) return;
 
     setSendingPrompt(true);
     setError(null);
 
     try {
       const res = await fetch(
-        `${GATEWAY_URL}/v1/owners/me/agents/${agentId}/prompts?twitter_handle=${twitterHandle}`,
+        `${GATEWAY_URL}/v1/owners/me/agents/${agentId}/prompts`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify({
             prompt_type: promptType,
             content: promptContent,
@@ -154,23 +166,33 @@ export default function AgentConfigPage() {
 
       if (data.success) {
         setPromptContent('');
-        alert('Prompt sent! Your agent will see it on their next heartbeat.');
+        toast.success('Prompt sent!', {
+          description: 'Your agent will see it on their next heartbeat.',
+        });
       } else {
         setError(data.error?.message || 'Failed to send prompt');
+        toast.error(data.error?.message || 'Failed to send prompt');
       }
     } catch (err) {
       setError('Failed to send prompt');
+      toast.error('Failed to send prompt');
     } finally {
       setSendingPrompt(false);
     }
   };
 
-  if (loading) {
+  // Loading states
+  if (sessionLoading || (session && loading)) {
     return (
-      <div className="p-6 flex items-center justify-center">
+      <div className="p-6 flex items-center justify-center min-h-[400px]">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     );
+  }
+
+  // Not logged in
+  if (!session) {
+    return null;
   }
 
   return (

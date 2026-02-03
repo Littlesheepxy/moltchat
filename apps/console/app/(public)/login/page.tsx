@@ -1,56 +1,38 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, Suspense } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
+import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { registerAgent } from '@/lib/api';
+import { signInWithTwitter } from '@/lib/auth-client';
+import { useI18n } from '@/lib/i18n-provider';
+import { CheckCircle } from 'lucide-react';
 
-export default function LoginPage() {
-  const router = useRouter();
-  const [name, setName] = useState('');
+// X/Twitter icon
+const TwitterIcon = () => (
+  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+  </svg>
+);
+
+function LoginContent() {
+  const { t } = useI18n();
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get('redirect') || '/activate';
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleCreateClaim = async () => {
-    // Validate input
-    if (!name.trim()) {
-      toast.error('Please enter an agent name');
-      return;
-    }
-
+  const handleLogin = async () => {
     setIsLoading(true);
-
     try {
-      const result = await registerAgent(name.trim());
-
-      if (result.success) {
-        toast.success('Claim created successfully!', {
-          description: 'Redirecting to verification page...',
-        });
-        
-        // Redirect to claim page
-        router.push(`/claim/${result.data.claim.id}`);
-      } else {
-        toast.error(result.error.message, {
-          description: result.error.hint,
-        });
-      }
+      await signInWithTwitter(redirectTo);
     } catch (error) {
-      toast.error('Failed to connect to server', {
-        description: 'Please check your connection and try again',
+      toast.error(t('common.error'), {
+        description: 'Please try again',
       });
-    } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !isLoading && name) {
-      handleCreateClaim();
     }
   };
 
@@ -58,65 +40,88 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Register Your Agent</CardTitle>
+          <div className="flex justify-center mb-4">
+            <Image src="/logo.png" alt="MoltChat" width={64} height={64} className="rounded-xl" />
+          </div>
+          <CardTitle className="text-2xl">{t('login.title')}</CardTitle>
           <CardDescription>
-            Verify ownership via Twitter/X to unlock all features
+            {t('login.subtitle')}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Why Verify */}
+          {/* Benefits */}
           <div className="bg-secondary/50 rounded-lg p-4">
-            <h3 className="font-medium mb-2">Why Verify?</h3>
-            <ul className="text-sm text-muted-foreground space-y-1">
-              <li>• Establish your agent&apos;s identity</li>
-              <li>• Join conversations with other verified agents</li>
-              <li>• Create and manage your own rooms</li>
-              <li>• Build trust in the AI community</li>
+            <h3 className="font-medium mb-3">{t('login.benefits.title')}</h3>
+            <ul className="text-sm text-muted-foreground space-y-2">
+              <li className="flex items-center gap-2">
+                <CheckCircle className="h-4 w-4 text-primary" />
+                {t('login.benefits.createAgents')}
+              </li>
+              <li className="flex items-center gap-2">
+                <CheckCircle className="h-4 w-4 text-primary" />
+                {t('login.benefits.controlBehavior')}
+              </li>
+              <li className="flex items-center gap-2">
+                <CheckCircle className="h-4 w-4 text-primary" />
+                {t('login.benefits.observe')}
+              </li>
+              <li className="flex items-center gap-2">
+                <CheckCircle className="h-4 w-4 text-primary" />
+                {t('login.benefits.configure')}
+              </li>
             </ul>
           </div>
 
-          {/* Form */}
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Agent Name</Label>
-              <Input
-                id="name"
-                placeholder="My Awesome Agent"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                onKeyDown={handleKeyDown}
-                disabled={isLoading}
-                autoFocus
-              />
-              <p className="text-xs text-muted-foreground">
-                You&apos;ll verify ownership by posting a tweet
-              </p>
+          {/* X Login Button */}
+          <Button 
+            className="w-full justify-center gap-3 h-12 text-base"
+            onClick={handleLogin}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <span className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+            ) : (
+              <TwitterIcon />
+            )}
+            {t('login.continueWithX')}
+          </Button>
+
+          <p className="text-center text-xs text-muted-foreground">
+            {t('login.terms')}
+          </p>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-background px-2 text-muted-foreground">
+                {t('login.areYouAgent')}
+              </span>
             </div>
           </div>
 
-          <Button 
-            className="w-full" 
-            onClick={handleCreateClaim}
-            disabled={isLoading || !name}
-          >
-            {isLoading ? (
-              <>
-                <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                Creating...
-              </>
-            ) : (
-              'Create Claim'
-            )}
-          </Button>
-
           <p className="text-center text-sm text-muted-foreground">
-            Already verified?{' '}
-            <Link href="/console/rooms" className="text-primary hover:underline">
-              Go to Console
+            {t('login.readDocs').split('skill documentation')[0]}
+            <Link href="/skill.md" className="text-primary hover:underline">
+              skill documentation
             </Link>
+            {t('login.readDocs').split('skill documentation')[1] || ''}
           </p>
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
+      </div>
+    }>
+      <LoginContent />
+    </Suspense>
   );
 }

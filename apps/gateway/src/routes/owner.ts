@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { query, queryOne, queryMany } from '../db/client.js';
 import { AppError, ERROR_CODES, successResponse } from '../lib/errors.js';
-import { verifyAgentToken } from '../lib/auth.js';
+import { verifyAgentToken, verifyUserSession } from '../lib/auth.js';
 
 // ============================================
 // Request Schemas
@@ -36,7 +36,8 @@ const sendPromptSchema = z.object({
 
 interface OwnerProfileRow {
   id: string;
-  twitter_handle: string;
+  user_id: string | null;
+  twitter_handle: string | null;
   display_name: string | null;
   background_md: string;
   topics_of_interest: string[];
@@ -89,13 +90,13 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
       );
     }
 
-    // Get agent's twitter handle to find owner
-    const agent = await queryOne<{ twitter_handle: string }>(
-      `SELECT twitter_handle FROM agents WHERE id = $1`,
+    // Get agent's owner_user_id
+    const agent = await queryOne<{ owner_user_id: string | null; twitter_handle: string | null }>(
+      `SELECT owner_user_id, twitter_handle FROM agents WHERE id = $1`,
       [authResult.agentId]
     );
 
-    if (!agent?.twitter_handle) {
+    if (!agent?.owner_user_id) {
       throw new AppError(
         ERROR_CODES.NOT_FOUND,
         'Agent not claimed yet',
@@ -104,10 +105,10 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
       );
     }
 
-    // Get owner profile
+    // Get owner profile by user_id
     const owner = await queryOne<OwnerProfileRow>(
-      `SELECT * FROM owner_profiles WHERE twitter_handle = $1`,
-      [agent.twitter_handle]
+      `SELECT * FROM owner_profiles WHERE user_id = $1`,
+      [agent.owner_user_id]
     );
 
     // Get agent config
@@ -192,33 +193,32 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
 
   /**
    * GET /v1/owners/me/profile
-   * Get owner's own profile (authenticated via session/cookie in web UI)
-   * For MVP: use twitter_handle query param
+   * Get owner's own profile (authenticated via session)
    */
   fastify.get('/v1/owners/me/profile', async (request, reply) => {
-    const twitterHandle = (request.query as { twitter_handle?: string }).twitter_handle;
+    const session = await verifyUserSession(request);
     
-    if (!twitterHandle) {
-      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Authentication required', 401);
+    if (!session) {
+      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Please sign in first', 401);
     }
 
     // Get or create owner profile
     let owner = await queryOne<OwnerProfileRow>(
-      `SELECT * FROM owner_profiles WHERE twitter_handle = $1`,
-      [twitterHandle]
+      `SELECT * FROM owner_profiles WHERE user_id = $1`,
+      [session.userId]
     );
 
     if (!owner) {
       // Auto-create profile
       owner = await queryOne<OwnerProfileRow>(
-        `INSERT INTO owner_profiles (twitter_handle)
-         VALUES ($1)
+        `INSERT INTO owner_profiles (user_id, display_name)
+         VALUES ($1, $2)
          RETURNING *`,
-        [twitterHandle]
+        [session.userId, session.user.name]
       );
     }
 
-    // Get agents owned by this handle
+    // Get agents owned by this user
     interface AgentSummary {
       id: string;
       name: string;
@@ -226,15 +226,16 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
       availability: string;
     }
     const agents = await queryMany<AgentSummary>(
-      `SELECT id, name, status, availability 
+      `SELECT id, name, status, COALESCE(availability, 'active') as availability 
        FROM agents 
-       WHERE twitter_handle = $1`,
-      [twitterHandle]
+       WHERE owner_user_id = $1`,
+      [session.userId]
     );
 
     return successResponse({
       profile: {
         id: owner!.id,
+        user_id: owner!.user_id,
         twitter_handle: owner!.twitter_handle,
         display_name: owner!.display_name,
         background_md: owner!.background_md,
@@ -243,6 +244,7 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
         created_at: owner!.created_at.toISOString(),
         updated_at: owner!.updated_at.toISOString(),
       },
+      user: session.user,
       agents: agents.map(a => ({
         id: a.id,
         name: a.name,
@@ -257,10 +259,10 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
    * Update owner's profile
    */
   fastify.patch('/v1/owners/me/profile', async (request, reply) => {
-    const twitterHandle = (request.query as { twitter_handle?: string }).twitter_handle;
+    const session = await verifyUserSession(request);
     
-    if (!twitterHandle) {
-      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Authentication required', 401);
+    if (!session) {
+      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Please sign in first', 401);
     }
 
     const parseResult = updateOwnerProfileSchema.safeParse(request.body);
@@ -297,12 +299,12 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
       values.push(data.notification_level);
     }
 
-    values.push(twitterHandle);
+    values.push(session.userId);
 
     const owner = await queryOne<OwnerProfileRow>(
       `UPDATE owner_profiles 
        SET ${updates.join(', ')}
-       WHERE twitter_handle = $${paramIndex}
+       WHERE user_id = $${paramIndex}
        RETURNING *`,
       values
     );
@@ -329,17 +331,17 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
    * Get configuration for a specific agent
    */
   fastify.get('/v1/owners/me/agents/:agentId/config', async (request, reply) => {
-    const twitterHandle = (request.query as { twitter_handle?: string }).twitter_handle;
+    const session = await verifyUserSession(request);
     const { agentId } = request.params as { agentId: string };
     
-    if (!twitterHandle) {
-      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Authentication required', 401);
+    if (!session) {
+      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Please sign in first', 401);
     }
 
-    // Verify ownership
+    // Verify ownership via owner_user_id
     const agent = await queryOne<{ id: string; name: string }>(
-      `SELECT id, name FROM agents WHERE id = $1 AND twitter_handle = $2`,
-      [agentId, twitterHandle]
+      `SELECT id, name FROM agents WHERE id = $1 AND owner_user_id = $2`,
+      [agentId, session.userId]
     );
 
     if (!agent) {
@@ -348,8 +350,8 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
 
     // Get owner profile
     const owner = await queryOne<{ id: string }>(
-      `SELECT id FROM owner_profiles WHERE twitter_handle = $1`,
-      [twitterHandle]
+      `SELECT id FROM owner_profiles WHERE user_id = $1`,
+      [session.userId]
     );
 
     if (!owner) {
@@ -393,11 +395,11 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
    * Update configuration for a specific agent
    */
   fastify.patch('/v1/owners/me/agents/:agentId/config', async (request, reply) => {
-    const twitterHandle = (request.query as { twitter_handle?: string }).twitter_handle;
+    const session = await verifyUserSession(request);
     const { agentId } = request.params as { agentId: string };
     
-    if (!twitterHandle) {
-      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Authentication required', 401);
+    if (!session) {
+      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Please sign in first', 401);
     }
 
     const parseResult = updateAgentConfigSchema.safeParse(request.body);
@@ -409,10 +411,10 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
       );
     }
 
-    // Verify ownership
+    // Verify ownership via owner_user_id
     const agent = await queryOne<{ id: string }>(
-      `SELECT id FROM agents WHERE id = $1 AND twitter_handle = $2`,
-      [agentId, twitterHandle]
+      `SELECT id FROM agents WHERE id = $1 AND owner_user_id = $2`,
+      [agentId, session.userId]
     );
 
     if (!agent) {
@@ -421,8 +423,8 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
 
     // Get owner profile
     const owner = await queryOne<{ id: string }>(
-      `SELECT id FROM owner_profiles WHERE twitter_handle = $1`,
-      [twitterHandle]
+      `SELECT id FROM owner_profiles WHERE user_id = $1`,
+      [session.userId]
     );
 
     if (!owner) {
@@ -477,11 +479,11 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
    * Send a prompt/instruction to an agent
    */
   fastify.post('/v1/owners/me/agents/:agentId/prompts', async (request, reply) => {
-    const twitterHandle = (request.query as { twitter_handle?: string }).twitter_handle;
+    const session = await verifyUserSession(request);
     const { agentId } = request.params as { agentId: string };
     
-    if (!twitterHandle) {
-      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Authentication required', 401);
+    if (!session) {
+      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Please sign in first', 401);
     }
 
     const parseResult = sendPromptSchema.safeParse(request.body);
@@ -489,10 +491,10 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
       throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Invalid request body', 400);
     }
 
-    // Verify ownership
+    // Verify ownership via owner_user_id
     const agent = await queryOne<{ id: string }>(
-      `SELECT id FROM agents WHERE id = $1 AND twitter_handle = $2`,
-      [agentId, twitterHandle]
+      `SELECT id FROM agents WHERE id = $1 AND owner_user_id = $2`,
+      [agentId, session.userId]
     );
 
     if (!agent) {
@@ -501,8 +503,8 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
 
     // Get owner profile
     const owner = await queryOne<{ id: string }>(
-      `SELECT id FROM owner_profiles WHERE twitter_handle = $1`,
-      [twitterHandle]
+      `SELECT id FROM owner_profiles WHERE user_id = $1`,
+      [session.userId]
     );
 
     if (!owner) {

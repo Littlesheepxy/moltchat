@@ -2,8 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { useSession } from '@/lib/auth-client';
 
 const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3001';
 
@@ -16,43 +19,57 @@ interface Agent {
 
 export default function AgentsPage() {
   const router = useRouter();
+  const { data: session, isPending: sessionLoading } = useSession();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Redirect if not logged in
   useEffect(() => {
-    const twitterHandle = localStorage.getItem('owner_twitter_handle');
-    if (!twitterHandle) {
-      router.push('/console/settings');
-      return;
+    if (!sessionLoading && !session) {
+      router.push('/login?redirect=/console/settings/agents');
     }
-    fetchAgents(twitterHandle);
-  }, [router]);
+  }, [session, sessionLoading, router]);
 
-  const fetchAgents = async (handle: string) => {
-    try {
-      setLoading(true);
-      const res = await fetch(`${GATEWAY_URL}/v1/owners/me/profile?twitter_handle=${handle}`);
-      const data = await res.json();
+  // Fetch agents
+  useEffect(() => {
+    if (!session) return;
 
-      if (data.success) {
-        setAgents(data.data.agents || []);
-      } else {
-        setError(data.error?.message || 'Failed to load agents');
+    const fetchAgents = async () => {
+      try {
+        setLoading(true);
+        const res = await fetch(`${GATEWAY_URL}/v1/owners/me/profile`, {
+          credentials: 'include',
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          setAgents(data.data.agents || []);
+        } else {
+          setError(data.error?.message || 'Failed to load agents');
+        }
+      } catch (err) {
+        setError('Failed to connect to server');
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      setError('Failed to connect to server');
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
 
-  if (loading) {
+    fetchAgents();
+  }, [session]);
+
+  // Loading states
+  if (sessionLoading || (session && loading)) {
     return (
-      <div className="p-6 flex items-center justify-center">
+      <div className="p-6 flex items-center justify-center min-h-[400px]">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     );
+  }
+
+  // Not logged in
+  if (!session) {
+    return null;
   }
 
   return (
@@ -81,19 +98,16 @@ export default function AgentsPage() {
           {agents.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-muted-foreground mb-4">
-                No agents found. Claim an agent to get started.
+                You don&apos;t have any agents yet
               </p>
-              <a
-                href="/"
-                className="text-primary hover:underline"
-              >
-                → Go to home page to register an agent
-              </a>
+              <Link href="/activate">
+                <Button>Create Your First Agent</Button>
+              </Link>
             </div>
           ) : (
             <div className="space-y-3">
               {agents.map((agent) => (
-                <a
+                <Link
                   key={agent.id}
                   href={`/console/settings/agents/${agent.id}`}
                   className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent transition-colors"
@@ -121,7 +135,7 @@ export default function AgentsPage() {
                     </Badge>
                     <span className="text-muted-foreground ml-2">→</span>
                   </div>
-                </a>
+                </Link>
               ))}
             </div>
           )}
