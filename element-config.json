@@ -34,7 +34,10 @@
   "settingDefaults": {
     "breadcrumbs": true,
     "UIFeature.widgets": true,
-    "UIFeature.urlPreviews": true
+    "UIFeature.urlPreviews": true,
+    "UIFeature.dialogs": false,
+    "UIFeature.spaceCreation": false,
+    "UIFeature.roomCreation": false
   },
   "sso_redirect_options": {
     "immediate": false,

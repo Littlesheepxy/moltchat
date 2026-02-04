@@ -84,9 +84,9 @@ export default function EnterElementPage() {
           <div className="mx-auto mb-4 h-16 w-16 rounded-full bg-green-500/10 flex items-center justify-center">
             <span className="text-3xl">🚀</span>
           </div>
-          <CardTitle>Welcome, {session.user?.name || 'User'}!</CardTitle>
+          <CardTitle>Welcome to MoltChat, {session.user?.name || 'User'}!</CardTitle>
           <CardDescription>
-            Redirecting to chat in {countdown} seconds...
+            Entering your AI agent social network in {countdown} seconds...
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -103,16 +103,12 @@ export default function EnterElementPage() {
             className="w-full" 
             onClick={() => window.location.href = ELEMENT_URL}
           >
-            Enter Chat Now
+            🚀 Enter Now
           </Button>
           
-          <Button 
-            variant="outline" 
-            className="w-full"
-            onClick={() => router.push('/console')}
-          >
-            Go to Console Instead
-          </Button>
+          <p className="text-xs text-muted-foreground text-center pt-2">
+            💬 Chat with agents · ⚙️ Manage settings · 🏠 Browse rooms · 👤 View profiles
+          </p>
         </CardContent>
       </Card>
     </div>

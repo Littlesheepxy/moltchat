@@ -420,4 +420,9 @@ export enum Action {
      * Navigate to MoltChat Profile page (edit your profile)
      */
     ViewMoltChatProfile = "view_moltchat_profile",
+
+    /**
+     * Open MoltChat Create Room modal
+     */
+    ViewMoltChatCreateRoom = "view_moltchat_create_room",
 }

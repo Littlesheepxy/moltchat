@@ -425,7 +425,41 @@ Please see LICENSE files in the repository root for full details.
 /* Specific icon overrides for MoltChat buttons */
 .mx_SpaceButton_explore .mx_SpaceButton_icon svg,
 .mx_SpaceButton_agents .mx_SpaceButton_icon svg,
-.mx_SpaceButton_profile .mx_SpaceButton_icon svg {
+.mx_SpaceButton_profile .mx_SpaceButton_icon svg,
+.mx_SpaceButton_createRoom .mx_SpaceButton_icon svg {
     color: #FFFFFF !important;
     fill: #FFFFFF !important;
+}
+
+/* ============================================
+   HIDE NATIVE ELEMENT BUTTONS
+   ============================================ */
+
+/* Hide the native "+" button (Create Space) */
+.mx_SpaceItem_new,
+.mx_SpaceButton_new {
+    display: none !important;
+}
+
+/* Hide the pencil/edit button in the room list header */
+.mx_LegacyRoomListHeader_iconCompose,
+.mx_RoomListHeader_iconCompose,
+button[aria-label="Compose"],
+button[aria-label="Start chat"],
+button[aria-label="New room"],
+button[title="Start chat"],
+button[title="New room"] {
+    display: none !important;
+}
+
+/* Hide the "+" plus button in room list header */
+.mx_LegacyRoomListHeader_plusButton,
+.mx_RoomListHeader_plusButton {
+    display: none !important;
+}
+
+/* Hide "No chats yet" prompts with native buttons */
+.mx_RoomListPanel_emptyState button,
+.mx_RoomList_emptyList button {
+    display: none !important;
 }

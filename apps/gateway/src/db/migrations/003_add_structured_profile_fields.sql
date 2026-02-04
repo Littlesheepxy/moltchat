@@ -3,21 +3,25 @@
 -- Description: Add structured fields (industry, company, job_title, location) to owner_profiles
 
 -- ============================================
--- 1. Add New Columns
+-- 1. Add New Columns (idempotent)
 -- ============================================
 
-ALTER TABLE owner_profiles 
-  -- 重命名现有字段
-  RENAME COLUMN background_md TO bio_md;
+-- Safely rename column if it exists
+DO $$ 
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns 
+             WHERE table_name = 'owner_profiles' AND column_name = 'background_md') THEN
+    ALTER TABLE owner_profiles RENAME COLUMN background_md TO bio_md;
+  END IF;
+END $$;
 
+-- Add new columns (will skip if they already exist)
 ALTER TABLE owner_profiles
-  -- 基本结构化字段
+  ADD COLUMN IF NOT EXISTS bio_md TEXT,
   ADD COLUMN IF NOT EXISTS industry VARCHAR(100),
   ADD COLUMN IF NOT EXISTS company VARCHAR(255),
   ADD COLUMN IF NOT EXISTS job_title VARCHAR(255),
   ADD COLUMN IF NOT EXISTS location VARCHAR(255),
-  
-  -- 补充字段
   ADD COLUMN IF NOT EXISTS years_experience INT,
   ADD COLUMN IF NOT EXISTS education_level VARCHAR(50),
   ADD COLUMN IF NOT EXISTS website_url VARCHAR(500),
@@ -27,12 +31,24 @@ ALTER TABLE owner_profiles
 -- 2. Add Constraints
 -- ============================================
 
+-- Drop constraints if they exist (to make migration idempotent)
+DO $$ 
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'valid_education_level') THEN
+    ALTER TABLE owner_profiles DROP CONSTRAINT valid_education_level;
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'valid_years_experience') THEN
+    ALTER TABLE owner_profiles DROP CONSTRAINT valid_years_experience;
+  END IF;
+END $$;
+
+-- Add constraints
 ALTER TABLE owner_profiles
-  ADD CONSTRAINT IF NOT EXISTS valid_education_level CHECK (
+  ADD CONSTRAINT valid_education_level CHECK (
     education_level IS NULL OR 
     education_level IN ('High School', 'Associate', 'Bachelor', 'Master', 'PhD', 'Other')
   ),
-  ADD CONSTRAINT IF NOT EXISTS valid_years_experience CHECK (
+  ADD CONSTRAINT valid_years_experience CHECK (
     years_experience IS NULL OR 
     (years_experience >= 0 AND years_experience <= 70)
   );
@@ -78,11 +94,13 @@ CREATE TRIGGER update_owner_profiles_updated_at
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================
--- 6. Verification
+-- 6. Verification (commented out - migrations should not return data)
 -- ============================================
 
--- 验证表结构
-SELECT column_name, data_type, character_maximum_length 
-FROM information_schema.columns 
-WHERE table_name = 'owner_profiles'
-ORDER BY ordinal_position;
+-- This query is for manual verification only
+-- Uncomment and run manually if needed:
+-- SELECT column_name, data_type, character_maximum_length 
+-- FROM information_schema.columns 
+-- WHERE table_name = 'owner_profiles'
+-- ORDER BY ordinal_position;
+

@@ -378,6 +378,38 @@ const ProfileButton: React.FC<MoltChatButtonProps> = ({ isPanelCollapsed, pageTy
     );
 };
 
+// Create Room Button - Opens the create room modal
+const CreateRoomButton: React.FC<MoltChatButtonProps> = ({ isPanelCollapsed }) => {
+    const handleClick = (): void => {
+        // First navigate to Explore page, then trigger create room modal
+        defaultDispatcher.dispatch({ action: Action.ViewMoltChatExplore });
+        // Small delay to ensure the page is loaded before opening modal
+        setTimeout(() => {
+            defaultDispatcher.dispatch({ action: Action.ViewMoltChatCreateRoom });
+        }, 100);
+    };
+
+    return (
+        <li
+            className={classNames("mx_SpaceItem mx_SpaceItem_moltchat", {
+                collapsed: isPanelCollapsed,
+            })}
+            role="treeitem"
+            aria-selected={false}
+        >
+            <SpaceButton
+                className="mx_SpaceButton_moltchat mx_SpaceButton_createRoom"
+                label="Create Room"
+                onClick={handleClick}
+                isNarrow={isPanelCollapsed}
+                size="32px"
+                selected={false}
+                icon={<PlusIcon />}
+            />
+        </li>
+    );
+};
+
 // MoltChat Buttons Group
 const MoltChatButtons: React.FC<{ isPanelCollapsed: boolean; pageType: string | null }> = ({
     isPanelCollapsed,
@@ -385,6 +417,7 @@ const MoltChatButtons: React.FC<{ isPanelCollapsed: boolean; pageType: string | 
 }) => {
     return (
         <>
+            <CreateRoomButton isPanelCollapsed={isPanelCollapsed} pageType={pageType} />
             <ExploreButton isPanelCollapsed={isPanelCollapsed} pageType={pageType} />
             <AgentsButton isPanelCollapsed={isPanelCollapsed} pageType={pageType} />
             <ProfileButton isPanelCollapsed={isPanelCollapsed} pageType={pageType} />

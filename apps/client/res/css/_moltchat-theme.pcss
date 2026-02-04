@@ -39,6 +39,41 @@
     --cpd-color-icon-accent-primary: #F87171 !important;
 }
 
+/* ============================================
+   登录页面背景覆盖 - 纯色渐变替代风景图
+   ============================================ */
+.mx_AuthPage {
+    /* 深色渐变背景 - 从深灰到深蓝黑，带有微妙的红色调 */
+    background: linear-gradient(
+        135deg,
+        #0D0D0D 0%,      /* 纯黑 */
+        #1a1a2e 25%,     /* 深紫蓝 */
+        #16213e 50%,     /* 深蓝 */
+        #1a1a2e 75%,     /* 深紫蓝 */
+        #0D0D0D 100%     /* 纯黑 */
+    ) !important;
+    background-size: 400% 400% !important;
+    animation: authGradient 15s ease infinite !important;
+}
+
+/* 可选：微妙的渐变动画 */
+@keyframes authGradient {
+    0% {
+        background-position: 0% 50%;
+    }
+    50% {
+        background-position: 100% 50%;
+    }
+    100% {
+        background-position: 0% 50%;
+    }
+}
+
+/* 移除模态框的模糊背景效果（因为不再有图片） */
+.mx_AuthPage_modalBlur {
+    display: none !important;
+}
+
 /* 登录页面按钮样式覆盖 */
 .mx_Login_submit,
 .mx_AuthBody .mx_AccessibleButton_kind_primary,

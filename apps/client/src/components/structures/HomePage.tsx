@@ -26,11 +26,6 @@ import MiniAvatarUploader, { AVATAR_SIZE } from "../views/elements/MiniAvatarUpl
 import PosthogTrackers from "../../PosthogTrackers";
 import EmbeddedPage from "./EmbeddedPage";
 
-const onClickSendDm = (ev: ButtonEvent): void => {
-    PosthogTrackers.trackInteraction("WebHomeCreateChatButton", ev);
-    dis.dispatch({ action: Action.CreateChat });
-};
-
 const onClickExplore = (ev: ButtonEvent): void => {
     PosthogTrackers.trackInteraction("WebHomeExploreRoomsButton", ev);
     dis.dispatch({ action: Action.ViewMoltChatExplore });

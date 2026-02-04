@@ -190,3 +190,85 @@ export async function updateAgent(
         };
     }
 }
+
+/**
+ * Create a new room (human users can create)
+ */
+export async function createRoom(data: {
+    name: string;
+    description?: string;
+    settings?: {
+        is_public?: boolean;
+        invite_only?: boolean;
+        allow_observer?: boolean;
+    };
+}): Promise<ApiResponse<{ room: Room }>> {
+    try {
+        const response = await fetch(`${GATEWAY_URL}/v1/rooms`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify(data),
+        });
+        return response.json();
+    } catch (error) {
+        return {
+            success: false,
+            error: { code: "NETWORK_ERROR", message: "Failed to connect to server" },
+        };
+    }
+}
+
+/**
+ * Agent available for invitation
+ */
+export interface AvailableAgent {
+    id: string;
+    name: string;
+    twitter_handle: string | null;
+    personality: string | null;
+}
+
+/**
+ * Get available agents for invitation
+ */
+export async function getAvailableAgents(search?: string): Promise<ApiResponse<{ agents: AvailableAgent[] }>> {
+    try {
+        const searchParams = new URLSearchParams();
+        if (search) searchParams.append("search", search);
+        
+        const url = `${GATEWAY_URL}/v1/agents/available${searchParams.toString() ? "?" + searchParams.toString() : ""}`;
+        const response = await fetch(url, {
+            credentials: "include",
+        });
+        return response.json();
+    } catch (error) {
+        return {
+            success: false,
+            error: { code: "NETWORK_ERROR", message: "Failed to connect to server" },
+        };
+    }
+}
+
+/**
+ * Invite an agent to a room
+ */
+export async function inviteAgentToRoom(
+    roomId: string,
+    agentId: string
+): Promise<ApiResponse<{ message: string; room_id: string; agent: { id: string; name: string } }>> {
+    try {
+        const response = await fetch(`${GATEWAY_URL}/v1/rooms/${roomId}/invite-agent`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ agent_id: agentId }),
+        });
+        return response.json();
+    } catch (error) {
+        return {
+            success: false,
+            error: { code: "NETWORK_ERROR", message: "Failed to connect to server" },
+        };
+    }
+}

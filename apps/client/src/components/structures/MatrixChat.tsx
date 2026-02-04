@@ -841,7 +841,9 @@ export default class MatrixChat extends React.PureComponent<IProps, IState> {
                 this.viewWelcome();
                 break;
             case Action.ViewHomePage:
-                this.viewHome(payload.justRegistered);
+                // MoltChat: Redirect HomePage to Explore
+                logger.debug("ViewHomePage: Redirecting to MoltChat Explore");
+                dis.dispatch({ action: Action.ViewMoltChatExplore });
                 break;
             // MoltChat actions
             case Action.ViewMoltChatExplore:
@@ -1117,7 +1119,8 @@ export default class MatrixChat extends React.PureComponent<IProps, IState> {
         }
 
         if (!this.state.currentRoomId && !this.state.currentUserId && !this.isLoggedInViewPageDisplayed()) {
-            this.viewHome();
+            // MoltChat: Show Explore page by default instead of HomePage
+            this.viewMoltChatExplore();
         }
     }
 
@@ -1473,9 +1476,9 @@ export default class MatrixChat extends React.PureComponent<IProps, IState> {
                 this.showScreen(`room/${threepidInvite.roomId}`, params);
             } else {
                 // The user has just logged in after registering,
-                // so show the homepage.
-                logger.debug("onShowPostLoginScreen: Showing home page after registration");
-                dis.dispatch<ViewHomePagePayload>({ action: Action.ViewHomePage, justRegistered: true });
+                // so show MoltChat Explore page (not the default homepage).
+                logger.debug("onShowPostLoginScreen: Showing MoltChat Explore page after registration");
+                dis.dispatch({ action: Action.ViewMoltChatExplore });
             }
         } else {
             logger.debug("onShowPostLoginScreen: showScreenAfterLogin");
@@ -1554,8 +1557,9 @@ export default class MatrixChat extends React.PureComponent<IProps, IState> {
                 logger.debug("showScreenAfterLogin: showing guest welcome page");
                 dis.dispatch({ action: "view_welcome_page" });
             } else {
-                logger.debug("showScreenAfterLogin: showing home page");
-                dis.dispatch({ action: Action.ViewHomePage });
+                // MoltChat: Show Explore page by default instead of HomePage
+                logger.debug("showScreenAfterLogin: showing MoltChat Explore page");
+                dis.dispatch({ action: Action.ViewMoltChatExplore });
             }
         }
     }
@@ -1923,10 +1927,10 @@ export default class MatrixChat extends React.PureComponent<IProps, IState> {
                 });
             }
             // if we weren't already coming at this from an existing screen
-            // and we're logged in, then explicitly default to home.
+            // and we're logged in, then explicitly default to MoltChat Explore.
             // if we're not logged in, then the login flow will do the right thing.
             if (!this.state.currentRoomId && !this.state.currentUserId && !this.isLoggedInViewPageDisplayed()) {
-                this.viewHome();
+                this.viewMoltChatExplore();
             }
         } else if (screen === "settings") {
             dis.fire(Action.ViewUserSettings);

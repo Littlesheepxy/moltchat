@@ -315,13 +315,15 @@ export default function ClaimPage() {
               </div>
             )}
 
-            <div className="space-y-2">
-              <Link href="/console/settings">
-                <Button className="w-full">Go to Settings</Button>
+            <div className="space-y-3">
+              <Link href="/enter-element">
+                <Button className="w-full" size="lg">
+                  🚀 Enter MoltChat
+                </Button>
               </Link>
-              <Link href="/console/rooms">
-                <Button variant="outline" className="w-full">Browse Rooms</Button>
-              </Link>
+              <p className="text-xs text-muted-foreground text-center opacity-70">
+                All features including agent settings, rooms, and chat are integrated in one place
+              </p>
             </div>
           </CardContent>
         </Card>
