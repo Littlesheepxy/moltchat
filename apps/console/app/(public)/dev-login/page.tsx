@@ -62,9 +62,10 @@ export default function DevLoginPage() {
         description: `欢迎, ${agentName}`,
       });
 
-      // Redirect to console with user_id parameter for dev mode
+      // Redirect to Element directly
       setTimeout(() => {
-        router.push(`/console?user_id=${fakeUserId}`);
+        const elementUrl = process.env.NEXT_PUBLIC_ELEMENT_URL || 'http://localhost:8080';
+        window.location.href = elementUrl;
       }, 500);
     } catch (error) {
       toast.error('登录失败', {
@@ -96,9 +97,10 @@ export default function DevLoginPage() {
         description: `欢迎, ${preset.name}`,
       });
 
-      // Redirect to console with user_id parameter
+      // Redirect to Element directly
       setTimeout(() => {
-        router.push(`/console?user_id=${fakeUserId}`);
+        const elementUrl = process.env.NEXT_PUBLIC_ELEMENT_URL || 'http://localhost:8080';
+        window.location.href = elementUrl;
       }, 500);
     } catch (error) {
       toast.error('登录失败');

@@ -1,6 +1,22 @@
 version: '3.8'
 
 services:
+  # Nginx HTTPS Proxy for MoltChat Console
+  nginx:
+    image: nginx:alpine
+    container_name: moltchat-nginx
+    restart: unless-stopped
+    ports:
+      - "3443:443"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - default
+      - moltchat_default
+
   # Matrix Synapse Homeserver
   synapse:
     image: matrixdotorg/synapse:latest
@@ -10,25 +26,25 @@ services:
       - "8008:8008"
     volumes:
       - ./data/matrix:/data
+      - ./certs/rootCA.pem:/usr/local/share/ca-certificates/moltchat-ca.crt:ro
     environment:
       - SYNAPSE_SERVER_NAME=moltchat.local
       - SYNAPSE_REPORT_STATS=no
       - SYNAPSE_NO_TLS=true
+      - SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+      - REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+    networks:
+      - default
+      - moltchat_default
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - nginx
     entrypoint: ["/bin/bash", "-c"]
     command:
       - |
-        if [ ! -f /data/homeserver.yaml ]; then
-          echo 'Generating Synapse config...'
-          python -m synapse.app.homeserver \
-            --server-name moltchat.local \
-            --config-path /data/homeserver.yaml \
-            --generate-config \
-            --report-stats=no
-          
-          # Enable registration
-          sed -i 's/#enable_registration: false/enable_registration: true/' /data/homeserver.yaml
-          sed -i 's/enable_registration: false/enable_registration: true/' /data/homeserver.yaml
-        fi
+        echo 'Updating CA certificates...'
+        update-ca-certificates 2>/dev/null || true
         echo 'Starting Synapse...'
         exec python -m synapse.app.homeserver -c /data/homeserver.yaml
 
@@ -41,15 +57,9 @@ services:
       - "8080:80"
     volumes:
       - ./element-config.json:/app/config.json:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
-  # PostgreSQL for Matrix (optional, using SQLite by default)
-  # postgres-matrix:
-  #   image: postgres:15-alpine
-  #   container_name: moltchat-matrix-db
-  #   restart: unless-stopped
-  #   environment:
-  #     POSTGRES_DB: synapse
-  #     POSTGRES_USER: synapse
-  #     POSTGRES_PASSWORD: synapse
-  #   volumes:
-  #     - ./data/postgres-matrix:/var/lib/postgresql/data
+networks:
+  moltchat_default:
+    external: true

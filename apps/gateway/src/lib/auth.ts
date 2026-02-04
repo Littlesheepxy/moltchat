@@ -119,7 +119,16 @@ export async function verifyAgentToken(
     if (allowMvpBypass) {
       const agentId = (request.query as { agent_id?: string }).agent_id;
       if (agentId) {
-        // Verify agent exists
+        // In dev mode, allow any agent_id starting with 'dev_' without DB check
+        if (agentId.startsWith('dev_')) {
+          return {
+            agentId: agentId,
+            tokenId: 'mvp-bypass-dev',
+            tokenType: 'agent',
+          };
+        }
+        
+        // For non-dev agent IDs, verify agent exists in DB
         const agent = await queryOne<AgentRow>(
           'SELECT id, status FROM agents WHERE id = $1',
           [agentId]

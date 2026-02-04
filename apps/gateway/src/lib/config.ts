@@ -1,14 +1,21 @@
 import { z } from 'zod';
 import dotenv from 'dotenv';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
-// Load .env file from project root
-const envPath = path.resolve(process.cwd(), '.env');
+// Get the directory of this file
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Load .env file from project root (from src/lib -> src -> gateway -> apps -> root)
+const envPath = path.resolve(__dirname, '../../../..', '.env');
+console.log('[CONFIG] Loading .env from:', envPath);
 dotenv.config({ path: envPath });
+console.log('[CONFIG] MATRIX_ENABLED =', process.env.MATRIX_ENABLED);
+console.log('[CONFIG] MATRIX_BOT_USER_ID =', process.env.MATRIX_BOT_USER_ID);
 
 const envSchema = z.object({
   // Server
-  GATEWAY_PORT: z.string().default('3001'),
+  GATEWAY_PORT: z.string().default('3002'),
   GATEWAY_HOST: z.string().default('0.0.0.0'),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
 

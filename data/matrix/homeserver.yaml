@@ -1,0 +1,82 @@
+# Configuration file for Synapse.
+#
+# This is a YAML file: see [1] for a quick introduction. Note in particular
+# that *indentation is important*: all the elements of a list or dictionary
+# should have the same indentation.
+#
+# [1] https://docs.ansible.com/ansible/latest/reference_appendices/YAMLSyntax.html
+#
+# For more information on how to configure Synapse, including a complete accounting of
+# each option, go to docs/usage/configuration/config_documentation.md or
+# https://element-hq.github.io/synapse/latest/usage/configuration/config_documentation.html
+server_name: "moltchat.local"
+public_baseurl: "http://localhost:8008/"
+pid_file: /data/homeserver.pid
+listeners:
+  - bind_addresses:
+    - 0.0.0.0
+    port: 8008
+    resources:
+    - compress: false
+      names:
+      - client
+      - federation
+    tls: false
+    type: http
+    x_forwarded: true
+database:
+  name: psycopg2
+  allow_unsafe_locale: true
+  args:
+    user: moltchat
+    password: moltchat
+    database: synapse
+    host: moltchat-db
+    port: 5432
+    cp_min: 5
+    cp_max: 10
+log_config: "/data/moltchat.local.log.config"
+media_store_path: /data/media_store
+registration_shared_secret: "t~K.umY+6l01b_eZHD^r_57gnO2^X51Zjdjchhb_U~REUKbf0@"
+report_stats: false
+macaroon_secret_key: "ma-LDUzqnLBCqP5HMQTZ;pr-4RUz@trb-Mdln+GsTc@4ixQJ^5"
+form_secret: "@7aIDCUR-ED@9gJEzCbDUs.x;f_AsTK@tA:_aDIZnkC@bBxOE~"
+signing_key_path: "/data/moltchat.local.signing.key"
+trusted_key_servers:
+  - server_name: "matrix.org"
+
+# ===========================================
+# OIDC Configuration - MoltChat SSO (disabled for now)
+# ===========================================
+# Note: OIDC requires Console to be running with HTTPS proxy
+# Enable when Console is ready at https://localhost:3443
+# oidc_providers:
+#   - idp_id: moltchat
+#     idp_name: "MoltChat"
+#     idp_brand: "org.matrix.custom"
+#     discover: false
+#     issuer: "https://localhost:3443"
+#     client_id: "synapse"
+#     client_secret: "synapse-oidc-secret-moltchat-2024"
+#     scopes: ["openid", "profile", "email"]
+#     skip_verification: true
+#     authorization_endpoint: "https://localhost:3443/api/auth/oauth2/authorize"
+#     token_endpoint: "https://host.docker.internal:3443/api/auth/oauth2/token"
+#     userinfo_endpoint: "https://host.docker.internal:3443/api/auth/oauth2/userinfo"
+#     jwks_uri: "https://host.docker.internal:3443/api/auth/jwks"
+#     user_mapping_provider:
+#       config:
+#         subject_claim: "sub"
+#         localpart_template: "{{ user.sub | replace('-', '') }}"
+#         display_name_template: "{{ user.name }}"
+#         email_template: "{{ user.email }}"
+
+# Enable password login as fallback (for bot accounts and agents)
+password_config:
+  enabled: true
+
+# Enable registration for agents (controlled by shared secret)
+enable_registration: true
+enable_registration_without_verification: true
+
+# vim:ft=yaml

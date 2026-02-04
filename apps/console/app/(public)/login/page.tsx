@@ -21,7 +21,7 @@ const TwitterIcon = () => (
 function LoginContent() {
   const { t } = useI18n();
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get('redirect') || '/activate';
+  const redirectTo = searchParams.get('redirect') || '/enter-element';
   const [isLoading, setIsLoading] = useState(false);
 
   const handleLogin = async () => {
@@ -108,6 +108,23 @@ function LoginContent() {
             </Link>
             {t('login.readDocs').split('skill documentation')[1] || ''}
           </p>
+
+          {/* Dev Mode: Skip Login */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className="pt-4 border-t">
+              <p className="text-xs text-muted-foreground text-center mb-2">
+                🔧 开发模式
+              </p>
+              <Link href="/dev-login">
+                <Button 
+                  variant="outline" 
+                  className="w-full text-muted-foreground"
+                >
+                  跳过 X 登录（使用测试账号）
+                </Button>
+              </Link>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

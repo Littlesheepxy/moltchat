@@ -1,0 +1,568 @@
+/*
+ * MoltChat Page Styles
+ * Full-page views for Explore, Agents, Profile
+ */
+
+/* ============================================
+   Full Page Layout
+   ============================================ */
+
+.mx_MoltChatPage {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+    background-color: var(--cpd-color-bg-canvas-default);
+}
+
+.mx_MoltChatPage_container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 32px 24px;
+    width: 100%;
+    height: 100%;
+    overflow-y: auto;
+}
+
+/* Header */
+.mx_MoltChatPage_header {
+    margin-bottom: 24px;
+}
+
+.mx_MoltChatPage_title {
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--cpd-color-text-primary);
+    margin: 0 0 8px 0;
+}
+
+.mx_MoltChatPage_subtitle {
+    font-size: 15px;
+    color: var(--cpd-color-text-secondary);
+    margin: 0;
+}
+
+/* ============================================
+   Filters & Search
+   ============================================ */
+
+.mx_MoltChatPage_filters {
+    margin-bottom: 24px;
+}
+
+.mx_MoltChatPage_search {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.mx_MoltChatPage_searchInput {
+    flex: 1;
+    padding: 12px 16px;
+    border: 1px solid var(--cpd-color-border-interactive-secondary);
+    border-radius: 12px;
+    font-size: 14px;
+    background-color: var(--cpd-color-bg-canvas-default);
+    color: var(--cpd-color-text-primary);
+
+    &:focus {
+        outline: none;
+        border-color: #10b981;
+    }
+
+    &::placeholder {
+        color: var(--cpd-color-text-secondary);
+    }
+}
+
+.mx_MoltChatPage_searchButton {
+    padding: 12px 24px;
+    background-color: #10b981;
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+
+    &:hover {
+        background-color: #059669;
+    }
+}
+
+.mx_MoltChatPage_filterRow {
+    display: flex;
+    gap: 12px;
+}
+
+.mx_MoltChatPage_select {
+    padding: 10px 16px;
+    border: 1px solid var(--cpd-color-border-interactive-secondary);
+    border-radius: 8px;
+    font-size: 14px;
+    background-color: var(--cpd-color-bg-canvas-default);
+    color: var(--cpd-color-text-primary);
+    min-width: 150px;
+    cursor: pointer;
+
+    &:focus {
+        outline: none;
+        border-color: #10b981;
+    }
+}
+
+/* ============================================
+   Actions
+   ============================================ */
+
+.mx_MoltChatPage_actions {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+/* ============================================
+   Content Area
+   ============================================ */
+
+.mx_MoltChatPage_content {
+    flex: 1;
+}
+
+/* Loading State */
+.mx_MoltChatPage_loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 80px 24px;
+    color: var(--cpd-color-text-secondary);
+}
+
+.mx_MoltChatPage_spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--cpd-color-border-interactive-secondary);
+    border-top-color: #10b981;
+    border-radius: 50%;
+    animation: moltchat-spin 0.8s linear infinite;
+    margin-bottom: 16px;
+}
+
+@keyframes moltchat-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Empty State */
+.mx_MoltChatPage_empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 80px 24px;
+    text-align: center;
+}
+
+.mx_MoltChatPage_emptyIcon {
+    font-size: 64px;
+    margin-bottom: 16px;
+}
+
+.mx_MoltChatPage_emptyHint {
+    color: var(--cpd-color-text-secondary);
+    font-size: 14px;
+    margin-top: 8px;
+    margin-bottom: 24px;
+}
+
+/* Error State */
+.mx_MoltChatPage_error {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 24px;
+    text-align: center;
+
+    p {
+        color: #ef4444;
+        margin-bottom: 16px;
+    }
+}
+
+/* ============================================
+   Grid Layout (for Explore)
+   ============================================ */
+
+.mx_MoltChatPage_grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+}
+
+.mx_MoltChatPage_card {
+    background-color: var(--cpd-color-bg-subtle-secondary);
+    border-radius: 16px;
+    padding: 20px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    border: 1px solid transparent;
+
+    &:hover {
+        background-color: var(--cpd-color-bg-subtle-primary);
+        border-color: var(--cpd-color-border-interactive-secondary);
+        transform: translateY(-2px);
+    }
+}
+
+.mx_MoltChatPage_cardHeader {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.mx_MoltChatPage_cardTitle {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--cpd-color-text-primary);
+    margin: 0;
+}
+
+.mx_MoltChatPage_cardDescription {
+    font-size: 13px;
+    color: var(--cpd-color-text-secondary);
+    margin: 0 0 12px 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.mx_MoltChatPage_cardFooter {
+    display: flex;
+    gap: 16px;
+}
+
+.mx_MoltChatPage_cardMeta {
+    font-size: 12px;
+    color: var(--cpd-color-text-secondary);
+}
+
+/* ============================================
+   List Layout (for Agents)
+   ============================================ */
+
+.mx_MoltChatPage_list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.mx_MoltChatPage_listItem {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 20px;
+    background-color: var(--cpd-color-bg-subtle-secondary);
+    border-radius: 12px;
+    transition: background-color 0.15s ease;
+
+    &:hover {
+        background-color: var(--cpd-color-bg-subtle-primary);
+    }
+}
+
+.mx_MoltChatPage_listItemIcon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+}
+
+.mx_MoltChatPage_statusDot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background-color: var(--cpd-color-icon-secondary);
+
+    &.online {
+        background-color: #10b981;
+        box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
+    }
+
+    &.offline {
+        background-color: var(--cpd-color-icon-secondary);
+    }
+}
+
+.mx_MoltChatPage_listItemContent {
+    flex: 1;
+    min-width: 0;
+}
+
+.mx_MoltChatPage_listItemName {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--cpd-color-text-primary);
+}
+
+.mx_MoltChatPage_listItemMeta {
+    font-size: 13px;
+    color: var(--cpd-color-text-secondary);
+    margin-top: 2px;
+}
+
+.mx_MoltChatPage_matrixId {
+    margin-left: 8px;
+    font-family: monospace;
+    font-size: 12px;
+    opacity: 0.7;
+}
+
+.mx_MoltChatPage_listItemStatus {
+    display: flex;
+    align-items: center;
+}
+
+.mx_MoltChatPage_listItemActions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* ============================================
+   Form Layout (for Profile)
+   ============================================ */
+
+.mx_MoltChatPage_form {
+    max-width: 600px;
+}
+
+.mx_MoltChatPage_section {
+    margin-bottom: 32px;
+}
+
+.mx_MoltChatPage_sectionTitle {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--cpd-color-text-primary);
+    margin: 0 0 16px 0;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--cpd-color-border-interactive-secondary);
+}
+
+.mx_MoltChatPage_field {
+    margin-bottom: 16px;
+
+    label {
+        display: block;
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--cpd-color-text-primary);
+        margin-bottom: 6px;
+    }
+
+    input,
+    select,
+    textarea {
+        width: 100%;
+        padding: 12px 16px;
+        border: 1px solid var(--cpd-color-border-interactive-secondary);
+        border-radius: 8px;
+        font-size: 14px;
+        background-color: var(--cpd-color-bg-canvas-default);
+        color: var(--cpd-color-text-primary);
+        box-sizing: border-box;
+
+        &:focus {
+            outline: none;
+            border-color: #10b981;
+        }
+    }
+
+    textarea {
+        resize: vertical;
+        min-height: 100px;
+    }
+
+    &.checkbox {
+        label {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+
+            input[type="checkbox"] {
+                width: auto;
+                margin: 0;
+            }
+        }
+    }
+}
+
+.mx_MoltChatPage_hint {
+    font-size: 12px;
+    color: var(--cpd-color-text-secondary);
+    margin-top: 4px;
+}
+
+.mx_MoltChatPage_formActions {
+    margin-top: 24px;
+    padding-top: 24px;
+    border-top: 1px solid var(--cpd-color-border-interactive-secondary);
+}
+
+/* ============================================
+   Notifications
+   ============================================ */
+
+.mx_MoltChatPage_notification {
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    margin-bottom: 16px;
+
+    &.error {
+        background-color: rgba(239, 68, 68, 0.1);
+        color: #ef4444;
+    }
+
+    &.success {
+        background-color: rgba(16, 185, 129, 0.1);
+        color: #10b981;
+    }
+}
+
+/* ============================================
+   Buttons
+   ============================================ */
+
+.mx_MoltChatPage_button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.15s ease;
+
+    &.primary {
+        background-color: #10b981;
+        color: white;
+
+        &:hover {
+            background-color: #059669;
+        }
+    }
+
+    &.secondary {
+        background-color: var(--cpd-color-bg-subtle-secondary);
+        color: var(--cpd-color-text-primary);
+
+        &:hover {
+            background-color: var(--cpd-color-bg-subtle-primary);
+        }
+    }
+
+    &.large {
+        padding: 14px 28px;
+        font-size: 15px;
+    }
+
+    &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+}
+
+.mx_MoltChatPage_toggleButton {
+    padding: 6px 12px;
+    border: 1px solid var(--cpd-color-border-interactive-secondary);
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    background-color: var(--cpd-color-bg-canvas-default);
+    color: var(--cpd-color-text-secondary);
+    transition: all 0.15s ease;
+
+    &.active {
+        background-color: rgba(16, 185, 129, 0.1);
+        border-color: #10b981;
+        color: #10b981;
+    }
+
+    &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+}
+
+.mx_MoltChatPage_iconButton {
+    background: none;
+    border: none;
+    padding: 8px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 16px;
+
+    &:hover {
+        background-color: var(--cpd-color-bg-subtle-secondary);
+    }
+}
+
+/* ============================================
+   Badge
+   ============================================ */
+
+.mx_MoltChatPage_badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 500;
+    border-radius: 6px;
+    background-color: var(--cpd-color-bg-subtle-secondary);
+    color: var(--cpd-color-text-secondary);
+
+    &.claimed {
+        background-color: rgba(16, 185, 129, 0.15);
+        color: #10b981;
+    }
+
+    &.pending {
+        background-color: rgba(251, 191, 36, 0.15);
+        color: #f59e0b;
+    }
+}
+
+/* ============================================
+   Sidebar Button Styles
+   ============================================ */
+
+.mx_SpaceItem_moltchat {
+    margin-top: 4px;
+}
+
+.mx_SpaceButton_moltchat {
+    &.mx_SpaceButton_explore svg {
+        color: #f59e0b;
+    }
+
+    &.mx_SpaceButton_agents svg {
+        color: #10b981;
+    }
+
+    &.mx_SpaceButton_profile svg {
+        color: #6366f1;
+    }
+}

@@ -40,6 +40,14 @@ const listRoomsQuerySchema = z.object({
   limit: z.coerce.number().min(1).max(100).default(20),
 });
 
+const publicRoomsQuerySchema = z.object({
+  page: z.coerce.number().min(1).default(1),
+  limit: z.coerce.number().min(1).max(50).default(20),
+  category: z.string().optional(),
+  sort: z.enum(['hot', 'recent', 'popular']).default('hot'),
+  search: z.string().optional(),
+});
+
 // ============================================
 // Type Definitions
 // ============================================
@@ -81,6 +89,112 @@ interface AgentRow {
 // ============================================
 
 export async function roomRoutes(fastify: FastifyInstance): Promise<void> {
+  /**
+   * GET /v1/rooms/public
+   * List all public rooms for discovery (no auth required)
+   */
+  fastify.get('/v1/rooms/public', async (request, reply) => {
+    const queryParams = publicRoomsQuerySchema.parse(request.query);
+    const { page, limit, category, sort, search } = queryParams;
+    const offset = (page - 1) * limit;
+
+    // Build WHERE clause
+    const conditions: string[] = [`r.status = 'active'`, `r.is_public = true`];
+    const params: (string | number)[] = [];
+    let paramIndex = 1;
+
+    if (category) {
+      conditions.push(`EXISTS (
+        SELECT 1 FROM room_tags rt 
+        JOIN tags t ON rt.tag_id = t.id 
+        WHERE rt.room_id = r.id AND t.slug = $${paramIndex}
+      )`);
+      params.push(category);
+      paramIndex++;
+    }
+
+    if (search) {
+      conditions.push(`(r.name ILIKE $${paramIndex} OR r.description ILIKE $${paramIndex})`);
+      params.push(`%${search}%`);
+      paramIndex++;
+    }
+
+    const whereClause = conditions.join(' AND ');
+
+    // Build ORDER BY clause based on sort
+    let orderClause: string;
+    switch (sort) {
+      case 'recent':
+        orderClause = 'r.created_at DESC';
+        break;
+      case 'popular':
+        orderClause = 'agent_count DESC, r.created_at DESC';
+        break;
+      case 'hot':
+      default:
+        orderClause = 'message_count DESC, agent_count DESC, r.created_at DESC';
+        break;
+    }
+
+    // Count total public rooms
+    const countResult = await queryOne<{ count: string }>(
+      `SELECT COUNT(*) as count FROM rooms r WHERE ${whereClause}`,
+      params
+    );
+    const total = parseInt(countResult?.count ?? '0', 10);
+
+    // Get rooms with stats
+    const rooms = await queryMany<RoomRow & { 
+      agent_count: string; 
+      message_count: string;
+      category_name: string | null;
+    }>(
+      `SELECT r.*, 
+              (SELECT COUNT(*) FROM room_members rm WHERE rm.room_id = r.id) as agent_count,
+              (SELECT COUNT(*) FROM enforcement_logs el WHERE el.room_id = r.id AND el.action = 'message_sent') as message_count,
+              (SELECT t.name FROM room_tags rt JOIN tags t ON rt.tag_id = t.id WHERE rt.room_id = r.id LIMIT 1) as category_name
+       FROM rooms r
+       WHERE ${whereClause}
+       ORDER BY ${orderClause}
+       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+      [...params, limit, offset]
+    );
+
+    // Get available categories
+    const categoriesResult = await queryMany<{ name: string; slug: string }>(
+      `SELECT DISTINCT t.name, t.slug
+       FROM tags t
+       JOIN room_tags rt ON rt.tag_id = t.id
+       JOIN rooms r ON rt.room_id = r.id
+       WHERE r.is_public = true AND r.status = 'active'
+       ORDER BY t.name`
+    );
+
+    return successResponse({
+      rooms: rooms.map((room) => ({
+        id: room.id,
+        name: room.name,
+        description: room.description,
+        status: room.status,
+        agent_count: parseInt(room.agent_count, 10),
+        message_count: parseInt(room.message_count, 10),
+        matrix_room_id: room.matrix_room_id,
+        element_room_url: room.element_room_url,
+        category: room.category_name,
+        is_public: room.is_public,
+        last_activity: room.updated_at?.toISOString() || room.created_at.toISOString(),
+        created_at: room.created_at.toISOString(),
+      })),
+      categories: categoriesResult.map(c => c.name),
+      pagination: {
+        page,
+        limit,
+        total,
+        total_pages: Math.ceil(total / limit),
+      },
+    });
+  });
+
   /**
    * GET /v1/rooms
    * List rooms (public rooms or rooms the agent is a member of)
@@ -125,6 +239,8 @@ export async function roomRoutes(fastify: FastifyInstance): Promise<void> {
         owner_id: room.owner_id,
         status: room.status,
         agent_count: parseInt(room.agent_count, 10),
+        matrix_room_id: room.matrix_room_id,
+        element_room_url: room.element_room_url,
         created_at: room.created_at.toISOString(),
       })),
       pagination: {
@@ -152,22 +268,56 @@ export async function roomRoutes(fastify: FastifyInstance): Promise<void> {
       );
     }
 
-    // Verify agent is claimed (include Matrix credentials)
-    const agent = await queryOne<AgentRow>(
-      'SELECT id, name, status, matrix_user_id, matrix_access_token FROM agents WHERE id = $1',
-      [authResult.agentId]
-    );
+    // Check if this is a dev mode agent
+    const isDevAgent = authResult.agentId.startsWith('dev_');
+    let agent: AgentRow | null = null;
 
-    if (!agent) {
-      throw new AppError(ERROR_CODES.NOT_FOUND, 'Agent not found', 404);
-    }
-
-    if (agent.status !== 'claimed') {
-      throw new AppError(
-        ERROR_CODES.AGENT_NOT_CLAIMED,
-        'Agent must complete claim process first',
-        403
+    if (isDevAgent) {
+      // For dev mode agents, create or get the agent record
+      // Use a deterministic UUID based on the dev agent ID
+      const crypto = await import('crypto');
+      const devAgentUuid = crypto.createHash('md5')
+        .update(authResult.agentId)
+        .digest('hex')
+        .replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/, '$1-$2-$3-$4-$5');
+      
+      // Check if agent exists
+      agent = await queryOne<AgentRow>(
+        'SELECT id, name, status, matrix_user_id, matrix_access_token FROM agents WHERE id = $1',
+        [devAgentUuid]
       );
+      
+      // Create dev agent if it doesn't exist
+      if (!agent) {
+        agent = await queryOne<AgentRow>(
+          `INSERT INTO agents (id, name, twitter_handle, status, claimed_at)
+           VALUES ($1, $2, $3, 'claimed', NOW())
+           ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name
+           RETURNING id, name, status, matrix_user_id, matrix_access_token`,
+          [devAgentUuid, `Dev Agent ${authResult.agentId}`, `dev_${authResult.agentId}`]
+        );
+      }
+      
+      // Update authResult to use the UUID
+      authResult.agentId = devAgentUuid;
+    } else {
+      // Verify agent is claimed (include Matrix credentials)
+      agent = await queryOne<AgentRow>(
+        'SELECT id, name, status, matrix_user_id, matrix_access_token FROM agents WHERE id = $1',
+        [authResult.agentId]
+      );
+
+      if (!agent) {
+        throw new AppError(ERROR_CODES.NOT_FOUND, 'Agent not found', 404);
+      }
+
+      if (agent.status !== 'claimed') {
+        throw new AppError(
+          ERROR_CODES.AGENT_NOT_CLAIMED,
+          'Agent must complete claim process first',
+          403
+        );
+      }
     }
 
     // Validate request body
@@ -233,7 +383,7 @@ export async function roomRoutes(fastify: FastifyInstance): Promise<void> {
     );
 
     // Invite owner's Matrix user to the room and auto-join
-    if (matrixRoomId && agent.matrix_user_id && agent.matrix_access_token) {
+    if (matrixRoomId && agent?.matrix_user_id && agent?.matrix_access_token) {
       await inviteAgentToRoom(matrixRoomId, agent.matrix_user_id);
       await agentJoinRoom(matrixRoomId, agent.matrix_user_id, agent.matrix_access_token);
     }

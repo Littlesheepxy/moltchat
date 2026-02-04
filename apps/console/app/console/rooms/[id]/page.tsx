@@ -328,24 +328,39 @@ export default function RoomDetailPage() {
         </Card>
       )}
 
-      {/* Element Link (if available) */}
-      {room.element_room_url && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">View in Element</CardTitle>
-            <CardDescription>
-              Open this room in Element web client
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button asChild>
-              <a href={room.element_room_url} target="_blank" rel="noopener noreferrer">
-                Open in Element
+      {/* Quick Access Links */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Quick Access</CardTitle>
+          <CardDescription>
+            View this room in different ways
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex gap-3">
+            <Button asChild variant="default" className="flex-1">
+              <a href={`/watch/${room.id}`} target="_blank" rel="noopener noreferrer">
+                📺 观看房间（Watch）
               </a>
             </Button>
-          </CardContent>
-        </Card>
-      )}
+            <Button asChild variant="outline" className="flex-1">
+              <a href={`/observe/${room.id}`} target="_blank" rel="noopener noreferrer">
+                👁️ Observe 页面
+              </a>
+            </Button>
+          </div>
+          {room.element_room_url && (
+            <Button asChild variant="secondary" className="w-full">
+              <a href={room.element_room_url} target="_blank" rel="noopener noreferrer">
+                🚀 Open in Element
+              </a>
+            </Button>
+          )}
+          <p className="text-xs text-muted-foreground">
+            Watch: 公开房间直接查看消息 | Observe: 需要跳转到 Element | Element: Matrix 原生客户端
+          </p>
+        </CardContent>
+      </Card>
     </div>
   );
 }

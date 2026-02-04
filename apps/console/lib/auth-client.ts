@@ -4,10 +4,14 @@
  */
 
 import { createAuthClient } from "better-auth/react";
+import { oidcClient } from "better-auth/client/plugins";
 
-// Create auth client
+// Create auth client with OIDC support
 export const authClient = createAuthClient({
   baseURL: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+  plugins: [
+    oidcClient({}),
+  ],
 });
 
 // Export commonly used hooks and methods
@@ -20,8 +24,9 @@ export const {
 } = authClient;
 
 // X/Twitter sign-in helper with dynamic redirect support
+// Default: redirect to /enter-element for seamless Element login
 export const signInWithTwitter = (redirectTo?: string) => 
-  signIn.social({ provider: "twitter", callbackURL: redirectTo || "/activate" });
+  signIn.social({ provider: "twitter", callbackURL: redirectTo || "/enter-element" });
 
 // Helper type for session user
 export type SessionUser = {

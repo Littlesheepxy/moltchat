@@ -1,0 +1,88 @@
+/*
+ * MoltChat 主题覆盖
+ * 将 Element 的绿色/蓝色主题色改为 MoltChat 红色 (#DF3B2D)
+ */
+
+:root {
+    /* 覆盖 Compound 绿色为红色 */
+    --cpd-color-text-action-accent: #DF3B2D !important;
+    --cpd-color-icon-accent-primary: #DF3B2D !important;
+    --cpd-color-icon-accent-tertiary: #DF3B2D !important;
+    --cpd-color-bg-accent-rest: #DF3B2D !important;
+    --cpd-color-bg-accent-hovered: #C42F23 !important;
+    --cpd-color-bg-accent-pressed: #B8271C !important;
+    --cpd-color-bg-action-primary-rest: #DF3B2D !important;
+    --cpd-color-bg-action-primary-hovered: #C42F23 !important;
+    --cpd-color-bg-action-primary-pressed: #B8271C !important;
+
+    /* 红色色阶 (替代绿色) */
+    --cpd-color-green-100: #FEF2F2 !important;
+    --cpd-color-green-200: #FEE2E2 !important;
+    --cpd-color-green-300: #FECACA !important;
+    --cpd-color-green-400: #FCA5A5 !important;
+    --cpd-color-green-500: #F87171 !important;
+    --cpd-color-green-600: #EF4444 !important;
+    --cpd-color-green-700: #DF3B2D !important;
+    --cpd-color-green-800: #DC2626 !important;
+    --cpd-color-green-900: #B91C1C !important;
+    --cpd-color-green-1000: #991B1B !important;
+    --cpd-color-green-1100: #7F1D1D !important;
+    --cpd-color-green-1200: #6B1414 !important;
+    --cpd-color-green-1300: #5C1010 !important;
+    --cpd-color-green-1400: #450A0A !important;
+}
+
+/* 暗色主题特定覆盖 */
+.cpd-theme-dark,
+[class*="theme-dark"] {
+    --cpd-color-text-action-accent: #F87171 !important;
+    --cpd-color-icon-accent-primary: #F87171 !important;
+}
+
+/* 登录页面按钮样式覆盖 */
+.mx_Login_submit,
+.mx_AuthBody .mx_AccessibleButton_kind_primary,
+.mx_AuthBody .mx_AccessibleButton_kind_primary_outline {
+    background-color: #DF3B2D !important;
+    border-color: #DF3B2D !important;
+}
+
+.mx_Login_submit:hover,
+.mx_AuthBody .mx_AccessibleButton_kind_primary:hover {
+    background-color: #C42F23 !important;
+    border-color: #C42F23 !important;
+}
+
+/* SSO 按钮样式 */
+.mx_SSOButtons .mx_SSOButton {
+    background-color: #DF3B2D !important;
+    border-color: #DF3B2D !important;
+    color: white !important;
+}
+
+.mx_SSOButtons .mx_SSOButton:hover {
+    background-color: #C42F23 !important;
+}
+
+/* 通用主按钮 */
+.mx_AccessibleButton_kind_primary {
+    background-color: #DF3B2D !important;
+    border-color: #DF3B2D !important;
+}
+
+.mx_AccessibleButton_kind_primary:hover {
+    background-color: #C42F23 !important;
+}
+
+/* 次要按钮保持灰色/透明 */
+.mx_AccessibleButton_kind_secondary,
+.mx_AccessibleButton_kind_primary_outline {
+    background-color: transparent !important;
+    border: 1px solid #DF3B2D !important;
+    color: #DF3B2D !important;
+}
+
+.mx_AccessibleButton_kind_secondary:hover,
+.mx_AccessibleButton_kind_primary_outline:hover {
+    background-color: rgba(223, 59, 45, 0.1) !important;
+}
