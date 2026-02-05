@@ -1,0 +1,344 @@
+/*
+ * MoltChat View Styles
+ * Native styling for MoltChat components in Element
+ */
+
+.mx_MoltChatView {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 16px;
+    overflow: hidden;
+    background-color: var(--cpd-color-bg-canvas-default);
+}
+
+.mx_MoltChatView_header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
+.mx_MoltChatView_title {
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--cpd-color-text-primary);
+    margin: 0;
+}
+
+.mx_MoltChatView_refresh {
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 8px;
+    color: var(--cpd-color-text-secondary);
+
+    &:hover {
+        background-color: var(--cpd-color-bg-subtle-secondary);
+    }
+}
+
+/* Tabs */
+.mx_MoltChatView_tabs {
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    background-color: var(--cpd-color-bg-subtle-secondary);
+    border-radius: 12px;
+    margin-bottom: 16px;
+}
+
+.mx_MoltChatView_tab {
+    flex: 1;
+    padding: 10px 12px;
+    border: none;
+    background: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    color: var(--cpd-color-text-secondary);
+    transition: all 0.15s ease;
+
+    &:hover {
+        color: var(--cpd-color-text-primary);
+    }
+
+    &.active {
+        background-color: var(--cpd-color-bg-canvas-default);
+        color: var(--cpd-color-text-primary);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+}
+
+/* Content */
+.mx_MoltChatView_content {
+    flex: 1;
+    overflow-y: auto;
+}
+
+/* Loading */
+.mx_MoltChatView_loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 200px;
+    color: var(--cpd-color-text-secondary);
+}
+
+.mx_MoltChatView_spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid var(--cpd-color-border-interactive-secondary);
+    border-top-color: var(--cpd-color-icon-accent-primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-bottom: 12px;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Empty State */
+.mx_MoltChatView_empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 24px;
+    text-align: center;
+}
+
+.mx_MoltChatView_emptyIcon {
+    font-size: 48px;
+    margin-bottom: 16px;
+}
+
+.mx_MoltChatView_emptyHint {
+    color: var(--cpd-color-text-secondary);
+    font-size: 13px;
+    margin-top: 4px;
+    margin-bottom: 16px;
+}
+
+/* List */
+.mx_MoltChatView_list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.mx_MoltChatView_item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background-color: var(--cpd-color-bg-subtle-secondary);
+    border-radius: 12px;
+    transition: background-color 0.15s ease;
+
+    &.clickable {
+        cursor: pointer;
+
+        &:hover {
+            background-color: var(--cpd-color-bg-subtle-primary);
+        }
+    }
+}
+
+.mx_MoltChatView_itemIcon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+}
+
+.mx_MoltChatView_statusDot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: var(--cpd-color-icon-secondary);
+
+    &.online {
+        background-color: #10b981;
+    }
+
+    &.offline {
+        background-color: var(--cpd-color-icon-secondary);
+    }
+}
+
+.mx_MoltChatView_itemContent {
+    flex: 1;
+    min-width: 0;
+}
+
+.mx_MoltChatView_itemName {
+    font-weight: 500;
+    color: var(--cpd-color-text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.mx_MoltChatView_itemMeta {
+    font-size: 12px;
+    color: var(--cpd-color-text-secondary);
+    margin-top: 2px;
+}
+
+.mx_MoltChatView_itemStatus,
+.mx_MoltChatView_itemActions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Badge */
+.mx_MoltChatView_badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 8px;
+    font-size: 11px;
+    font-weight: 500;
+    border-radius: 6px;
+    background-color: var(--cpd-color-bg-subtle-secondary);
+    color: var(--cpd-color-text-secondary);
+
+    &.success {
+        background-color: rgba(16, 185, 129, 0.15);
+        color: #10b981;
+    }
+
+    &.claimed {
+        background-color: rgba(16, 185, 129, 0.15);
+        color: #10b981;
+    }
+
+    &.muted {
+        background-color: var(--cpd-color-bg-subtle-secondary);
+        color: var(--cpd-color-text-secondary);
+    }
+}
+
+/* Icon Button */
+.mx_MoltChatView_iconButton {
+    background: none;
+    border: none;
+    padding: 6px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+
+    &:hover {
+        background-color: var(--cpd-color-bg-subtle-primary);
+    }
+}
+
+/* Button */
+.mx_MoltChatView_button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.15s ease;
+    background-color: #10b981;
+    color: white;
+
+    &:hover {
+        background-color: #059669;
+    }
+
+    &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    &.secondary {
+        background-color: var(--cpd-color-bg-subtle-secondary);
+        color: var(--cpd-color-text-primary);
+
+        &:hover {
+            background-color: var(--cpd-color-bg-subtle-primary);
+        }
+    }
+}
+
+/* Actions */
+.mx_MoltChatView_actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--cpd-color-border-interactive-secondary);
+}
+
+/* Form */
+.mx_MoltChatView_form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.mx_MoltChatView_field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+
+    label {
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--cpd-color-text-primary);
+    }
+
+    input,
+    select,
+    textarea {
+        padding: 10px 12px;
+        border: 1px solid var(--cpd-color-border-interactive-secondary);
+        border-radius: 8px;
+        font-size: 14px;
+        background-color: var(--cpd-color-bg-canvas-default);
+        color: var(--cpd-color-text-primary);
+
+        &:focus {
+            outline: none;
+            border-color: var(--cpd-color-border-interactive-primary);
+        }
+    }
+}
+
+.mx_MoltChatView_hint {
+    font-size: 11px;
+    color: var(--cpd-color-text-secondary);
+}
+
+/* Messages */
+.mx_MoltChatView_error {
+    padding: 12px 16px;
+    background-color: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+    border-radius: 8px;
+    font-size: 13px;
+}
+
+.mx_MoltChatView_success {
+    padding: 12px 16px;
+    background-color: rgba(16, 185, 129, 0.1);
+    color: #10b981;
+    border-radius: 8px;
+    font-size: 13px;
+}

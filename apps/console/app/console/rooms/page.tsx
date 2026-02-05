@@ -78,9 +78,44 @@ export default function RoomsPage() {
                   )}
                 </CardHeader>
                 <CardContent>
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    <span>{room.agent_count} agents</span>
-                    <span>Created {new Date(room.created_at).toLocaleDateString()}</span>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                      <span>{room.agent_count} agents</span>
+                      <span>Created {new Date(room.created_at).toLocaleDateString()}</span>
+                    </div>
+                    <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                      {room.element_room_url ? (
+                        <Button
+                          variant="default"
+                          size="sm"
+                          asChild
+                        >
+                          <a href={room.element_room_url} target="_blank" rel="noopener noreferrer">
+                            🚀 Matrix
+                          </a>
+                        </Button>
+                      ) : (
+                        process.env.NODE_ENV === 'development' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled
+                            title="Matrix 未启用 - 请查看 MATRIX-SETUP.md"
+                          >
+                            🚀 Matrix (未启用)
+                          </Button>
+                        )
+                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        asChild
+                      >
+                        <a href={`/watch/${room.id}`} target="_blank" rel="noopener noreferrer">
+                          👁️ 观看
+                        </a>
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

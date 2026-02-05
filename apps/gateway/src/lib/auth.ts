@@ -27,6 +27,20 @@ interface AgentRow {
   status: string;
 }
 
+interface SessionRow {
+  id: string;
+  user_id: string;
+  token: string;
+  expires_at: Date;
+}
+
+interface UserRow {
+  id: string;
+  name: string;
+  email: string;
+  image: string | null;
+}
+
 export interface AuthResult {
   agentId: string;
   tokenId: string;
@@ -36,6 +50,17 @@ export interface AuthResult {
 export interface ObserverAuthResult {
   tokenId: string;
   roomId: string;
+}
+
+export interface SessionAuthResult {
+  userId: string;
+  sessionId: string;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    image: string | null;
+  };
 }
 
 // ============================================
@@ -87,20 +112,34 @@ export async function verifyAgentToken(
   const token = extractBearerToken(request);
   
   if (!token) {
-    // Also check for agent_id query param (MVP convenience)
-    const agentId = (request.query as { agent_id?: string }).agent_id;
-    if (agentId) {
-      // Verify agent exists and is claimed
-      const agent = await queryOne<AgentRow>(
-        'SELECT id, status FROM agents WHERE id = $1',
-        [agentId]
-      );
-      if (agent) {
-        return {
-          agentId: agent.id,
-          tokenId: 'mvp-bypass',
-          tokenType: 'agent',
-        };
+    // MVP bypass: Allow agent_id query param in development mode only
+    // This should be disabled in production
+    const allowMvpBypass = config.isDev || process.env.ALLOW_MVP_BYPASS === 'true';
+    
+    if (allowMvpBypass) {
+      const agentId = (request.query as { agent_id?: string }).agent_id;
+      if (agentId) {
+        // In dev mode, allow any agent_id starting with 'dev_' without DB check
+        if (agentId.startsWith('dev_')) {
+          return {
+            agentId: agentId,
+            tokenId: 'mvp-bypass-dev',
+            tokenType: 'agent',
+          };
+        }
+        
+        // For non-dev agent IDs, verify agent exists in DB
+        const agent = await queryOne<AgentRow>(
+          'SELECT id, status FROM agents WHERE id = $1',
+          [agentId]
+        );
+        if (agent) {
+          return {
+            agentId: agent.id,
+            tokenId: 'mvp-bypass',
+            tokenType: 'agent',
+          };
+        }
       }
     }
     return null;
@@ -232,5 +271,124 @@ export async function verifyObserverToken(
   return {
     tokenId: tokenRow.id,
     roomId: tokenRow.room_id,
+  };
+}
+
+// ============================================
+// Session Authentication (for human owners)
+// ============================================
+
+/**
+ * Extract session token from request cookie
+ */
+export function extractSessionToken(request: FastifyRequest): string | null {
+  const cookies = request.headers.cookie;
+  if (!cookies) return null;
+
+  // Better Auth uses 'moltchat.session_token' cookie
+  const sessionCookie = cookies
+    .split(';')
+    .find(c => c.trim().startsWith('moltchat.session_token='));
+  
+  if (!sessionCookie) return null;
+  
+  const token = sessionCookie.split('=')[1];
+  return token ? decodeURIComponent(token.trim()) : null;
+}
+
+/**
+ * Verify user session and return auth result
+ * Returns null if no session, throws if session is invalid
+ */
+export async function verifyUserSession(
+  request: FastifyRequest
+): Promise<SessionAuthResult | null> {
+  const sessionToken = extractSessionToken(request);
+  
+  if (!sessionToken) {
+    // MVP bypass: Allow user_id query param in development mode only
+    const allowMvpBypass = config.isDev || process.env.ALLOW_MVP_BYPASS === 'true';
+    
+    if (allowMvpBypass) {
+      const userId = (request.query as { user_id?: string }).user_id;
+      if (userId) {
+        // Verify user exists
+        const user = await queryOne<UserRow>(
+          'SELECT id, name, email, image FROM users WHERE id = $1',
+          [userId]
+        );
+        if (user) {
+          return {
+            userId: user.id,
+            sessionId: 'mvp-bypass',
+            user: {
+              id: user.id,
+              name: user.name,
+              email: user.email,
+              image: user.image,
+            },
+          };
+        }
+      }
+    }
+    return null;
+  }
+
+  // Look up session
+  const session = await queryOne<SessionRow>(
+    `SELECT id, user_id, token, expires_at
+     FROM sessions
+     WHERE token = $1`,
+    [sessionToken]
+  );
+
+  if (!session) {
+    throw new AppError(
+      ERROR_CODES.UNAUTHORIZED,
+      'Invalid session',
+      401,
+      'Please sign in again'
+    );
+  }
+
+  // Check if expired
+  if (new Date(session.expires_at) < new Date()) {
+    throw new AppError(
+      ERROR_CODES.UNAUTHORIZED,
+      'Session has expired',
+      401,
+      'Please sign in again'
+    );
+  }
+
+  // Get user info
+  const user = await queryOne<UserRow>(
+    'SELECT id, name, email, image FROM users WHERE id = $1',
+    [session.user_id]
+  );
+
+  if (!user) {
+    throw new AppError(
+      ERROR_CODES.UNAUTHORIZED,
+      'User not found',
+      401
+    );
+  }
+
+  // Update session last activity
+  await queryOne(
+    'UPDATE sessions SET updated_at = NOW() WHERE id = $1',
+    [session.id]
+  );
+
+  return {
+    userId: user.id,
+    sessionId: session.id,
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      image: user.image,
+    },
   };
 }

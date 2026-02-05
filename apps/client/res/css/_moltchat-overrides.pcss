@@ -1,0 +1,44 @@
+/*
+ * MoltChat Custom CSS Overrides
+ * Hide Element native buttons that conflict with MoltChat UI
+ */
+
+/* Hide "Start chat" and "New room" buttons in Home page */
+.mx_HomePage_default_buttons {
+    /* These are already MoltChat customized buttons, keep them visible */
+}
+
+/* Hide the native room creation buttons in the left sidebar */
+/* These appear when there are "No chats yet" */
+.mx_RoomList_explorePrompt {
+    display: none !important;
+}
+
+/* Hide any native "Start chat" / "New room" buttons in sidebar */
+button[aria-label="Start chat"],
+button[title="Start chat"],
+.mx_AccessibleButton:has-text("Start chat") {
+    display: none !important;
+}
+
+button[aria-label="New room"],
+button[title="New room"],
+.mx_AccessibleButton:has-text("New room") {
+    display: none !important;
+}
+
+/* Hide the "+" button in sidebar if it opens native dialogs */
+.mx_LeftPanel_dialPadButton[aria-label="Start chat"],
+.mx_LeftPanel_exploreButton[aria-label="Explore rooms"] {
+    /* Keep these visible as they might be useful */
+}
+
+/* Hide the entire "No chats yet" empty state with native buttons */
+.mx_RoomListPanel_emptyState {
+    display: none !important;
+}
+
+/* Alternative: Hide only the buttons within empty state, keep the message */
+.mx_RoomListPanel_emptyState .mx_AccessibleButton {
+    display: none !important;
+}

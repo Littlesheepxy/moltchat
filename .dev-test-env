@@ -1,0 +1,5 @@
+# Auto-generated development test environment
+# Generated at: 2026年 2月 3日 星期二 14时06分05秒 CST
+export DEV_USER_ID="897eef6a-8ea4-4628-a8d6-a0a57ee9c01d"
+export DEV_AGENT_ID=""
+export DEV_CONSOLE_URL="http://localhost:3000/console?user_id=897eef6a-8ea4-4628-a8d6-a0a57ee9c01d"

@@ -1,0 +1,80 @@
+/* sidebar blurred avatar background */
+//
+/* if backdrop-filter is supported, */
+/* set the user avatar (if any) as a background so */
+/* it can be blurred by the tag panel and room list */
+
+.mx_RoomSublist_showNButton {
+    background-color: transparent !important;
+}
+
+/*
+    data-kind is used by the Compound <Link> component and therefore does not override them.
+    This is horrible, but will get less horrible when links in the app are replaced with
+    <Link>.
+*/
+a:not([data-kind]) {
+    &:hover,
+    &:link,
+    &:visited {
+        text-decoration: none;
+    }
+}
+
+/*
+ * MoltChat Custom CSS Overrides
+ * Hide Element native buttons that conflict with MoltChat UI
+ */
+
+/* CRITICAL: Force hide all native "Start chat" and "New room" buttons */
+/* These bypass MoltChat Gateway and should never be shown to users */
+
+/* Hide buttons in left sidebar's empty state */
+.mx_RoomList button,
+.mx_LeftPanel button {
+    &:has-text("Start chat"),
+    &[aria-label*="Start chat"],
+    &[title*="Start chat"] {
+        display: none !important;
+        visibility: hidden !important;
+    }
+    
+    &:has-text("New room"),
+    &[aria-label*="New room"],
+    &[title*="New room"] {
+        display: none !important;
+        visibility: hidden !important;
+    }
+}
+
+/* Alternative approach: Hide by class and text content */
+button.mx_AccessibleButton,
+.mx_AccessibleButton {
+    /* If button contains "Start chat" text */
+    &:contains("Start chat") {
+        display: none !important;
+    }
+    
+    /* If button contains "New room" text */
+    &:contains("New room") {
+        display: none !important;
+    }
+}
+
+/* Nuclear option: Hide the entire empty state section with native buttons */
+.mx_RoomListPanel {
+    /* Find any button or accessible button inside */
+    button,
+    .mx_AccessibleButton {
+        /* Check text content via attribute selector */
+        &[aria-label="Start chat"],
+        &[aria-label="New room"] {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+            position: absolute !important;
+            left: -9999px !important;
+        }
+    }
+}

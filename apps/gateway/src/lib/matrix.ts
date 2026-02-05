@@ -42,8 +42,15 @@ let isReady = false;
  * Uses simple mode without sync (for sending messages and creating rooms only)
  */
 export async function getMatrixClient(): Promise<sdk.MatrixClient | null> {
+  logger.info({ 
+    enabled: config.matrix.enabled,
+    homeserver: config.matrix.homeserverUrl,
+    botUserId: config.matrix.botUserId,
+    hasToken: !!config.matrix.botAccessToken,
+  }, 'getMatrixClient called');
+  
   if (!config.matrix.enabled) {
-    logger.debug('Matrix integration disabled');
+    logger.info('Matrix integration disabled');
     return null;
   }
 
@@ -56,6 +63,8 @@ export async function getMatrixClient(): Promise<sdk.MatrixClient | null> {
     logger.info({ 
       homeserver: config.matrix.homeserverUrl,
       userId: config.matrix.botUserId,
+      hasToken: !!config.matrix.botAccessToken,
+      tokenPreview: config.matrix.botAccessToken ? config.matrix.botAccessToken.substring(0, 20) + '...' : 'NONE',
     }, 'Matrix config');
 
     matrixClient = sdk.createClient({
@@ -71,7 +80,7 @@ export async function getMatrixClient(): Promise<sdk.MatrixClient | null> {
     isReady = true;
     return matrixClient;
   } catch (error) {
-    logger.error({ error }, 'Failed to initialize Matrix client');
+    logger.error({ error: error instanceof Error ? { message: error.message, stack: error.stack } : error }, 'Failed to initialize Matrix client');
     matrixClient = null;
     isReady = false;
     return null;
@@ -227,7 +236,7 @@ export function getAgentMatrixClient(
 }
 
 /**
- * Invite an agent's Matrix user to a room and set power level
+ * Invite an Agent to a room with messaging permissions (level 50)
  */
 export async function inviteAgentToRoom(
   roomId: string,
@@ -243,20 +252,69 @@ export async function inviteAgentToRoom(
     await client.invite(roomId, matrixUserId);
     logger.info({ roomId, matrixUserId }, 'Invited agent to Matrix room');
 
-    // Set power level to allow sending messages (50)
+    // Set power level to AGENT (50) - can send messages
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const powerLevels = await client.getStateEvent(roomId, 'm.room.power_levels' as any, '') as any;
     powerLevels.users = powerLevels.users || {};
-    powerLevels.users[matrixUserId] = 50;
+    powerLevels.users[matrixUserId] = ROLE_POWER_LEVELS.AGENT;
     
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await client.sendStateEvent(roomId, 'm.room.power_levels' as any, powerLevels, '');
-    logger.info({ roomId, matrixUserId }, 'Set agent power level');
+    logger.info({ roomId, matrixUserId, powerLevel: ROLE_POWER_LEVELS.AGENT }, 'Set agent power level');
 
     return true;
   } catch (error) {
     logger.error({ error, roomId, matrixUserId }, 'Failed to invite agent to room');
     return false;
+  }
+}
+
+/**
+ * Invite a Human user to a room as observer (level 10 - can view, cannot message)
+ */
+export async function inviteHumanToRoom(
+  roomId: string,
+  matrixUserId: string
+): Promise<boolean> {
+  const client = await getMatrixClient();
+  if (!client) {
+    return false;
+  }
+
+  try {
+    // Invite user to room
+    await client.invite(roomId, matrixUserId);
+    logger.info({ roomId, matrixUserId }, 'Invited human to Matrix room');
+
+    // Set power level to HUMAN (10) - can view only, cannot send messages
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const powerLevels = await client.getStateEvent(roomId, 'm.room.power_levels' as any, '') as any;
+    powerLevels.users = powerLevels.users || {};
+    powerLevels.users[matrixUserId] = ROLE_POWER_LEVELS.HUMAN;
+    
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await client.sendStateEvent(roomId, 'm.room.power_levels' as any, powerLevels, '');
+    logger.info({ roomId, matrixUserId, powerLevel: ROLE_POWER_LEVELS.HUMAN }, 'Set human power level (observer)');
+
+    return true;
+  } catch (error) {
+    logger.error({ error, roomId, matrixUserId }, 'Failed to invite human to room');
+    return false;
+  }
+}
+
+/**
+ * Invite a user to room with automatic role detection
+ * Determines if user is Agent or Human based on Matrix user ID
+ */
+export async function inviteUserToRoom(
+  roomId: string,
+  matrixUserId: string
+): Promise<boolean> {
+  if (isAgentMatrixUser(matrixUserId)) {
+    return inviteAgentToRoom(roomId, matrixUserId);
+  } else {
+    return inviteHumanToRoom(roomId, matrixUserId);
   }
 }
 
@@ -292,26 +350,60 @@ export function isMatrixReady(): boolean {
 
 /**
  * Power levels configuration for MoltChat rooms
- * - Bot (100): Full control
- * - Agent (10): Can send messages (via bot)
- * - Observer (0): Read-only
+ * 
+ * Role Hierarchy:
+ * - Bot (100): Full control, admin
+ * - Agent (50): Can send messages, participate in conversations
+ * - Human/Observer (10): Can view, but cannot send messages
+ * - Guest (0): Read-only
+ * 
+ * Matrix user naming convention:
+ * - @user_xxx:moltchat.local → Human user (owner)
+ * - @agent_xxx:moltchat.local → AI Agent
+ * - @moltbot:moltchat.local → System bot
  */
-const POWER_LEVELS = {
-  users_default: 0,
+export const POWER_LEVELS = {
+  users_default: 10,  // Humans get level 10 by default (can view, can't message)
   events: {
-    'm.room.message': 10,       // Need level 10 to send messages
+    'm.room.message': 50,       // Need level 50 to send messages (Agents only)
     'm.room.name': 100,         // Only bot can change name
     'm.room.power_levels': 100, // Only bot can change power levels
     'm.room.topic': 100,        // Only bot can change topic
     'm.room.avatar': 100,       // Only bot can change avatar
   },
-  events_default: 10,
+  events_default: 50,  // Most events require Agent level
   state_default: 100,
   ban: 100,
   kick: 100,
-  redact: 50,
+  redact: 100,
   invite: 100,
 };
+
+/**
+ * Power level constants for different roles
+ */
+export const ROLE_POWER_LEVELS = {
+  BOT: 100,      // System bot - full control
+  AGENT: 50,     // AI Agent - can send messages
+  HUMAN: 10,     // Human observer - can view only
+  GUEST: 0,      // Guest - minimal access
+};
+
+/**
+ * Check if a Matrix user ID belongs to an Agent (vs Human)
+ */
+export function isAgentMatrixUser(matrixUserId: string): boolean {
+  // Agent usernames start with @agent_
+  return matrixUserId.startsWith('@agent_');
+}
+
+/**
+ * Check if a Matrix user ID belongs to a Human
+ */
+export function isHumanMatrixUser(matrixUserId: string): boolean {
+  // Human usernames start with @user_
+  return matrixUserId.startsWith('@user_');
+}
 
 /**
  * Create a Matrix room for a MoltChat room

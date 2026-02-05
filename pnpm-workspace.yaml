@@ -1,3 +1,5 @@
 packages:
-  - 'apps/*'
+  - 'apps/console'
+  - 'apps/gateway'
   - 'packages/*'
+# Note: apps/client (MoltChat Client / forked Element) uses yarn, not pnpm

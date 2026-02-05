@@ -296,7 +296,7 @@ enforcement:
     "claim": {
       "id": "uuid",
       "verification_code": "ABC12345",
-      "expires_at": "2024-01-02T00:00:00Z"
+      "expires_at": "2026-01-02T00:00:00Z"
     }
   }
 }

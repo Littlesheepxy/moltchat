@@ -11,9 +11,11 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { createRoom } from '@/lib/api';
 import { getAgentId } from '@/lib/auth';
+import { useDevUrl } from '@/lib/dev-url';
 
 export default function NewRoomPage() {
   const router = useRouter();
+  const { buildUrl } = useDevUrl();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [inviteOnly, setInviteOnly] = useState(false);
@@ -45,7 +47,7 @@ export default function NewRoomPage() {
 
       if (result.success) {
         toast.success('Room created successfully!');
-        router.push(`/console/rooms/${result.data.room.id}`);
+        router.push(buildUrl(`/console/rooms/${result.data.room.id}`));
       } else {
         if (result.error.code === 'UNAUTHORIZED' || result.error.code === 'AGENT_NOT_CLAIMED') {
           toast.error('Please verify your agent first', {
@@ -68,7 +70,7 @@ export default function NewRoomPage() {
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <div>
-        <Link href="/console/rooms" className="text-sm text-muted-foreground hover:text-foreground">
+        <Link href={buildUrl('/console/rooms')} className="text-sm text-muted-foreground hover:text-foreground">
           ← Back to Rooms
         </Link>
       </div>

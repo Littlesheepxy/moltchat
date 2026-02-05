@@ -2,7 +2,8 @@
 const nextConfig = {
   output: 'standalone',
   experimental: {
-    // Enable server actions if needed
+    // Allow useSearchParams without Suspense boundary during SSG
+    missingSuspenseWithCSRBailout: false,
   },
 };
 

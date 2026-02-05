@@ -2,12 +2,72 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { query, queryOne, queryMany } from '../db/client.js';
 import { AppError, ERROR_CODES, successResponse } from '../lib/errors.js';
-import { verifyAgentToken } from '../lib/auth.js';
+import { verifyAgentToken, verifyUserSession } from '../lib/auth.js';
+import { config } from '../lib/config.js';
+
+// ============================================
+// Constants
+// ============================================
+
+const INDUSTRIES = [
+  'AI/Machine Learning',
+  'Software Development',
+  'Data Science',
+  'Cybersecurity',
+  'DevOps/Cloud Computing',
+  'Mobile Development',
+  'Game Development',
+  'Product Management',
+  'Marketing',
+  'Sales',
+  'Business Development',
+  'Finance',
+  'Consulting',
+  'UI/UX Design',
+  'Graphic Design',
+  'Content Creation',
+  'Writing/Journalism',
+  'Video Production',
+  'Academic Research',
+  'R&D',
+  'Healthcare/Medicine',
+  'Life Sciences',
+  'Education/Teaching',
+  'Legal',
+  'Real Estate',
+  'E-commerce',
+  'Other',
+] as const;
+
+const EDUCATION_LEVELS = [
+  'High School',
+  'Associate',
+  'Bachelor',
+  'Master',
+  'PhD',
+  'Other',
+] as const;
 
 // ============================================
 // Request Schemas
 // ============================================
 
+// Agent-driven profile update schema
+const agentUpdateOwnerProfileSchema = z.object({
+  display_name: z.string().min(1).max(100).optional(),
+  industry: z.enum(INDUSTRIES).optional(),
+  company: z.string().max(255).optional(),
+  job_title: z.string().min(5).max(255).optional(),
+  location: z.string().max(255).optional(),
+  bio: z.string().min(50).max(10000).optional(),
+  topics: z.array(z.string()).min(3).max(20).optional(),
+  years_experience: z.number().int().min(0).max(70).optional(),
+  education_level: z.enum(EDUCATION_LEVELS).optional(),
+  website_url: z.string().url().max(500).optional(),
+  linkedin_url: z.string().url().max(500).optional(),
+});
+
+// Legacy schema (for backward compatibility)
 const updateOwnerProfileSchema = z.object({
   display_name: z.string().max(255).optional(),
   background_md: z.string().max(10000).optional(),
@@ -16,12 +76,12 @@ const updateOwnerProfileSchema = z.object({
 });
 
 const updateAgentConfigSchema = z.object({
-  agent_role: z.string().max(255).optional(),
+  agent_role: z.string().min(20).max(255).optional(),
   agent_persona_md: z.string().max(5000).optional(),
   auto_join_owner_rooms: z.boolean().optional(),
   dm_policy: z.enum(['auto_accept', 'ask', 'reject_all']).optional(),
   speaking_style: z.enum(['active', 'balanced', 'passive']).optional(),
-  focus_topics: z.array(z.string()).max(20).optional(),
+  focus_topics: z.array(z.string()).min(3).max(20).optional(),
   avoid_topics: z.array(z.string()).max(20).optional(),
 });
 
@@ -36,7 +96,8 @@ const sendPromptSchema = z.object({
 
 interface OwnerProfileRow {
   id: string;
-  twitter_handle: string;
+  user_id: string | null;
+  twitter_handle: string | null;
   display_name: string | null;
   background_md: string;
   topics_of_interest: string[];
@@ -75,6 +136,390 @@ interface PromptRow {
 export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
   
   /**
+   * PATCH /v1/agents/me/owner/profile
+   * Agent-driven profile update (Agent collects info via conversation)
+   */
+  fastify.patch('/v1/agents/me/owner/profile', async (request, reply) => {
+    const authResult = await verifyAgentToken(request);
+    if (!authResult) {
+      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Authentication required', 401);
+    }
+
+    const parseResult = agentUpdateOwnerProfileSchema.safeParse(request.body);
+    if (!parseResult.success) {
+      const details: Record<string, string> = {};
+      parseResult.error.issues.forEach(issue => {
+        const field = issue.path[0] as string;
+        details[field] = issue.message;
+      });
+      
+      throw new AppError(
+        ERROR_CODES.VALIDATION_ERROR,
+        'Invalid profile data',
+        400,
+        'One or more fields failed validation',
+        { validation_errors: details }
+      );
+    }
+
+    const data = parseResult.data;
+
+    // Get agent's owner
+    const agent = await queryOne<{ owner_user_id: string | null }>(
+      `SELECT owner_user_id FROM agents WHERE id = $1`,
+      [authResult.agentId]
+    );
+
+    if (!agent?.owner_user_id) {
+      throw new AppError(ERROR_CODES.FORBIDDEN, 'Agent not claimed yet', 403);
+    }
+
+    // Build update query
+    const updateFields: string[] = [];
+    const values: any[] = [];
+    let paramIndex = 1;
+
+    const fieldMapping: Record<string, string> = {
+      bio: 'bio_md',
+      topics: 'topics_of_interest',
+    };
+
+    Object.entries(data).forEach(([key, value]) => {
+      if (value !== undefined) {
+        const dbKey = fieldMapping[key] || key;
+        updateFields.push(`${dbKey} = $${paramIndex}`);
+        values.push(value);
+        paramIndex++;
+      }
+    });
+
+    if (updateFields.length === 0) {
+      throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'No fields to update', 400);
+    }
+
+    values.push(agent.owner_user_id);
+    const sql = `
+      UPDATE owner_profiles
+      SET ${updateFields.join(', ')}, updated_at = NOW()
+      WHERE user_id = $${paramIndex}
+      RETURNING *
+    `;
+
+    const updated = await queryOne<{
+      display_name: string | null;
+      industry: string | null;
+      company: string | null;
+      job_title: string | null;
+      location: string | null;
+      bio_md: string;
+      topics_of_interest: string[];
+      years_experience: number | null;
+      education_level: string | null;
+    }>(sql, values);
+
+    if (!updated) {
+      throw new AppError(ERROR_CODES.NOT_FOUND, 'Owner profile not found', 404);
+    }
+
+    // Check completion status
+    const status = await queryOne<{
+      display_name: string | null;
+      industry: string | null;
+      job_title: string | null;
+      bio_md: string;
+      topics_of_interest: string[];
+      agent_role: string | null;
+      focus_topics: string[] | null;
+    }>(
+      `SELECT 
+        op.display_name,
+        op.industry,
+        op.job_title,
+        op.bio_md,
+        op.topics_of_interest,
+        aoc.agent_role,
+        aoc.focus_topics
+      FROM owner_profiles op
+      LEFT JOIN agent_owner_config aoc ON aoc.owner_id = op.id
+      WHERE op.user_id = $1`,
+      [agent.owner_user_id]
+    );
+
+    const checks = {
+      display_name: !!(status?.display_name && status.display_name.trim().length >= 1),
+      industry: !!(status?.industry && status.industry.trim().length > 0),
+      job_title: (status?.job_title?.trim().length || 0) >= 5,
+      bio: (status?.bio_md?.trim().length || 0) >= 50,
+      topics: (status?.topics_of_interest?.length || 0) >= 3,
+      agent_role: (status?.agent_role?.trim().length || 0) >= 20,
+      agent_specialties: (status?.focus_topics?.length || 0) >= 3,
+    };
+
+    const missingFields = Object.entries(checks)
+      .filter(([_, satisfied]) => !satisfied)
+      .map(([field]) => field);
+
+    const completionRate = Math.round(
+      (Object.values(checks).filter(c => c).length / Object.keys(checks).length) * 100
+    );
+    const canUseDM = missingFields.length === 0;
+
+    return reply.send(
+      successResponse({
+        profile: {
+          display_name: updated.display_name,
+          industry: updated.industry,
+          company: updated.company,
+          job_title: updated.job_title,
+          location: updated.location,
+          bio: updated.bio_md,
+          topics: updated.topics_of_interest,
+          years_experience: updated.years_experience,
+          education_level: updated.education_level,
+        },
+        completion: {
+          rate: completionRate,
+          can_use_dm: canUseDM,
+          missing_fields: missingFields,
+          next_steps: canUseDM 
+            ? 'Profile complete! DM feature unlocked.' 
+            : `Please complete: ${missingFields.join(', ')}`,
+        },
+      })
+    );
+  });
+
+  /**
+   * PATCH /v1/agents/me/config
+   * Update agent configuration (Agent collects its own role/specialties)
+   */
+  fastify.patch('/v1/agents/me/config', async (request, reply) => {
+    const authResult = await verifyAgentToken(request);
+    if (!authResult) {
+      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Authentication required', 401);
+    }
+
+    const parseResult = updateAgentConfigSchema.safeParse(request.body);
+    if (!parseResult.success) {
+      const details: Record<string, string> = {};
+      parseResult.error.issues.forEach(issue => {
+        const field = issue.path[0] as string;
+        details[field] = issue.message;
+      });
+      
+      throw new AppError(
+        ERROR_CODES.VALIDATION_ERROR,
+        'Invalid config data',
+        400,
+        'One or more fields failed validation',
+        { validation_errors: details }
+      );
+    }
+
+    const data = parseResult.data;
+
+    // Get agent's owner
+    const agent = await queryOne<{ owner_user_id: string | null }>(
+      `SELECT owner_user_id FROM agents WHERE id = $1`,
+      [authResult.agentId]
+    );
+
+    if (!agent?.owner_user_id) {
+      throw new AppError(ERROR_CODES.FORBIDDEN, 'Agent not claimed yet', 403);
+    }
+
+    // Get owner_profile id
+    const ownerProfile = await queryOne<{ id: string }>(
+      `SELECT id FROM owner_profiles WHERE user_id = $1`,
+      [agent.owner_user_id]
+    );
+
+    if (!ownerProfile) {
+      throw new AppError(ERROR_CODES.NOT_FOUND, 'Owner profile not found', 404);
+    }
+
+    // Upsert agent config
+    const updateFields: string[] = [];
+    const values: any[] = [authResult.agentId, ownerProfile.id];
+    let paramIndex = 3;
+
+    Object.entries(data).forEach(([key, value]) => {
+      if (value !== undefined) {
+        updateFields.push(`${key} = $${paramIndex}`);
+        values.push(value);
+        paramIndex++;
+      }
+    });
+
+    if (updateFields.length === 0) {
+      throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'No fields to update', 400);
+    }
+
+    const sql = `
+      INSERT INTO agent_owner_config (agent_id, owner_id, ${Object.keys(data).join(', ')})
+      VALUES ($1, $2, ${Object.keys(data).map((_, i) => `$${i + 3}`).join(', ')})
+      ON CONFLICT (agent_id, owner_id)
+      DO UPDATE SET ${updateFields.join(', ')}, updated_at = NOW()
+      RETURNING *
+    `;
+
+    const updated = await queryOne<AgentConfigRow>(sql, values);
+
+    return reply.send(
+      successResponse({
+        config: {
+          agent_role: updated?.agent_role ?? null,
+          agent_persona: updated?.agent_persona_md ?? null,
+          focus_topics: updated?.focus_topics ?? [],
+          dm_policy: updated?.dm_policy ?? 'ask',
+          speaking_style: updated?.speaking_style ?? 'balanced',
+        },
+      })
+    );
+  });
+
+  /**
+   * GET /v1/agents/me/profile-status
+   * Check agent's profile completeness for DM eligibility
+   */
+  fastify.get('/v1/agents/me/profile-status', async (request, reply) => {
+    const authResult = await verifyAgentToken(request);
+    
+    if (!authResult) {
+      throw new AppError(
+        ERROR_CODES.UNAUTHORIZED,
+        'Authentication required',
+        401
+      );
+    }
+
+    // Get profile info
+    const profileData = await queryOne<{
+      display_name: string | null;
+      industry: string | null;
+      company: string | null;
+      job_title: string | null;
+      location: string | null;
+      bio_md: string;
+      topics_of_interest: string[];
+      agent_role: string | null;
+      agent_persona_md: string | null;
+      focus_topics: string[] | null;
+    }>(
+      `SELECT 
+        op.display_name,
+        op.industry,
+        op.company,
+        op.job_title,
+        op.location,
+        op.bio_md,
+        op.topics_of_interest,
+        aoc.agent_role,
+        aoc.agent_persona_md,
+        aoc.focus_topics
+      FROM agents a
+      JOIN owner_profiles op ON a.owner_user_id = op.user_id
+      LEFT JOIN agent_owner_config aoc ON a.id = aoc.agent_id AND aoc.owner_id = op.id
+      WHERE a.id = $1`,
+      [authResult.agentId]
+    );
+
+    if (!profileData) {
+      throw new AppError(ERROR_CODES.NOT_FOUND, 'Profile not found', 404);
+    }
+
+    // 检查每个字段
+    const checks = {
+      display_name: {
+        required: true,
+        current_length: profileData.display_name?.trim().length || 0,
+        min_length: 1,
+        satisfied: !!(profileData.display_name && profileData.display_name.trim().length >= 1),
+        description: 'Your display name or nickname',
+      },
+      industry: {
+        required: true,
+        current_value: profileData.industry || '',
+        satisfied: !!(profileData.industry && profileData.industry.trim().length > 0),
+        description: 'Your industry sector (e.g., AI/ML, Software Development, Product Management)',
+      },
+      job_title: {
+        required: true,
+        current_length: profileData.job_title?.trim().length || 0,
+        min_length: 5,
+        satisfied: (profileData.job_title?.trim().length || 0) >= 5,
+        description: 'Your current job title or role',
+      },
+      bio: {
+        required: true,
+        current_length: profileData.bio_md?.trim().length || 0,
+        min_length: 50,
+        satisfied: (profileData.bio_md?.trim().length || 0) >= 50,
+        description: 'Your professional background and expertise (at least 50 characters)',
+      },
+      topics: {
+        required: true,
+        current_count: profileData.topics_of_interest?.length || 0,
+        min_count: 3,
+        satisfied: (profileData.topics_of_interest?.length || 0) >= 3,
+        description: 'Topics you are interested in or knowledgeable about (at least 3)',
+      },
+      agent_role: {
+        required: true,
+        current_length: profileData.agent_role?.trim().length || 0,
+        min_length: 20,
+        satisfied: (profileData.agent_role?.trim().length || 0) >= 20,
+        description: 'What your agent does and its primary responsibilities',
+      },
+      agent_specialties: {
+        required: true,
+        current_count: profileData.focus_topics?.length || 0,
+        min_count: 3,
+        satisfied: (profileData.focus_topics?.length || 0) >= 3,
+        description: 'Specific topics or skills your agent specializes in (at least 3)',
+      },
+    };
+
+    // Optional fields (not required for DM but recommended)
+    const optionalFields = {
+      company: {
+        filled: !!(profileData.company && profileData.company.trim().length > 0),
+        current_value: profileData.company || '',
+        description: 'Your company name (helps others find colleagues)',
+      },
+      location: {
+        filled: !!(profileData.location && profileData.location.trim().length > 0),
+        current_value: profileData.location || '',
+        description: 'Your geographic location (helps find local experts)',
+      },
+    };
+
+    const missingFields = Object.entries(checks)
+      .filter(([_, check]) => !check.satisfied)
+      .map(([field]) => field);
+
+    const completionRate = Math.round(
+      (Object.values(checks).filter(c => c.satisfied).length / Object.keys(checks).length) * 100
+    );
+
+    const canUseDM = missingFields.length === 0;
+
+    return reply.send(
+      successResponse({
+        can_use_dm: canUseDM,
+        completion_rate: completionRate,
+        checks,
+        optional_fields: optionalFields,
+        missing_fields: missingFields,
+        settings_url: `${config.app.url}/console/settings`,
+        agent_instructions: canUseDM
+          ? 'Your profile is complete. You can now send DM requests.'
+          : `Profile incomplete (${completionRate}%). Before sending DM requests, please ask your owner to complete: ${missingFields.join(', ')}. Direct them to: ${config.app.url}/console/settings`,
+      })
+    );
+  });
+  
+  /**
    * GET /v1/agents/me/owner
    * Get owner profile and agent configuration (for agent to read)
    */
@@ -89,13 +534,13 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
       );
     }
 
-    // Get agent's twitter handle to find owner
-    const agent = await queryOne<{ twitter_handle: string }>(
-      `SELECT twitter_handle FROM agents WHERE id = $1`,
+    // Get agent's owner_user_id
+    const agent = await queryOne<{ owner_user_id: string | null; twitter_handle: string | null }>(
+      `SELECT owner_user_id, twitter_handle FROM agents WHERE id = $1`,
       [authResult.agentId]
     );
 
-    if (!agent?.twitter_handle) {
+    if (!agent?.owner_user_id) {
       throw new AppError(
         ERROR_CODES.NOT_FOUND,
         'Agent not claimed yet',
@@ -104,10 +549,10 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
       );
     }
 
-    // Get owner profile
+    // Get owner profile by user_id
     const owner = await queryOne<OwnerProfileRow>(
-      `SELECT * FROM owner_profiles WHERE twitter_handle = $1`,
-      [agent.twitter_handle]
+      `SELECT * FROM owner_profiles WHERE user_id = $1`,
+      [agent.owner_user_id]
     );
 
     // Get agent config
@@ -192,33 +637,32 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
 
   /**
    * GET /v1/owners/me/profile
-   * Get owner's own profile (authenticated via session/cookie in web UI)
-   * For MVP: use twitter_handle query param
+   * Get owner's own profile (authenticated via session)
    */
   fastify.get('/v1/owners/me/profile', async (request, reply) => {
-    const twitterHandle = (request.query as { twitter_handle?: string }).twitter_handle;
+    const session = await verifyUserSession(request);
     
-    if (!twitterHandle) {
-      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Authentication required', 401);
+    if (!session) {
+      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Please sign in first', 401);
     }
 
     // Get or create owner profile
     let owner = await queryOne<OwnerProfileRow>(
-      `SELECT * FROM owner_profiles WHERE twitter_handle = $1`,
-      [twitterHandle]
+      `SELECT * FROM owner_profiles WHERE user_id = $1`,
+      [session.userId]
     );
 
     if (!owner) {
       // Auto-create profile
       owner = await queryOne<OwnerProfileRow>(
-        `INSERT INTO owner_profiles (twitter_handle)
-         VALUES ($1)
+        `INSERT INTO owner_profiles (user_id, display_name)
+         VALUES ($1, $2)
          RETURNING *`,
-        [twitterHandle]
+        [session.userId, session.user.name]
       );
     }
 
-    // Get agents owned by this handle
+    // Get agents owned by this user
     interface AgentSummary {
       id: string;
       name: string;
@@ -226,15 +670,16 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
       availability: string;
     }
     const agents = await queryMany<AgentSummary>(
-      `SELECT id, name, status, availability 
+      `SELECT id, name, status, COALESCE(availability, 'active') as availability 
        FROM agents 
-       WHERE twitter_handle = $1`,
-      [twitterHandle]
+       WHERE owner_user_id = $1`,
+      [session.userId]
     );
 
     return successResponse({
       profile: {
         id: owner!.id,
+        user_id: owner!.user_id,
         twitter_handle: owner!.twitter_handle,
         display_name: owner!.display_name,
         background_md: owner!.background_md,
@@ -243,6 +688,7 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
         created_at: owner!.created_at.toISOString(),
         updated_at: owner!.updated_at.toISOString(),
       },
+      user: session.user,
       agents: agents.map(a => ({
         id: a.id,
         name: a.name,
@@ -257,10 +703,10 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
    * Update owner's profile
    */
   fastify.patch('/v1/owners/me/profile', async (request, reply) => {
-    const twitterHandle = (request.query as { twitter_handle?: string }).twitter_handle;
+    const session = await verifyUserSession(request);
     
-    if (!twitterHandle) {
-      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Authentication required', 401);
+    if (!session) {
+      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Please sign in first', 401);
     }
 
     const parseResult = updateOwnerProfileSchema.safeParse(request.body);
@@ -297,12 +743,12 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
       values.push(data.notification_level);
     }
 
-    values.push(twitterHandle);
+    values.push(session.userId);
 
     const owner = await queryOne<OwnerProfileRow>(
       `UPDATE owner_profiles 
        SET ${updates.join(', ')}
-       WHERE twitter_handle = $${paramIndex}
+       WHERE user_id = $${paramIndex}
        RETURNING *`,
       values
     );
@@ -329,17 +775,17 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
    * Get configuration for a specific agent
    */
   fastify.get('/v1/owners/me/agents/:agentId/config', async (request, reply) => {
-    const twitterHandle = (request.query as { twitter_handle?: string }).twitter_handle;
+    const session = await verifyUserSession(request);
     const { agentId } = request.params as { agentId: string };
     
-    if (!twitterHandle) {
-      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Authentication required', 401);
+    if (!session) {
+      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Please sign in first', 401);
     }
 
-    // Verify ownership
+    // Verify ownership via owner_user_id
     const agent = await queryOne<{ id: string; name: string }>(
-      `SELECT id, name FROM agents WHERE id = $1 AND twitter_handle = $2`,
-      [agentId, twitterHandle]
+      `SELECT id, name FROM agents WHERE id = $1 AND owner_user_id = $2`,
+      [agentId, session.userId]
     );
 
     if (!agent) {
@@ -348,8 +794,8 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
 
     // Get owner profile
     const owner = await queryOne<{ id: string }>(
-      `SELECT id FROM owner_profiles WHERE twitter_handle = $1`,
-      [twitterHandle]
+      `SELECT id FROM owner_profiles WHERE user_id = $1`,
+      [session.userId]
     );
 
     if (!owner) {
@@ -393,11 +839,11 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
    * Update configuration for a specific agent
    */
   fastify.patch('/v1/owners/me/agents/:agentId/config', async (request, reply) => {
-    const twitterHandle = (request.query as { twitter_handle?: string }).twitter_handle;
+    const session = await verifyUserSession(request);
     const { agentId } = request.params as { agentId: string };
     
-    if (!twitterHandle) {
-      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Authentication required', 401);
+    if (!session) {
+      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Please sign in first', 401);
     }
 
     const parseResult = updateAgentConfigSchema.safeParse(request.body);
@@ -409,10 +855,10 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
       );
     }
 
-    // Verify ownership
+    // Verify ownership via owner_user_id
     const agent = await queryOne<{ id: string }>(
-      `SELECT id FROM agents WHERE id = $1 AND twitter_handle = $2`,
-      [agentId, twitterHandle]
+      `SELECT id FROM agents WHERE id = $1 AND owner_user_id = $2`,
+      [agentId, session.userId]
     );
 
     if (!agent) {
@@ -421,8 +867,8 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
 
     // Get owner profile
     const owner = await queryOne<{ id: string }>(
-      `SELECT id FROM owner_profiles WHERE twitter_handle = $1`,
-      [twitterHandle]
+      `SELECT id FROM owner_profiles WHERE user_id = $1`,
+      [session.userId]
     );
 
     if (!owner) {
@@ -477,11 +923,11 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
    * Send a prompt/instruction to an agent
    */
   fastify.post('/v1/owners/me/agents/:agentId/prompts', async (request, reply) => {
-    const twitterHandle = (request.query as { twitter_handle?: string }).twitter_handle;
+    const session = await verifyUserSession(request);
     const { agentId } = request.params as { agentId: string };
     
-    if (!twitterHandle) {
-      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Authentication required', 401);
+    if (!session) {
+      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Please sign in first', 401);
     }
 
     const parseResult = sendPromptSchema.safeParse(request.body);
@@ -489,10 +935,10 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
       throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Invalid request body', 400);
     }
 
-    // Verify ownership
+    // Verify ownership via owner_user_id
     const agent = await queryOne<{ id: string }>(
-      `SELECT id FROM agents WHERE id = $1 AND twitter_handle = $2`,
-      [agentId, twitterHandle]
+      `SELECT id FROM agents WHERE id = $1 AND owner_user_id = $2`,
+      [agentId, session.userId]
     );
 
     if (!agent) {
@@ -501,8 +947,8 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
 
     // Get owner profile
     const owner = await queryOne<{ id: string }>(
-      `SELECT id FROM owner_profiles WHERE twitter_handle = $1`,
-      [twitterHandle]
+      `SELECT id FROM owner_profiles WHERE user_id = $1`,
+      [session.userId]
     );
 
     if (!owner) {

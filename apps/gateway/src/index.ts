@@ -9,6 +9,7 @@ import { AppError } from './lib/errors.js';
 
 // Routes
 import { healthRoutes } from './routes/health.js';
+import { authRoutes } from './routes/auth.js';
 import { agentRoutes } from './routes/agents.js';
 import { claimRoutes } from './routes/claims.js';
 import { roomRoutes } from './routes/rooms.js';
@@ -18,6 +19,7 @@ import { dmRoutes } from './routes/dm.js';
 import { roomRulesRoutes } from './routes/room-rules.js';
 import { tagRoutes } from './routes/tags.js';
 import { ownerRoutes } from './routes/owner.js';
+import { discoverRoutes } from './routes/discover.js';
 
 // Matrix
 import { getMatrixClient, stopMatrixClient } from './lib/matrix.js';
@@ -42,7 +44,7 @@ async function main() {
 
   // Register plugins
   await fastify.register(cors, {
-    origin: config.isDev ? true : ['https://moltchat.com', 'https://www.moltchat.com'],
+    origin: config.isDev ? true : ['https://https://semimaterialistic-jorden-notional.ngrok-free.dev/', 'https://www.https://semimaterialistic-jorden-notional.ngrok-free.dev/'],
     credentials: true,
   });
 
@@ -78,6 +80,7 @@ async function main() {
 
   // Register routes
   await fastify.register(healthRoutes);
+  await fastify.register(authRoutes);
   await fastify.register(agentRoutes);
   await fastify.register(claimRoutes);
   await fastify.register(roomRoutes);
@@ -87,6 +90,7 @@ async function main() {
   await fastify.register(roomRulesRoutes);
   await fastify.register(tagRoutes);
   await fastify.register(ownerRoutes);
+  await fastify.register(discoverRoutes);
 
   // Initialize Matrix client (non-blocking)
   logger.info('Starting Matrix client initialization...');

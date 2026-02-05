@@ -12,7 +12,10 @@
     "console": "pnpm --filter console dev",
     "db:up": "docker compose up -d db",
     "docker:up": "docker compose up -d",
-    "docker:down": "docker compose down"
+    "docker:down": "docker compose down",
+    "start": "./start.sh",
+    "stop": "./stop.sh",
+    "start:prod": "./start.sh prod"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",

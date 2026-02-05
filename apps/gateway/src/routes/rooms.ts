@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { query, queryOne, queryMany } from '../db/client.js';
 import { AppError, ERROR_CODES, successResponse } from '../lib/errors.js';
-import { verifyAgentToken } from '../lib/auth.js';
+import { verifyAgentToken, verifyUserSession } from '../lib/auth.js';
 import { createMatrixRoom, isMatrixEnabled, inviteAgentToRoom, agentJoinRoom } from '../lib/matrix.js';
 import { config } from '../lib/config.js';
 
@@ -40,6 +40,14 @@ const listRoomsQuerySchema = z.object({
   limit: z.coerce.number().min(1).max(100).default(20),
 });
 
+const publicRoomsQuerySchema = z.object({
+  page: z.coerce.number().min(1).default(1),
+  limit: z.coerce.number().min(1).max(50).default(20),
+  category: z.string().optional(),
+  sort: z.enum(['hot', 'recent', 'popular']).default('hot'),
+  search: z.string().optional(),
+});
+
 // ============================================
 // Type Definitions
 // ============================================
@@ -49,6 +57,7 @@ interface RoomRow {
   name: string;
   description: string | null;
   owner_id: string;
+  owner_type?: string; // 'agent' or 'user'
   status: string;
   invite_only: boolean;
   allow_observer: boolean;
@@ -81,6 +90,112 @@ interface AgentRow {
 // ============================================
 
 export async function roomRoutes(fastify: FastifyInstance): Promise<void> {
+  /**
+   * GET /v1/rooms/public
+   * List all public rooms for discovery (no auth required)
+   */
+  fastify.get('/v1/rooms/public', async (request, reply) => {
+    const queryParams = publicRoomsQuerySchema.parse(request.query);
+    const { page, limit, category, sort, search } = queryParams;
+    const offset = (page - 1) * limit;
+
+    // Build WHERE clause
+    const conditions: string[] = [`r.status = 'active'`, `r.is_public = true`];
+    const params: (string | number)[] = [];
+    let paramIndex = 1;
+
+    if (category) {
+      conditions.push(`EXISTS (
+        SELECT 1 FROM room_tags rt 
+        JOIN tags t ON rt.tag_id = t.id 
+        WHERE rt.room_id = r.id AND t.slug = $${paramIndex}
+      )`);
+      params.push(category);
+      paramIndex++;
+    }
+
+    if (search) {
+      conditions.push(`(r.name ILIKE $${paramIndex} OR r.description ILIKE $${paramIndex})`);
+      params.push(`%${search}%`);
+      paramIndex++;
+    }
+
+    const whereClause = conditions.join(' AND ');
+
+    // Build ORDER BY clause based on sort
+    let orderClause: string;
+    switch (sort) {
+      case 'recent':
+        orderClause = 'r.created_at DESC';
+        break;
+      case 'popular':
+        orderClause = 'agent_count DESC, r.created_at DESC';
+        break;
+      case 'hot':
+      default:
+        orderClause = 'message_count DESC, agent_count DESC, r.created_at DESC';
+        break;
+    }
+
+    // Count total public rooms
+    const countResult = await queryOne<{ count: string }>(
+      `SELECT COUNT(*) as count FROM rooms r WHERE ${whereClause}`,
+      params
+    );
+    const total = parseInt(countResult?.count ?? '0', 10);
+
+    // Get rooms with stats
+    const rooms = await queryMany<RoomRow & { 
+      agent_count: string; 
+      message_count: string;
+      category_name: string | null;
+    }>(
+      `SELECT r.*, 
+              (SELECT COUNT(*) FROM room_members rm WHERE rm.room_id = r.id) as agent_count,
+              (SELECT COUNT(*) FROM enforcement_logs el WHERE el.room_id = r.id AND el.action = 'message_sent') as message_count,
+              (SELECT t.name FROM room_tags rt JOIN tags t ON rt.tag_id = t.id WHERE rt.room_id = r.id LIMIT 1) as category_name
+       FROM rooms r
+       WHERE ${whereClause}
+       ORDER BY ${orderClause}
+       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+      [...params, limit, offset]
+    );
+
+    // Get available categories
+    const categoriesResult = await queryMany<{ name: string; slug: string }>(
+      `SELECT DISTINCT t.name, t.slug
+       FROM tags t
+       JOIN room_tags rt ON rt.tag_id = t.id
+       JOIN rooms r ON rt.room_id = r.id
+       WHERE r.is_public = true AND r.status = 'active'
+       ORDER BY t.name`
+    );
+
+    return successResponse({
+      rooms: rooms.map((room) => ({
+        id: room.id,
+        name: room.name,
+        description: room.description,
+        status: room.status,
+        agent_count: parseInt(room.agent_count, 10),
+        message_count: parseInt(room.message_count, 10),
+        matrix_room_id: room.matrix_room_id,
+        element_room_url: room.element_room_url,
+        category: room.category_name,
+        is_public: room.is_public,
+        last_activity: room.updated_at?.toISOString() || room.created_at.toISOString(),
+        created_at: room.created_at.toISOString(),
+      })),
+      categories: categoriesResult.map(c => c.name),
+      pagination: {
+        page,
+        limit,
+        total,
+        total_pages: Math.ceil(total / limit),
+      },
+    });
+  });
+
   /**
    * GET /v1/rooms
    * List rooms (public rooms or rooms the agent is a member of)
@@ -125,6 +240,8 @@ export async function roomRoutes(fastify: FastifyInstance): Promise<void> {
         owner_id: room.owner_id,
         status: room.status,
         agent_count: parseInt(room.agent_count, 10),
+        matrix_room_id: room.matrix_room_id,
+        element_room_url: room.element_room_url,
         created_at: room.created_at.toISOString(),
       })),
       pagination: {
@@ -138,36 +255,88 @@ export async function roomRoutes(fastify: FastifyInstance): Promise<void> {
 
   /**
    * POST /v1/rooms
-   * Create a new room
+   * Create a new room (supports both Agent and User authentication)
    */
   fastify.post('/v1/rooms', async (request, reply) => {
-    // Verify agent token
-    const authResult = await verifyAgentToken(request);
-    if (!authResult) {
-      throw new AppError(
-        ERROR_CODES.UNAUTHORIZED,
-        'Agent token required',
-        401,
-        'Provide Authorization: Bearer <agent_token>'
-      );
-    }
+    let ownerId: string;
+    let ownerType: 'agent' | 'user';
+    let ownerName: string;
+    let agent: AgentRow | null = null;
 
-    // Verify agent is claimed (include Matrix credentials)
-    const agent = await queryOne<AgentRow>(
-      'SELECT id, name, status, matrix_user_id, matrix_access_token FROM agents WHERE id = $1',
-      [authResult.agentId]
-    );
+    // Try to authenticate as agent first
+    const agentAuth = await verifyAgentToken(request);
+    
+    if (agentAuth) {
+      // Agent authentication successful
+      ownerType = 'agent';
+      
+      // Check if this is a dev mode agent
+      const isDevAgent = agentAuth.agentId.startsWith('dev_');
 
-    if (!agent) {
-      throw new AppError(ERROR_CODES.NOT_FOUND, 'Agent not found', 404);
-    }
+      if (isDevAgent) {
+        // For dev mode agents, create or get the agent record
+        const crypto = await import('crypto');
+        const devAgentUuid = crypto.createHash('md5')
+          .update(agentAuth.agentId)
+          .digest('hex')
+          .replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/, '$1-$2-$3-$4-$5');
+        
+        agent = await queryOne<AgentRow>(
+          'SELECT id, name, status, matrix_user_id, matrix_access_token FROM agents WHERE id = $1',
+          [devAgentUuid]
+        );
+        
+        if (!agent) {
+          agent = await queryOne<AgentRow>(
+            `INSERT INTO agents (id, name, twitter_handle, status, claimed_at)
+             VALUES ($1, $2, $3, 'claimed', NOW())
+             ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name
+             RETURNING id, name, status, matrix_user_id, matrix_access_token`,
+            [devAgentUuid, `Dev Agent ${agentAuth.agentId}`, `dev_${agentAuth.agentId}`]
+          );
+        }
+        
+        ownerId = devAgentUuid;
+      } else {
+        // Regular agent
+        agent = await queryOne<AgentRow>(
+          'SELECT id, name, status, matrix_user_id, matrix_access_token FROM agents WHERE id = $1',
+          [agentAuth.agentId]
+        );
 
-    if (agent.status !== 'claimed') {
-      throw new AppError(
-        ERROR_CODES.AGENT_NOT_CLAIMED,
-        'Agent must complete claim process first',
-        403
-      );
+        if (!agent) {
+          throw new AppError(ERROR_CODES.NOT_FOUND, 'Agent not found', 404);
+        }
+
+        if (agent.status !== 'claimed') {
+          throw new AppError(
+            ERROR_CODES.AGENT_NOT_CLAIMED,
+            'Agent must complete claim process first',
+            403
+          );
+        }
+        
+        ownerId = agent.id;
+      }
+      
+      ownerName = agent?.name || 'Unknown Agent';
+    } else {
+      // Try user session authentication
+      const userAuth = await verifyUserSession(request);
+      
+      if (!userAuth) {
+        throw new AppError(
+          ERROR_CODES.UNAUTHORIZED,
+          'Authentication required',
+          401,
+          'Provide either Agent Token (Authorization: Bearer <token>) or valid user session'
+        );
+      }
+      
+      // User authentication successful
+      ownerType = 'user';
+      ownerId = `user:${userAuth.userId}`;
+      ownerName = userAuth.user.name;
     }
 
     // Validate request body
@@ -194,8 +363,6 @@ export async function roomRoutes(fastify: FastifyInstance): Promise<void> {
         elementRoomUrl = matrixRoom.elementUrl;
       }
     } else {
-      // Generate placeholder Element URL for when Matrix is not enabled
-      // This allows the UI to still show the button (disabled or with message)
       elementRoomUrl = null;
     }
 
@@ -203,15 +370,16 @@ export async function roomRoutes(fastify: FastifyInstance): Promise<void> {
     const isPublic = settings?.is_public ?? false;
     const publicSlug = isPublic ? generatePublicSlug() : null;
 
-    // Create room
+    // Create room with owner_type field
     const room = await queryOne<RoomRow>(
-      `INSERT INTO rooms (name, description, owner_id, invite_only, allow_observer, is_public, public_slug, matrix_room_id, element_room_url)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `INSERT INTO rooms (name, description, owner_id, owner_type, invite_only, allow_observer, is_public, public_slug, matrix_room_id, element_room_url)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
       [
         name,
         description ?? null,
-        authResult.agentId,
+        ownerId,
+        ownerType,
         settings?.invite_only ?? false,
         settings?.allow_observer ?? true,
         isPublic,
@@ -225,17 +393,19 @@ export async function roomRoutes(fastify: FastifyInstance): Promise<void> {
       throw new AppError(ERROR_CODES.INTERNAL_ERROR, 'Failed to create room', 500);
     }
 
-    // Add owner as member
-    await query(
-      `INSERT INTO room_members (room_id, agent_id, role)
-       VALUES ($1, $2, 'owner')`,
-      [room.id, authResult.agentId]
-    );
+    // Add owner as member (only if owner is an agent)
+    if (ownerType === 'agent' && agent) {
+      await query(
+        `INSERT INTO room_members (room_id, agent_id, role)
+         VALUES ($1, $2, 'owner')`,
+        [room.id, ownerId]
+      );
 
-    // Invite owner's Matrix user to the room and auto-join
-    if (matrixRoomId && agent.matrix_user_id && agent.matrix_access_token) {
-      await inviteAgentToRoom(matrixRoomId, agent.matrix_user_id);
-      await agentJoinRoom(matrixRoomId, agent.matrix_user_id, agent.matrix_access_token);
+      // Invite owner's Matrix user to the room and auto-join
+      if (matrixRoomId && agent.matrix_user_id && agent.matrix_access_token) {
+        await inviteAgentToRoom(matrixRoomId, agent.matrix_user_id);
+        await agentJoinRoom(matrixRoomId, agent.matrix_user_id, agent.matrix_access_token);
+      }
     }
 
     // Create default rules for the room
@@ -258,7 +428,6 @@ export async function roomRoutes(fastify: FastifyInstance): Promise<void> {
         [room.id, ...tag_ids]
       );
       
-      // Fetch tag details
       const tags = await queryMany<{ id: string; name: string; slug: string }>(
         `SELECT id, name, slug FROM tags WHERE id = ANY($1)`,
         [tag_ids]
@@ -273,6 +442,8 @@ export async function roomRoutes(fastify: FastifyInstance): Promise<void> {
         name: room.name,
         description: room.description,
         owner_id: room.owner_id,
+        owner_type: room.owner_type,
+        owner_name: ownerName,
         status: room.status,
         settings: {
           invite_only: room.invite_only,
@@ -611,6 +782,159 @@ export async function roomRoutes(fastify: FastifyInstance): Promise<void> {
           ? `${config.app?.url || 'http://localhost:3000'}/watch/${updatedRoom!.public_slug}` 
           : null,
       },
+    });
+  });
+
+  // ============================================
+  // Invite Agent API (for human room owners)
+  // ============================================
+
+  const inviteAgentSchema = z.object({
+    agent_id: z.string().uuid(),
+  });
+
+  /**
+   * POST /v1/rooms/:id/invite-agent
+   * Room owner (human or agent) invites an agent to join the room
+   */
+  fastify.post<{
+    Params: { id: string };
+    Body: { agent_id: string };
+  }>('/v1/rooms/:id/invite-agent', async (request, reply) => {
+    const { id: roomId } = request.params;
+
+    // Try to authenticate as user first, then as agent
+    let ownerId: string | null = null;
+    let ownerType: 'user' | 'agent' | null = null;
+
+    // Check for user session (human owner)
+    const userSession = await verifyUserSession(request);
+    if (userSession) {
+      ownerId = userSession.userId;
+      ownerType = 'user';
+    } else {
+      // Check for agent token
+      const agentAuth = await verifyAgentToken(request);
+      if (agentAuth) {
+        ownerId = agentAuth.agentId;
+        ownerType = 'agent';
+      }
+    }
+
+    if (!ownerId) {
+      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Authentication required', 401);
+    }
+
+    // Validate request body
+    const parseResult = inviteAgentSchema.safeParse(request.body);
+    if (!parseResult.success) {
+      throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Invalid request body', 400);
+    }
+
+    const { agent_id: targetAgentId } = parseResult.data;
+
+    // Get room and verify ownership
+    const room = await queryOne<RoomRow>(
+      'SELECT * FROM rooms WHERE id = $1 AND status = $2',
+      [roomId, 'active']
+    );
+
+    if (!room) {
+      throw new AppError(ERROR_CODES.NOT_FOUND, 'Room not found', 404);
+    }
+
+    // Check if user is the room owner
+    if (room.owner_id !== ownerId) {
+      throw new AppError(ERROR_CODES.FORBIDDEN, 'Only room owner can invite agents', 403);
+    }
+
+    // Check if target agent exists
+    const targetAgent = await queryOne<{ id: string; name: string; matrix_user_id: string | null }>(
+      'SELECT id, name, matrix_user_id FROM agents WHERE id = $1 AND status = $2',
+      [targetAgentId, 'active']
+    );
+
+    if (!targetAgent) {
+      throw new AppError(ERROR_CODES.NOT_FOUND, 'Agent not found', 404);
+    }
+
+    // Check if agent is already a member
+    const existingMember = await queryOne(
+      'SELECT id FROM room_members WHERE room_id = $1 AND agent_id = $2',
+      [roomId, targetAgentId]
+    );
+
+    if (existingMember) {
+      throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Agent is already a member of this room', 400);
+    }
+
+    // Add agent as member
+    await query(
+      `INSERT INTO room_members (room_id, agent_id, role)
+       VALUES ($1, $2, 'member')`,
+      [roomId, targetAgentId]
+    );
+
+    // If Matrix is enabled, invite agent to Matrix room
+    if (isMatrixEnabled() && room.matrix_room_id && targetAgent.matrix_user_id) {
+      try {
+        await inviteAgentToRoom(room.matrix_room_id, targetAgent.matrix_user_id);
+        // Note: Agent will auto-join when they next access the room with their own token
+      } catch (error) {
+        // Log but don't fail - the agent is still added to MoltChat
+        console.error('Failed to invite agent to Matrix room:', error);
+      }
+    }
+
+    return successResponse({
+      message: 'Agent invited successfully',
+      room_id: roomId,
+      agent: {
+        id: targetAgent.id,
+        name: targetAgent.name,
+      },
+    });
+  });
+
+  /**
+   * GET /v1/agents/available
+   * Get list of agents available for invitation
+   */
+  fastify.get<{
+    Querystring: { search?: string; limit?: number };
+  }>('/v1/agents/available', async (request, reply) => {
+    const { search, limit = 20 } = request.query;
+
+    let queryText = `
+      SELECT id, name, twitter_handle, status, personality
+      FROM agents 
+      WHERE status = 'active'
+    `;
+    const params: (string | number)[] = [];
+
+    if (search) {
+      params.push(`%${search}%`);
+      queryText += ` AND (name ILIKE $${params.length} OR twitter_handle ILIKE $${params.length})`;
+    }
+
+    queryText += ` ORDER BY name ASC LIMIT $${params.length + 1}`;
+    params.push(limit);
+
+    const agents = await queryMany<{
+      id: string;
+      name: string;
+      twitter_handle: string | null;
+      status: string;
+      personality: string | null;
+    }>(queryText, params);
+
+    return successResponse({
+      agents: agents.map(a => ({
+        id: a.id,
+        name: a.name,
+        twitter_handle: a.twitter_handle,
+        personality: a.personality?.substring(0, 100) || null,
+      })),
     });
   });
 }

@@ -1,0 +1,140 @@
+version: '3.8'
+
+services:
+  # ============================================
+  # Redis (可选 - 用于缓存、会话、队列)
+  # 初期可注释掉，需要时启用
+  # ============================================
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: moltchat-redis
+  #   restart: always
+  #   command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+  #   volumes:
+  #     - redis_data:/data
+  #   ports:
+  #     - "6379:6379"
+  #   healthcheck:
+  #     test: ["CMD", "redis-cli", "ping"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #   networks:
+  #     - moltchat-network
+
+  # ============================================
+  # PostgreSQL Database
+  # ============================================
+  db:
+    image: postgres:16-alpine
+    container_name: moltchat-db
+    restart: always
+    environment:
+      POSTGRES_USER: moltchat
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-moltchat}
+      POSTGRES_DB: moltchat
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-multi-db.sh:/docker-entrypoint-initdb.d/00-init-multi-db.sh:ro
+      - ./apps/gateway/src/db/schema-claim.sql:/docker-entrypoint-initdb.d/01-schema-claim.sql:ro
+      - ./apps/gateway/src/db/schema-rooms.sql:/docker-entrypoint-initdb.d/02-schema-rooms.sql:ro
+      - ./apps/gateway/src/db/schema-dm.sql:/docker-entrypoint-initdb.d/03-schema-dm.sql:ro
+      - ./apps/gateway/src/db/schema-room-rules.sql:/docker-entrypoint-initdb.d/04-schema-room-rules.sql:ro
+      - ./apps/gateway/src/db/schema-tags.sql:/docker-entrypoint-initdb.d/05-schema-tags.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U moltchat"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - moltchat-network
+
+  # ============================================
+  # Matrix Synapse (Homeserver)
+  # ============================================
+  synapse:
+    image: matrixdotorg/synapse:latest
+    container_name: moltchat-synapse
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    user: "0:0"
+    environment:
+      - SYNAPSE_SERVER_NAME=${MATRIX_SERVER_NAME:-yourdomain.com}
+      - SYNAPSE_REPORT_STATS=no
+    volumes:
+      - ./data/matrix:/data
+    ports:
+      - "8008:8008"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8008/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - moltchat-network
+
+  # ============================================
+  # Gateway (Backend API)
+  # ============================================
+  gateway:
+    build:
+      context: .
+      dockerfile: apps/gateway/Dockerfile
+    container_name: moltchat-gateway
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+      synapse:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://moltchat:${DB_PASSWORD:-moltchat}@db:5432/moltchat
+      GATEWAY_PORT: 3001
+      GATEWAY_HOST: 0.0.0.0
+      JWT_SECRET: ${JWT_SECRET}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      NODE_ENV: production
+      MATRIX_ENABLED: ${MATRIX_ENABLED:-true}
+      MATRIX_HOMESERVER_URL: http://synapse:8008
+      MATRIX_BOT_USER_ID: ${MATRIX_BOT_USER_ID}
+      MATRIX_BOT_ACCESS_TOKEN: ${MATRIX_BOT_ACCESS_TOKEN}
+      MATRIX_SERVER_NAME: ${MATRIX_SERVER_NAME}
+      ELEMENT_WEB_URL: ${NEXT_PUBLIC_ELEMENT_URL}
+      APP_URL: ${NEXT_PUBLIC_APP_URL}
+    ports:
+      - "3001:3001"
+    networks:
+      - moltchat-network
+
+  # ============================================
+  # Console (Frontend)
+  # ============================================
+  console:
+    build:
+      context: .
+      dockerfile: apps/console/Dockerfile
+    container_name: moltchat-console
+    restart: always
+    depends_on:
+      - gateway
+    environment:
+      NEXT_PUBLIC_GATEWAY_URL: ${NEXT_PUBLIC_GATEWAY_URL}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+      NEXT_PUBLIC_ELEMENT_URL: ${NEXT_PUBLIC_ELEMENT_URL}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      TWITTER_CLIENT_ID: ${TWITTER_CLIENT_ID}
+      TWITTER_CLIENT_SECRET: ${TWITTER_CLIENT_SECRET}
+    ports:
+      - "3000:3000"
+    networks:
+      - moltchat-network
+
+volumes:
+  postgres_data:
+  # redis_data:  # 启用 Redis 时取消注释
+
+networks:
+  moltchat-network:
+    driver: bridge

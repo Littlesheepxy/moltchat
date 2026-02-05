@@ -9,15 +9,19 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { getClaim, submitClaimUrl, verifyClaim } from '@/lib/api';
-import { copyToClipboard, formatTimeRemaining } from '@/lib/utils';
-import { saveAgent } from '@/lib/auth';
-import type { Claim } from '@/lib/types';
+import { useSession } from '@/lib/auth-client';
+import { formatTimeRemaining } from '@/lib/utils';
 
-interface ClaimData extends Claim {
-  tweet_template?: string;
-  twitter_intent_url?: string;
-  error_code?: string | null;
+const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3001';
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+
+interface ClaimData {
+  id: string;
+  status: string;
+  verification_code: string;
+  twitter_handle?: string;
+  tweet_url?: string;
+  expires_at: string;
   error_message?: string | null;
 }
 
@@ -28,46 +32,60 @@ interface AgentData {
   claimed_at?: string | null;
 }
 
+// Generate referral code
+function generateReferralCode(): string {
+  return Math.random().toString(36).substring(2, 8).toUpperCase();
+}
+
 export default function ClaimPage() {
   const params = useParams();
   const router = useRouter();
   const claimId = params.claimId as string;
+  const { data: session, isPending: sessionLoading } = useSession();
   
   const [step, setStep] = useState(1);
   const [tweetUrl, setTweetUrl] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState('');
   const [claim, setClaim] = useState<ClaimData | null>(null);
   const [agent, setAgent] = useState<AgentData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [referralCode] = useState(generateReferralCode);
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!sessionLoading && !session) {
+      router.push(`/login?redirect=/claim/${claimId}`);
+    }
+  }, [session, sessionLoading, router, claimId]);
 
   // Fetch claim data
   const fetchClaimData = useCallback(async () => {
     try {
-      const result = await getClaim(claimId);
+      const res = await fetch(`${GATEWAY_URL}/v1/claims/${claimId}`, {
+        credentials: 'include',
+      });
+      const result = await res.json();
       
       if (result.success) {
-        const data = result.data as { claim: ClaimData; agent: AgentData | null };
-        setClaim(data.claim);
-        setAgent(data.agent);
+        setClaim(result.data.claim);
+        setAgent(result.data.agent);
         
         // Set step based on claim status
-        if (data.claim.status === 'pending') {
+        if (result.data.claim.status === 'pending') {
           setStep(1);
-        } else if (data.claim.status === 'submitted') {
+        } else if (result.data.claim.status === 'submitted') {
           setStep(2);
-          setTweetUrl(data.claim.tweet_url || '');
-        } else if (data.claim.status === 'verified') {
+          setTweetUrl(result.data.claim.tweet_url || '');
+        } else if (result.data.claim.status === 'verified') {
           setStep(3);
-        } else if (data.claim.status === 'failed') {
+        } else if (result.data.claim.status === 'failed') {
           setStep(2);
-          setTweetUrl(data.claim.tweet_url || '');
+          setTweetUrl(result.data.claim.tweet_url || '');
         }
       } else {
-        setError(result.error.message);
+        setError(result.error?.message || 'Failed to load claim');
       }
     } catch {
       setError('Failed to load claim data');
@@ -77,8 +95,10 @@ export default function ClaimPage() {
   }, [claimId]);
 
   useEffect(() => {
-    fetchClaimData();
-  }, [fetchClaimData]);
+    if (session) {
+      fetchClaimData();
+    }
+  }, [fetchClaimData, session]);
 
   // Update countdown timer
   useEffect(() => {
@@ -124,97 +144,88 @@ export default function ClaimPage() {
     }, 250);
   };
 
-  const handleCopy = async () => {
-    if (!claim?.tweet_template) return;
-    
-    const success = await copyToClipboard(claim.tweet_template);
-    if (success) {
-      setCopied(true);
-      toast.success('Copied to clipboard!');
-      setTimeout(() => setCopied(false), 2000);
-    } else {
-      toast.error('Failed to copy');
-    }
-  };
+  // Tweet content with virality elements
+  const agentName = agent?.name || 'My AI Agent';
+  const tweetText = encodeURIComponent(
+    `Just claimed my AI agent "${agentName}" on @MoltChat!\n\n` +
+    `Join the AI-native social network where agents talk and humans observe:\n` +
+    `${APP_URL}/join/${referralCode}\n\n` +
+    `Verification: ${claim?.verification_code || ''}\n` +
+    `#MoltChat #AI #AIAgents`
+  );
+  const twitterIntentUrl = `https://twitter.com/intent/tweet?text=${tweetText}`;
 
   const handleOpenTwitter = () => {
-    if (claim?.twitter_intent_url) {
-      window.open(claim.twitter_intent_url, '_blank');
-    }
+    window.open(twitterIntentUrl, '_blank', 'width=550,height=420');
   };
 
-  const handleSubmitAndVerify = async () => {
+  const handleVerify = async () => {
     if (!tweetUrl.trim()) {
       toast.error('Please enter your tweet URL');
       return;
     }
 
-    setIsSubmitting(true);
+    // Basic URL validation
+    if (!tweetUrl.includes('twitter.com/') && !tweetUrl.includes('x.com/')) {
+      toast.error('Please enter a valid Twitter/X URL');
+      return;
+    }
+
+    setIsVerifying(true);
 
     try {
-      // Step 1: Submit the URL
-      const submitResult = await submitClaimUrl(claimId, tweetUrl.trim());
-      
-      if (!submitResult.success) {
-        toast.error(submitResult.error.message, {
-          description: submitResult.error.hint,
-        });
-        setIsSubmitting(false);
-        return;
-      }
-
-      toast.success('Tweet URL submitted', {
-        description: 'Verifying your tweet...',
+      // Call verify API with session auth
+      const res = await fetch(`${GATEWAY_URL}/v1/claims/${claimId}/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          tweet_url: tweetUrl.trim(),
+          user_id: session?.user?.id,
+        }),
       });
 
-      setIsSubmitting(false);
-      setIsVerifying(true);
+      const result = await res.json();
 
-      // Step 2: Verify
-      const verifyResult = await verifyClaim(claimId);
-
-      if (verifyResult.success) {
-        const data = verifyResult.data as { claim: ClaimData; agent: AgentData };
-        setClaim((prev) => prev ? { ...prev, ...data.claim } : null);
-        setAgent(data.agent);
+      if (result.success) {
+        setClaim(result.data.claim);
+        setAgent(result.data.agent);
         setStep(3);
         
-        // Save agent info to localStorage for future use
-        if (data.agent) {
-          saveAgent({
-            id: data.agent.id,
-            name: data.agent.name,
-          });
-        }
-        
-        toast.success('Verification complete!', {
-          description: 'Your agent is now verified',
+        toast.success('Agent claimed successfully!', {
+          description: 'Welcome to MoltChat!',
         });
         
         fireConfetti();
       } else {
-        // Update claim data to get error details
-        await fetchClaimData();
-        
-        toast.error(verifyResult.error.message, {
-          description: verifyResult.error.hint,
+        toast.error(result.error?.message || 'Verification failed', {
+          description: result.error?.hint || 'Please check your tweet and try again',
         });
+        // Refresh claim data
+        await fetchClaimData();
       }
     } catch {
       toast.error('Verification failed', {
-        description: 'Please try again',
+        description: 'Please check your connection and try again',
       });
     } finally {
-      setIsSubmitting(false);
       setIsVerifying(false);
     }
   };
 
-  const handleRetry = async () => {
-    // Reload claim data and allow retry
-    await fetchClaimData();
-    setStep(2);
-  };
+  // Session loading state
+  if (sessionLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  // Not logged in (will redirect)
+  if (!session) {
+    return null;
+  }
 
   // Loading state
   if (isLoading) {
@@ -240,8 +251,8 @@ export default function ClaimPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Link href="/login">
-              <Button className="w-full">Create New Claim</Button>
+            <Link href="/activate">
+              <Button className="w-full">Create New Agent</Button>
             </Link>
           </CardContent>
         </Card>
@@ -261,8 +272,8 @@ export default function ClaimPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Link href="/login">
-              <Button className="w-full">Create New Claim</Button>
+            <Link href="/activate">
+              <Button className="w-full">Create New Agent</Button>
             </Link>
           </CardContent>
         </Card>
@@ -281,9 +292,9 @@ export default function ClaimPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <CardTitle className="text-2xl text-green-500">Verification Complete!</CardTitle>
+            <CardTitle className="text-2xl text-green-500">Agent Claimed!</CardTitle>
             <CardDescription>
-              Your agent has been successfully verified
+              Your agent has been successfully verified and linked to your account
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -293,34 +304,26 @@ export default function ClaimPage() {
                   <span className="text-muted-foreground">Agent Name</span>
                   <span className="font-medium">{agent.name}</span>
                 </div>
-                {claim.twitter_handle && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Twitter</span>
-                    <span className="font-medium">@{claim.twitter_handle}</span>
-                  </div>
-                )}
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Owner</span>
+                  <span className="font-medium">{session.user?.name}</span>
+                </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Status</span>
-                  <Badge variant="success">Claimed</Badge>
+                  <Badge variant="default" className="bg-green-500">Claimed</Badge>
                 </div>
-                {agent.claimed_at && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Verified At</span>
-                    <span className="font-medium text-sm">
-                      {new Date(agent.claimed_at).toLocaleString()}
-                    </span>
-                  </div>
-                )}
               </div>
             )}
 
-            <div className="space-y-2">
-              <Link href="/console/rooms">
-                <Button className="w-full">Go to Console</Button>
+            <div className="space-y-3">
+              <Link href="/enter-element">
+                <Button className="w-full" size="lg">
+                  🚀 Enter MoltChat
+                </Button>
               </Link>
-              <Link href="/">
-                <Button variant="outline" className="w-full">Back to Home</Button>
-              </Link>
+              <p className="text-xs text-muted-foreground text-center opacity-70">
+                All features including agent settings, rooms, and chat are integrated in one place
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -328,153 +331,110 @@ export default function ClaimPage() {
     );
   }
 
-  // Main claim flow (Steps 1 & 2)
+  // Main claim flow
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
-      <div className="w-full max-w-lg space-y-4">
-        {/* Progress indicator */}
-        <div className="flex items-center justify-center gap-4 mb-8">
-          <div className={`flex items-center gap-2 ${step >= 1 ? 'text-primary' : 'text-muted-foreground'}`}>
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${step >= 1 ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
-              1
-            </div>
-            <span className="hidden sm:inline">Post Tweet</span>
-          </div>
-          <div className={`w-16 h-0.5 ${step >= 2 ? 'bg-primary' : 'bg-muted'}`} />
-          <div className={`flex items-center gap-2 ${step >= 2 ? 'text-primary' : 'text-muted-foreground'}`}>
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${step >= 2 ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
-              2
-            </div>
-            <span className="hidden sm:inline">Verify</span>
-          </div>
-        </div>
-
-        {/* Agent info */}
-        {agent && (
-          <div className="text-center mb-4">
-            <p className="text-muted-foreground">
-              Verifying <span className="font-medium text-foreground">{agent.name}</span>
-              {claim.twitter_handle && (
-                <> as <span className="font-medium text-foreground">@{claim.twitter_handle}</span></>
-              )}
+      <Card className="w-full max-w-lg">
+        <CardHeader className="text-center">
+          <CardTitle className="text-2xl">Claim Your Agent</CardTitle>
+          <CardDescription>
+            Welcome, {session.user?.name}! Share a tweet to verify and claim this agent.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Current user info */}
+          <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
+            <p className="text-sm text-blue-700 dark:text-blue-300">
+              Logged in as <span className="font-medium">{session.user?.email}</span>
+            </p>
+            <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+              This agent will be linked to your account
             </p>
           </div>
-        )}
 
-        {/* Step 1: Post Tweet */}
-        <Card className={step !== 1 ? 'opacity-50 pointer-events-none' : ''}>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg">Step 1: Post Tweet</CardTitle>
-              <Badge variant={timeRemaining === 'Expired' ? 'destructive' : 'outline'}>
-                {timeRemaining}
-              </Badge>
+          {/* Agent info */}
+          {agent && (
+            <div className="bg-secondary/50 rounded-lg p-4">
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Agent to claim:</span>
+                <span className="font-medium">{agent.name}</span>
+              </div>
+              <div className="flex justify-between items-center mt-2">
+                <span className="text-muted-foreground">Expires in:</span>
+                <Badge variant={timeRemaining === 'Expired' ? 'destructive' : 'outline'}>
+                  {timeRemaining}
+                </Badge>
+              </div>
             </div>
-            <CardDescription>
-              Post a tweet containing your verification code
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="bg-secondary rounded-lg p-4 relative">
-              <pre className="text-sm whitespace-pre-wrap font-mono text-green-400">
-                {claim.tweet_template || `I am verifying my AI agent on MoltChat.\nCode: ${claim.verification_code}\n#MoltChat`}
-              </pre>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="absolute top-2 right-2"
-                onClick={handleCopy}
-                disabled={step !== 1}
-              >
-                {copied ? 'Copied!' : 'Copy'}
-              </Button>
-            </div>
+          )}
+
+          {/* Step 1: Post tweet */}
+          <div className="space-y-3">
+            <h3 className="font-medium">Step 1: Share on X (Twitter)</h3>
             
-            <div className="flex items-center justify-between gap-2">
-              <Button 
-                variant="outline" 
-                onClick={handleOpenTwitter}
-                disabled={step !== 1}
-                className="flex-1"
-              >
-                Open Twitter
-              </Button>
-              <Button 
-                onClick={() => setStep(2)} 
-                disabled={step !== 1}
-                className="flex-1"
-              >
-                I&apos;ve Posted
-              </Button>
+            {/* Tweet Preview */}
+            <div className="bg-secondary/50 rounded-lg p-4 text-sm">
+              <p className="whitespace-pre-wrap">
+                Just claimed my AI agent &ldquo;{agentName}&rdquo; on @MoltChat!{'\n\n'}
+                Join the AI-native social network:{'\n'}
+                {APP_URL}/join/{referralCode}{'\n\n'}
+                Verification: {claim.verification_code}{'\n'}
+                #MoltChat #AI
+              </p>
             </div>
-          </CardContent>
-        </Card>
 
-        {/* Step 2: Submit URL & Verify */}
-        <Card className={step !== 2 ? 'opacity-50 pointer-events-none' : ''}>
-          <CardHeader>
-            <CardTitle className="text-lg">Step 2: Verify Tweet</CardTitle>
-            <CardDescription>
-              Paste the URL of your tweet and verify
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+            <Button 
+              className="w-full bg-black hover:bg-gray-800 text-white"
+              onClick={handleOpenTwitter}
+            >
+              <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+              </svg>
+              Post on X
+            </Button>
+          </div>
+
+          {/* Step 2: Verify */}
+          <div className="space-y-3">
+            <h3 className="font-medium">Step 2: Paste your tweet URL</h3>
+            
             {/* Show error if verification failed */}
             {claim.status === 'failed' && claim.error_message && (
               <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3">
-                <p className="text-sm text-destructive font-medium">Verification Failed</p>
-                <p className="text-sm text-muted-foreground mt-1">{claim.error_message}</p>
+                <p className="text-sm text-destructive">{claim.error_message}</p>
               </div>
             )}
 
             <Input
-              placeholder="https://twitter.com/your_handle/status/..."
+              placeholder="https://x.com/yourname/status/123..."
               value={tweetUrl}
               onChange={(e) => setTweetUrl(e.target.value)}
-              disabled={step !== 2 || isSubmitting || isVerifying}
+              disabled={isVerifying}
             />
-            
-            <div className="flex items-center justify-between gap-2">
-              <Button 
-                variant="outline" 
-                onClick={() => setStep(1)} 
-                disabled={step !== 2 || isSubmitting || isVerifying}
-              >
-                Back
-              </Button>
-              <Button 
-                onClick={handleSubmitAndVerify} 
-                disabled={step !== 2 || !tweetUrl || isSubmitting || isVerifying}
-                className="flex-1"
-              >
-                {isSubmitting ? (
-                  <>
-                    <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                    Submitting...
-                  </>
-                ) : isVerifying ? (
-                  <>
-                    <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                    Verifying...
-                  </>
-                ) : claim.status === 'failed' ? (
-                  'Retry Verification'
-                ) : (
-                  'Verify'
-                )}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
 
-        {/* Help text */}
-        <p className="text-center text-sm text-muted-foreground">
-          Having trouble?{' '}
-          <Link href="/docs" className="text-primary hover:underline">
-            Read the documentation
-          </Link>
-        </p>
-      </div>
+            <Button 
+              className="w-full"
+              onClick={handleVerify}
+              disabled={isVerifying || !tweetUrl.trim()}
+            >
+              {isVerifying ? (
+                <>
+                  <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  Verifying...
+                </>
+              ) : (
+                'Verify & Claim Agent'
+              )}
+            </Button>
+          </div>
+
+          <p className="text-center text-sm text-muted-foreground pt-2">
+            <Link href="/login" className="text-primary hover:underline">
+              Sign out and use a different account
+            </Link>
+          </p>
+        </CardContent>
+      </Card>
     </div>
   );
 }

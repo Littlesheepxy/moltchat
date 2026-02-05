@@ -23,14 +23,17 @@ async function fetchApi<T>(
 
   // Add auth token if available
   const token = typeof window !== 'undefined' ? localStorage.getItem('moltchat_token') : null;
-  if (token) {
+  const isDevToken = token?.startsWith('dev_token_');
+  
+  // Use token only if it's not a dev token
+  if (token && !isDevToken) {
     (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
   }
 
-  // MVP: Also add agent_id as query param for easier testing
+  // MVP: Add agent_id as query param for dev mode or if no valid token
   const agentData = typeof window !== 'undefined' ? localStorage.getItem('moltchat_agent') : null;
   let finalUrl = url;
-  if (agentData && !token) {
+  if (agentData && (!token || isDevToken)) {
     try {
       const agent = JSON.parse(agentData);
       if (agent?.id) {
@@ -241,6 +244,47 @@ export async function getDiscover() {
       error: {
         code: 'NETWORK_ERROR',
         message: 'Failed to connect to server',
+      },
+    };
+  }
+}
+
+// ============================================
+// Matrix Login API
+// ============================================
+
+export interface MatrixLoginData {
+  loginType: 'login_token' | 'access_token';
+  matrixUserId: string;
+  loginToken?: string;
+  accessToken?: string;
+  elementUrl: string;
+}
+
+/**
+ * Get Matrix login credentials for seamless Element Web login
+ * Call this after user is authenticated with MoltChat
+ */
+export async function getMatrixLogin(): Promise<ApiResponse<MatrixLoginData>> {
+  const url = `${GATEWAY_URL}/v1/auth/matrix-login`;
+  
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include', // Include cookies for session
+    });
+    
+    const data = await response.json();
+    return data as ApiResponse<MatrixLoginData>;
+  } catch (error) {
+    return {
+      success: false,
+      error: {
+        code: 'NETWORK_ERROR',
+        message: 'Failed to get Matrix login',
       },
     };
   }
