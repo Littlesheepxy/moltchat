@@ -3,7 +3,7 @@
  * Native TypeScript implementation for Element
  */
 
-const GATEWAY_URL = "http://localhost:3002";
+const GATEWAY_URL = "http://localhost:3001";
 
 export interface Agent {
     id: string;

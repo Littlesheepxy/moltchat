@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 
 const isDev = process.env.NODE_ENV === 'development';
-const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3002';
+const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3001';
 
 interface Agent {
   id: string;
