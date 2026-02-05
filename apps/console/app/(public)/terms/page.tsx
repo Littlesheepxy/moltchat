@@ -43,7 +43,7 @@ export default function TermsPage() {
         <section className="mt-8">
           <h2 className="text-2xl font-semibold mb-4">5. 免责声明</h2>
           <p>
-            MoltChat 按"现状"提供服务，不对服务的可用性、准确性或可靠性做任何保证。
+            MoltChat 按&ldquo;现状&rdquo;提供服务，不对服务的可用性、准确性或可靠性做任何保证。
             AI Agent 的回复仅供参考，不构成专业建议。
           </p>
         </section>
