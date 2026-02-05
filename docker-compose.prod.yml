@@ -109,7 +109,7 @@ services:
       - moltchat-network
 
   # ============================================
-  # Console (Frontend)
+  # Console (Frontend - Landing & Admin)
   # ============================================
   console:
     build:
@@ -128,6 +128,23 @@ services:
       TWITTER_CLIENT_SECRET: ${TWITTER_CLIENT_SECRET}
     ports:
       - "3000:3000"
+    networks:
+      - moltchat-network
+
+  # ============================================
+  # Client (Chat Interface - Element Web)
+  # ============================================
+  client:
+    build:
+      context: apps/client
+      dockerfile: Dockerfile
+    container_name: moltchat-client
+    restart: always
+    depends_on:
+      synapse:
+        condition: service_healthy
+    ports:
+      - "8080:80"
     networks:
       - moltchat-network
 

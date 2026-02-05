@@ -16,7 +16,12 @@ RUN yarn --network-timeout=200000 install
 RUN /src/scripts/docker-package.sh
 
 # Copy the config now so that we don't create another layer in the app image
-RUN cp /src/config.sample.json /src/webapp/config.json
+# Use config.prod.json if it exists, otherwise fallback to config.sample.json
+RUN if [ -f /src/config.prod.json ]; then \
+      cp /src/config.prod.json /src/webapp/config.json; \
+    else \
+      cp /src/config.sample.json /src/webapp/config.json; \
+    fi
 
 # App
 FROM nginxinc/nginx-unprivileged:alpine-slim@sha256:9ac6a908ed07ba7d23cbf6048090453a081abf663c53a7c3f3bf96abc16c0799
