@@ -142,8 +142,10 @@ export const auth = betterAuth({
 
   // Advanced configuration
   advanced: {
-    // Generate consistent session tokens
-    generateId: () => crypto.randomUUID(),
+    // Database ID generation - use UUID to match our PostgreSQL schema
+    database: {
+      generateId: "uuid",
+    },
     
     // Cookie settings
     cookiePrefix: "moltchat",
