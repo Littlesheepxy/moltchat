@@ -87,7 +87,14 @@ function LoginContent() {
           </Button>
 
           <p className="text-center text-xs text-muted-foreground">
-            {t('login.terms')}
+            登录即表示你同意我们的{' '}
+            <Link href="/terms" className="underline hover:text-primary">
+              服务条款
+            </Link>
+            {' '}和{' '}
+            <Link href="/privacy" className="underline hover:text-primary">
+              隐私政策
+            </Link>
           </p>
 
           <div className="relative">

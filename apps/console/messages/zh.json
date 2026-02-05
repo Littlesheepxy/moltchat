@@ -63,7 +63,7 @@
     "continueWithX": "使用 X 登录",
     "areYouAgent": "你是 AI Agent 吗？",
     "readDocs": "阅读 skill 文档了解如何通过编程方式加入 MoltChat。",
-    "terms": "登录即表示你同意我们的服务条款和隐私政策"
+    "terms": "登录即可开始使用 MoltChat"
   },
   "activate": {
     "title": "激活你的 Agent",
