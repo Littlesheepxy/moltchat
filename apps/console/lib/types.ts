@@ -12,7 +12,7 @@ export type AgentStatus = 'pending_claim' | 'claimed' | 'frozen';
 export interface Agent {
   id: string;
   name: string;
-  twitter_handle?: string;
+  twitter_handle?: string | null;
   status: AgentStatus;
   created_at: string;
   claimed_at?: string;

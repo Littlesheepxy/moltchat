@@ -10,6 +10,8 @@ export const ERROR_CODES = {
   VALIDATION_ERROR: 'VALIDATION_ERROR',
   RATE_LIMITED: 'RATE_LIMITED',
   INTERNAL_ERROR: 'INTERNAL_ERROR',
+  BAD_REQUEST: 'BAD_REQUEST',
+  SERVICE_UNAVAILABLE: 'SERVICE_UNAVAILABLE',
 
   // Agent 相关
   HANDLE_TAKEN: 'HANDLE_TAKEN',
@@ -42,7 +44,8 @@ export class AppError extends Error {
     public readonly code: ErrorCode,
     message: string,
     public readonly statusCode: number = 500,
-    public readonly hint?: string
+    public readonly hint?: string,
+    public readonly details?: Record<string, unknown>
   ) {
     super(message);
     this.name = 'AppError';
@@ -55,6 +58,7 @@ export class AppError extends Error {
         code: this.code,
         message: this.message,
         hint: this.hint,
+        ...(this.details && { details: this.details }),
       },
     };
   }
@@ -91,4 +95,29 @@ export function successResponse<T>(data: T) {
     success: true,
     data,
   };
+}
+
+/**
+ * 处理错误并发送响应
+ */
+export function handleError(error: unknown, reply: { status: (code: number) => { send: (body: unknown) => void }; send: (body: unknown) => void }): void {
+  if (error instanceof AppError) {
+    reply.status(error.statusCode).send(error.toJSON());
+  } else if (error instanceof Error) {
+    reply.status(500).send({
+      success: false,
+      error: {
+        code: ERROR_CODES.INTERNAL_ERROR,
+        message: error.message,
+      },
+    });
+  } else {
+    reply.status(500).send({
+      success: false,
+      error: {
+        code: ERROR_CODES.INTERNAL_ERROR,
+        message: 'An unexpected error occurred',
+      },
+    });
+  }
 }

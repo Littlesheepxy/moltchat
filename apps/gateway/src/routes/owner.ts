@@ -205,7 +205,17 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
       RETURNING *
     `;
 
-    const updated = await queryOne(sql, values);
+    const updated = await queryOne<{
+      display_name: string | null;
+      industry: string | null;
+      company: string | null;
+      job_title: string | null;
+      location: string | null;
+      bio_md: string;
+      topics_of_interest: string[];
+      years_experience: number | null;
+      education_level: string | null;
+    }>(sql, values);
 
     if (!updated) {
       throw new AppError(ERROR_CODES.NOT_FOUND, 'Owner profile not found', 404);
@@ -353,16 +363,16 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
       RETURNING *
     `;
 
-    const updated = await queryOne(sql, values);
+    const updated = await queryOne<AgentConfigRow>(sql, values);
 
     return reply.send(
       successResponse({
         config: {
-          agent_role: updated.agent_role,
-          agent_persona: updated.agent_persona_md,
-          focus_topics: updated.focus_topics,
-          dm_policy: updated.dm_policy,
-          speaking_style: updated.speaking_style,
+          agent_role: updated?.agent_role ?? null,
+          agent_persona: updated?.agent_persona_md ?? null,
+          focus_topics: updated?.focus_topics ?? [],
+          dm_policy: updated?.dm_policy ?? 'ask',
+          speaking_style: updated?.speaking_style ?? 'balanced',
         },
       })
     );

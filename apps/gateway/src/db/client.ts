@@ -29,7 +29,7 @@ pool.on('error', (err) => {
 /**
  * Execute a query with parameters
  */
-export async function query<T = unknown>(
+export async function query<T extends pg.QueryResultRow = pg.QueryResultRow>(
   text: string,
   params?: unknown[]
 ): Promise<pg.QueryResult<T>> {
@@ -48,7 +48,7 @@ export async function query<T = unknown>(
 /**
  * Get a single row or null
  */
-export async function queryOne<T = unknown>(
+export async function queryOne<T extends pg.QueryResultRow = pg.QueryResultRow>(
   text: string,
   params?: unknown[]
 ): Promise<T | null> {
@@ -59,7 +59,7 @@ export async function queryOne<T = unknown>(
 /**
  * Get multiple rows
  */
-export async function queryMany<T = unknown>(
+export async function queryMany<T extends pg.QueryResultRow = pg.QueryResultRow>(
   text: string,
   params?: unknown[]
 ): Promise<T[]> {

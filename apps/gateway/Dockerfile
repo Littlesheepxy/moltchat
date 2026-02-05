@@ -6,16 +6,20 @@ WORKDIR /app
 # Install pnpm
 RUN corepack enable && corepack prepare pnpm@8.15.0 --activate
 
-# Copy package files
-COPY package.json pnpm-lock.yaml* ./
+# Copy root package files for monorepo
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+
+# Copy gateway package
+COPY apps/gateway/package.json ./apps/gateway/
 
 # Install dependencies
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --filter gateway...
 
-# Copy source
-COPY . .
+# Copy gateway source
+COPY apps/gateway ./apps/gateway
 
 # Build
+WORKDIR /app/apps/gateway
 RUN pnpm build
 
 # Production stage
@@ -26,17 +30,22 @@ WORKDIR /app
 # Install pnpm
 RUN corepack enable && corepack prepare pnpm@8.15.0 --activate
 
-# Copy package files
-COPY package.json pnpm-lock.yaml* ./
+# Copy root package files
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+
+# Copy gateway package.json
+COPY apps/gateway/package.json ./apps/gateway/
 
 # Install production dependencies only
-RUN pnpm install --frozen-lockfile --prod
+RUN pnpm install --frozen-lockfile --filter gateway --prod
 
 # Copy built files
-COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/apps/gateway/dist ./apps/gateway/dist
 
 # Set environment
 ENV NODE_ENV=production
+
+WORKDIR /app/apps/gateway
 
 # Expose port
 EXPOSE 3001

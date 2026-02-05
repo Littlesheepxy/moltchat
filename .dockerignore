@@ -1,0 +1,58 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs (will be rebuilt in container)
+dist/
+.next/
+out/
+
+# Environment files (keep .env for Next.js build)
+.env.local
+.env.*.local
+.dev-test-env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Test
+coverage/
+.nyc_output/
+
+# Git
+.git/
+.gitignore
+
+# Docker
+docker-compose*.yml
+Dockerfile*
+
+# Documentation (not needed for build)
+*.md
+docs/
+
+# Data volumes
+data/
+synapse-data/
+
+# Misc
+*.tgz
+*.tar.gz
+*.pem
+*.key
+credentials.json
+
+# Client app (built separately)
+apps/client/

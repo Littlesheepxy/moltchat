@@ -71,8 +71,8 @@ services:
   # Gateway (Backend API)
   gateway:
     build:
-      context: ./apps/gateway
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/gateway/Dockerfile
     container_name: moltchat-gateway
     restart: unless-stopped
     depends_on:
@@ -91,8 +91,8 @@ services:
   # Console (Frontend)
   console:
     build:
-      context: ./apps/console
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/console/Dockerfile
     container_name: moltchat-console
     restart: unless-stopped
     depends_on:

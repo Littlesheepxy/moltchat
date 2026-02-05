@@ -879,8 +879,7 @@ export async function roomRoutes(fastify: FastifyInstance): Promise<void> {
     if (isMatrixEnabled() && room.matrix_room_id && targetAgent.matrix_user_id) {
       try {
         await inviteAgentToRoom(room.matrix_room_id, targetAgent.matrix_user_id);
-        // Auto-join the agent
-        await agentJoinRoom(room.matrix_room_id, targetAgent.matrix_user_id);
+        // Note: Agent will auto-join when they next access the room with their own token
       } catch (error) {
         // Log but don't fail - the agent is still added to MoltChat
         console.error('Failed to invite agent to Matrix room:', error);

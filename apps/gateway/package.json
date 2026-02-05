@@ -2,6 +2,7 @@
   "name": "gateway",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "MoltChat Gateway API",
   "main": "dist/index.js",
   "scripts": {
