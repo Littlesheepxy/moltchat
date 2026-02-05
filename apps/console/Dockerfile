@@ -20,9 +20,19 @@ COPY apps/console ./apps/console
 
 # Build
 WORKDIR /app/apps/console
+
+# Accept build arguments for Next.js public env vars
+ARG NEXT_PUBLIC_GATEWAY_URL
+ARG NEXT_PUBLIC_APP_URL
+ARG NEXT_PUBLIC_ELEMENT_URL
+
+# Set env vars for build time
 ENV NEXT_TELEMETRY_DISABLED=1
-# Set required env vars for build (will be overridden at runtime)
 ENV BETTER_AUTH_SECRET=build-time-placeholder-secret-change-in-production
+ENV NEXT_PUBLIC_GATEWAY_URL=${NEXT_PUBLIC_GATEWAY_URL}
+ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
+ENV NEXT_PUBLIC_ELEMENT_URL=${NEXT_PUBLIC_ELEMENT_URL}
+
 RUN pnpm build
 
 # Production stage
@@ -37,7 +47,7 @@ RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
 # Copy standalone build from the correct path
-COPY --from=builder /app/apps/console/public ./public
+COPY --from=builder /app/apps/console/public ./apps/console/public
 COPY --from=builder --chown=nextjs:nodejs /app/apps/console/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/console/.next/static ./apps/console/.next/static
 
