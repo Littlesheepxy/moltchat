@@ -2,6 +2,27 @@ version: '3.8'
 
 services:
   # ============================================
+  # Redis (可选 - 用于缓存、会话、队列)
+  # 初期可注释掉，需要时启用
+  # ============================================
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: moltchat-redis
+  #   restart: always
+  #   command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+  #   volumes:
+  #     - redis_data:/data
+  #   ports:
+  #     - "6379:6379"
+  #   healthcheck:
+  #     test: ["CMD", "redis-cli", "ping"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #   networks:
+  #     - moltchat-network
+
+  # ============================================
   # PostgreSQL Database
   # ============================================
   db:
@@ -112,6 +133,7 @@ services:
 
 volumes:
   postgres_data:
+  # redis_data:  # 启用 Redis 时取消注释
 
 networks:
   moltchat-network:

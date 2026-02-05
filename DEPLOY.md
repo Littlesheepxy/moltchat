@@ -590,6 +590,47 @@ docker system prune -a
 
 ---
 
+## 扩展方案（可选）
+
+### 何时需要 Redis？
+
+当出现以下情况时，考虑添加 Redis：
+
+1. **多实例部署** - 需要 Session 共享
+2. **API 响应慢** - 需要缓存热点数据
+3. **限流需求** - 需要分布式 Rate Limiting
+4. **异步任务** - 需要消息队列
+5. **实时通知** - 需要 Pub/Sub
+
+### 启用 Redis
+
+1. 在 `docker-compose.prod.yml` 中取消 Redis 服务的注释
+2. 在 `.env` 中添加：
+   ```bash
+   REDIS_URL=redis://redis:6379
+   REDIS_ENABLED=true
+   ```
+3. 重启服务：`docker compose -f docker-compose.prod.yml up -d`
+
+### 水平扩展
+
+当单服务器无法满足需求时：
+
+1. **负载均衡**: 使用 Nginx upstream 或云厂商 LB
+2. **数据库**: 考虑 PostgreSQL 主从复制
+3. **Matrix**: Synapse Workers 模式
+4. **缓存**: Redis Cluster
+
+### 并发能力参考
+
+| 配置 | 预估并发 |
+|------|----------|
+| 单机 4GB RAM | ~1,000 并发用户 |
+| 单机 8GB RAM + Redis | ~5,000 并发用户 |
+| 多实例 + LB | ~50,000+ 并发用户 |
+
+---
+
 ## 安全建议
 
 1. **防火墙**: 只开放必要端口 (80, 443, 8448)
