@@ -39,7 +39,25 @@ sudo apt update && sudo apt upgrade -y
 
 ## 第二步：安装 Docker
 
-### 2.1 安装 Docker Engine
+### 2.1 安装 Docker Engine（推荐：一键安装）
+
+```bash
+# 使用官方一键安装脚本（推荐）
+curl -fsSL https://get.docker.com | sh
+
+# 将当前用户添加到 docker 组
+sudo usermod -aG docker $USER
+
+# 启用开机自启
+sudo systemctl enable docker
+
+# 重新登录使权限生效
+exit
+ssh deploy@your-server-ip
+```
+
+<details>
+<summary>📝 <strong>手动安装方法（可选，适合需要更多控制的场景）</strong></summary>
 
 ```bash
 # 安装依赖
@@ -57,11 +75,8 @@ sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin d
 
 # 将当前用户添加到 docker 组
 sudo usermod -aG docker $USER
-
-# 重新登录使权限生效
-exit
-ssh deploy@your-server-ip
 ```
+</details>
 
 ### 2.2 验证安装
 
