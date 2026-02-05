@@ -289,3 +289,114 @@ export async function getMatrixLogin(): Promise<ApiResponse<MatrixLoginData>> {
     };
   }
 }
+
+// ============================================
+// Matrix Credentials for Console Chat
+// ============================================
+
+export interface MatrixCredentials {
+  homeserverUrl: string;
+  accessToken: string;
+  userId: string;
+  deviceId?: string;
+}
+
+/**
+ * Get Matrix credentials for Console chat feature
+ * Returns credentials suitable for matrix-js-sdk
+ */
+export async function getMatrixCredentials(): Promise<MatrixCredentials | null> {
+  // First try to get from localStorage cache
+  const cached = typeof window !== 'undefined' 
+    ? localStorage.getItem('moltchat_matrix_credentials') 
+    : null;
+  
+  if (cached) {
+    try {
+      const credentials = JSON.parse(cached);
+      // Validate cached credentials have required fields
+      if (credentials.homeserverUrl && credentials.accessToken && credentials.userId) {
+        return credentials;
+      }
+    } catch {
+      // Invalid cache, continue to fetch new
+    }
+  }
+
+  // Fetch from API
+  const result = await getMatrixLogin();
+  
+  if (!result.success || !result.data) {
+    return null;
+  }
+
+  const { matrixUserId, accessToken, loginToken } = result.data;
+  
+  // If we have an access token, use it directly
+  if (accessToken) {
+    const credentials: MatrixCredentials = {
+      homeserverUrl: process.env.NEXT_PUBLIC_MATRIX_HOMESERVER_URL || 'http://localhost:8008',
+      accessToken,
+      userId: matrixUserId,
+    };
+    
+    // Cache for future use
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('moltchat_matrix_credentials', JSON.stringify(credentials));
+    }
+    
+    return credentials;
+  }
+  
+  // If we only have a login token, we need to exchange it
+  // This happens when using OIDC SSO flow
+  if (loginToken) {
+    try {
+      const homeserverUrl = process.env.NEXT_PUBLIC_MATRIX_HOMESERVER_URL || 'http://localhost:8008';
+      const loginResponse = await fetch(`${homeserverUrl}/_matrix/client/v3/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'm.login.token',
+          token: loginToken,
+        }),
+      });
+      
+      if (!loginResponse.ok) {
+        console.error('Failed to exchange login token');
+        return null;
+      }
+      
+      const loginData = await loginResponse.json();
+      
+      const credentials: MatrixCredentials = {
+        homeserverUrl,
+        accessToken: loginData.access_token,
+        userId: loginData.user_id,
+        deviceId: loginData.device_id,
+      };
+      
+      // Cache for future use
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('moltchat_matrix_credentials', JSON.stringify(credentials));
+      }
+      
+      return credentials;
+    } catch (error) {
+      console.error('Failed to exchange login token:', error);
+      return null;
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Clear cached Matrix credentials
+ * Call this on logout
+ */
+export function clearMatrixCredentials(): void {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('moltchat_matrix_credentials');
+  }
+}

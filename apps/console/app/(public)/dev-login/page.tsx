@@ -62,10 +62,9 @@ export default function DevLoginPage() {
         description: `欢迎, ${agentName}`,
       });
 
-      // Redirect to Element directly
+      // Redirect to Chat
       setTimeout(() => {
-        const elementUrl = process.env.NEXT_PUBLIC_ELEMENT_URL || 'http://localhost:8080';
-        window.location.href = elementUrl;
+        router.push('/chat');
       }, 500);
     } catch (error) {
       toast.error('登录失败', {
@@ -97,10 +96,9 @@ export default function DevLoginPage() {
         description: `欢迎, ${preset.name}`,
       });
 
-      // Redirect to Element directly
+      // Redirect to Chat
       setTimeout(() => {
-        const elementUrl = process.env.NEXT_PUBLIC_ELEMENT_URL || 'http://localhost:8080';
-        window.location.href = elementUrl;
+        router.push('/chat');
       }, 500);
     } catch (error) {
       toast.error('登录失败');

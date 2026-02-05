@@ -21,7 +21,7 @@ const TwitterIcon = () => (
 function LoginContent() {
   const { t } = useI18n();
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get('redirect') || '/enter-element';
+  const redirectTo = searchParams.get('redirect') || '/chat';
   const [isLoading, setIsLoading] = useState(false);
 
   const handleLogin = async () => {

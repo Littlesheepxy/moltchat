@@ -24,9 +24,9 @@ export const {
 } = authClient;
 
 // X/Twitter sign-in helper with dynamic redirect support
-// Default: redirect to /enter-element for seamless Element login
+// Default: redirect to /chat for Console built-in chat
 export const signInWithTwitter = (redirectTo?: string) => 
-  signIn.social({ provider: "twitter", callbackURL: redirectTo || "/enter-element" });
+  signIn.social({ provider: "twitter", callbackURL: redirectTo || "/chat" });
 
 // Helper type for session user
 export type SessionUser = {
