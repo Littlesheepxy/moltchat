@@ -31,8 +31,50 @@ export const auth = betterAuth({
   // Disable /token endpoint for OIDC Provider mode (use /oauth2/token instead)
   disabledPaths: ["/token"],
 
+  // Custom table names (use plural form to match our schema)
+  user: {
+    modelName: "users",
+    fields: {
+      createdAt: "created_at",
+      updatedAt: "updated_at",
+      emailVerified: "email_verified",
+    },
+  },
+  account: {
+    modelName: "accounts",
+    fields: {
+      userId: "user_id",
+      accountId: "account_id",
+      providerId: "provider_id",
+      accessToken: "access_token",
+      refreshToken: "refresh_token",
+      accessTokenExpiresAt: "access_token_expires_at",
+      refreshTokenExpiresAt: "refresh_token_expires_at",
+      idToken: "id_token",
+      createdAt: "created_at",
+      updatedAt: "updated_at",
+    },
+  },
+  verification: {
+    modelName: "verifications",
+    fields: {
+      expiresAt: "expires_at",
+      createdAt: "created_at",
+      updatedAt: "updated_at",
+    },
+  },
+
   // Session configuration
   session: {
+    modelName: "sessions",
+    fields: {
+      userId: "user_id",
+      expiresAt: "expires_at",
+      ipAddress: "ip_address",
+      userAgent: "user_agent",
+      createdAt: "created_at",
+      updatedAt: "updated_at",
+    },
     expiresIn: 60 * 60 * 24 * 7, // 7 days
     updateAge: 60 * 60 * 24, // 1 day
     cookieCache: {
