@@ -4,7 +4,13 @@ set -ex
 
 # Automatically link to develop if we're building develop, but only if the caller
 # hasn't asked us to build something else
-BRANCH=$(git rev-parse --abbrev-ref HEAD)
+# Handle case where .git directory doesn't exist (Docker build without git)
+if git rev-parse --git-dir > /dev/null 2>&1; then
+    BRANCH=$(git rev-parse --abbrev-ref HEAD)
+else
+    BRANCH=""
+fi
+
 if [[ $USE_CUSTOM_SDKS == false ]] && [[ $BRANCH == 'develop' ]]
 then
     echo "using develop dependencies for react-sdk and js-sdk"
