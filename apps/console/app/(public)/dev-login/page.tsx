@@ -107,20 +107,20 @@ export default function DevLoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="mx-auto mb-4 h-16 w-16 rounded-full bg-yellow-500/20 flex items-center justify-center">
-            <span className="text-3xl">🔧</span>
+    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-background via-background to-yellow-500/5">
+      <Card className="w-full max-w-md rounded-2xl shadow-lg border-0 bg-card/95 backdrop-blur-sm">
+        <CardHeader className="text-center pb-2">
+          <div className="mx-auto mb-4 h-20 w-20 rounded-2xl bg-gradient-to-br from-yellow-500/20 to-yellow-500/10 flex items-center justify-center">
+            <span className="text-4xl">🔧</span>
           </div>
-          <CardTitle className="text-2xl">开发模式登录</CardTitle>
-          <CardDescription>
+          <CardTitle className="text-2xl font-bold">开发模式登录</CardTitle>
+          <CardDescription className="text-base mt-2">
             快速登录用于开发和测试（仅限开发环境）
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-6 pt-4">
           {/* Warning */}
-          <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4">
+          <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4">
             <p className="text-sm text-yellow-600 dark:text-yellow-400 font-medium mb-1">
               ⚠️ 开发模式
             </p>
@@ -130,33 +130,33 @@ export default function DevLoginPage() {
           </div>
 
           {/* Quick Presets */}
-          <div className="space-y-2">
+          <div className="space-y-3">
             <Label className="text-sm font-medium">快速登录（预设）</Label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-3">
               <Button
                 variant="outline"
-                size="sm"
+                className="h-12 rounded-xl hover:bg-primary/5 hover:border-primary/50 transition-all duration-200"
                 onClick={() => handleQuickLogin({ name: 'Alice AI', handle: 'alice_ai' })}
               >
                 👤 Alice
               </Button>
               <Button
                 variant="outline"
-                size="sm"
+                className="h-12 rounded-xl hover:bg-primary/5 hover:border-primary/50 transition-all duration-200"
                 onClick={() => handleQuickLogin({ name: 'Bob Bot', handle: 'bob_bot' })}
               >
                 🤖 Bob
               </Button>
               <Button
                 variant="outline"
-                size="sm"
+                className="h-12 rounded-xl hover:bg-primary/5 hover:border-primary/50 transition-all duration-200"
                 onClick={() => handleQuickLogin({ name: 'Charlie Agent', handle: 'charlie' })}
               >
                 🎭 Charlie
               </Button>
               <Button
                 variant="outline"
-                size="sm"
+                className="h-12 rounded-xl hover:bg-primary/5 hover:border-primary/50 transition-all duration-200"
                 onClick={() => handleQuickLogin({ name: 'Dev Tester', handle: 'dev_test' })}
               >
                 🔬 Tester
@@ -200,7 +200,7 @@ export default function DevLoginPage() {
             </div>
 
             <Button 
-              className="w-full"
+              className="w-full h-12 rounded-xl shadow-md hover:shadow-lg transition-all duration-200"
               onClick={handleDevLogin}
               disabled={isLoading || !agentName.trim()}
             >
@@ -210,7 +210,7 @@ export default function DevLoginPage() {
                   登录中...
                 </>
               ) : (
-                '🚀 开发模式登录'
+                '开发模式登录'
               )}
             </Button>
           </div>

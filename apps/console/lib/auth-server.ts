@@ -88,6 +88,13 @@ export const auth = betterAuth({
     twitter: {
       clientId: process.env.TWITTER_CLIENT_ID!,
       clientSecret: process.env.TWITTER_CLIENT_SECRET!,
+      // Request additional scopes for tweet posting and offline access
+      scope: [
+        "tweet.read",
+        "tweet.write", 
+        "users.read",
+        "offline.access",  // For refresh tokens to maintain session
+      ],
     },
   },
 

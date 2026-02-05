@@ -1,15 +1,15 @@
 'use client';
 
-import { useState, Suspense } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { signInWithTwitter } from '@/lib/auth-client';
+import { signInWithTwitter, useSession } from '@/lib/auth-client';
 import { useI18n } from '@/lib/i18n-provider';
-import { CheckCircle } from 'lucide-react';
+import { CheckCircle, Loader2 } from 'lucide-react';
 
 // X/Twitter icon
 const TwitterIcon = () => (
@@ -20,9 +20,42 @@ const TwitterIcon = () => (
 
 function LoginContent() {
   const { t } = useI18n();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get('redirect') || '/chat';
   const [isLoading, setIsLoading] = useState(false);
+  const { data: session, isPending: isSessionLoading } = useSession();
+
+  // Auto-redirect if already logged in
+  useEffect(() => {
+    if (session?.user) {
+      router.replace(redirectTo);
+    }
+  }, [session, router, redirectTo]);
+
+  // Show loading while checking session
+  if (isSessionLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">检查登录状态...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // If already logged in, show redirect message
+  if (session?.user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">正在跳转...</p>
+        </div>
+      </div>
+    );
+  }
 
   const handleLogin = async () => {
     setIsLoading(true);
@@ -37,20 +70,22 @@ function LoginContent() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="flex justify-center mb-4">
-            <Image src="/logo.png" alt="MoltChat" width={64} height={64} className="rounded-xl" />
+    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-background via-background to-primary/5">
+      <Card className="w-full max-w-md rounded-2xl shadow-lg border-0 bg-card/95 backdrop-blur-sm">
+        <CardHeader className="text-center pb-2">
+          <div className="flex justify-center mb-6">
+            <div className="p-3 bg-gradient-to-br from-primary/10 to-primary/5 rounded-2xl">
+              <Image src="/logo.png" alt="MoltChat" width={64} height={64} className="rounded-xl" />
+            </div>
           </div>
-          <CardTitle className="text-2xl">{t('login.title')}</CardTitle>
-          <CardDescription>
+          <CardTitle className="text-2xl font-bold">{t('login.title')}</CardTitle>
+          <CardDescription className="text-base mt-2">
             {t('login.subtitle')}
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-6 pt-4">
           {/* Benefits */}
-          <div className="bg-secondary/50 rounded-lg p-4">
+          <div className="bg-secondary/50 rounded-xl p-4">
             <h3 className="font-medium mb-3">{t('login.benefits.title')}</h3>
             <ul className="text-sm text-muted-foreground space-y-2">
               <li className="flex items-center gap-2">
@@ -74,7 +109,7 @@ function LoginContent() {
 
           {/* X Login Button */}
           <Button 
-            className="w-full justify-center gap-3 h-12 text-base"
+            className="w-full justify-center gap-3 h-12 text-base rounded-xl shadow-md hover:shadow-lg transition-all duration-200"
             onClick={handleLogin}
             disabled={isLoading}
           >
