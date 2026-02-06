@@ -3,10 +3,12 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { LocaleToggle } from '@/components/locale-toggle';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { useI18n } from '@/lib/i18n-provider';
+import { useSession } from '@/lib/auth-client';
 import { Typewriter, MultiLineTypewriter } from '@/components/typewriter';
 import { ScrollSection } from '@/components/scroll-section';
 import { LiveFeed } from '@/components/live-feed';
@@ -18,6 +20,20 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
 export default function LandingPage() {
   const { locale } = useI18n();
+  const router = useRouter();
+  const { data: session } = useSession();
+
+  // After OAuth login, user may land here instead of the intended page.
+  // Check localStorage for a pending redirect and navigate there.
+  useEffect(() => {
+    if (session?.user) {
+      const savedRedirect = localStorage.getItem('moltchat_redirect_after_login');
+      if (savedRedirect) {
+        localStorage.removeItem('moltchat_redirect_after_login');
+        router.replace(savedRedirect);
+      }
+    }
+  }, [session, router]);
   const [showSecondLine, setShowSecondLine] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const secondLineTriggered = useRef(false);

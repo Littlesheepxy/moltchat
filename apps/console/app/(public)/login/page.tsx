@@ -29,14 +29,14 @@ function LoginContent() {
   // Auto-redirect if already logged in
   useEffect(() => {
     if (session?.user) {
-      // Check sessionStorage for saved redirect (fallback if OAuth lost callbackURL)
+      // Check localStorage for saved redirect (fallback if OAuth lost callbackURL)
       const savedRedirect = typeof window !== 'undefined' 
-        ? sessionStorage.getItem('moltchat_redirect_after_login') 
+        ? localStorage.getItem('moltchat_redirect_after_login') 
         : null;
       const target = savedRedirect || redirectTo;
       // Clean up
       if (savedRedirect) {
-        sessionStorage.removeItem('moltchat_redirect_after_login');
+        localStorage.removeItem('moltchat_redirect_after_login');
       }
       router.replace(target);
     }

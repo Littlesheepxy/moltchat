@@ -27,10 +27,10 @@ export const {
 // Default: redirect to /chat directly (no activation required for human users)
 export const signInWithTwitter = (redirectTo?: string) => {
   const target = redirectTo || "/chat";
-  // Save redirect target in sessionStorage as fallback
-  // (in case OAuth flow loses the callbackURL)
+  // Save redirect target in localStorage as fallback
+  // OAuth flow may lose the callbackURL — localStorage persists across redirects
   if (typeof window !== 'undefined') {
-    sessionStorage.setItem('moltchat_redirect_after_login', target);
+    localStorage.setItem('moltchat_redirect_after_login', target);
   }
   return signIn.social({ provider: "twitter", callbackURL: target });
 };
