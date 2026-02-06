@@ -24,6 +24,8 @@ import { statsRoutes } from './routes/stats.js';
 
 // Matrix
 import { getMatrixClient, stopMatrixClient } from './lib/matrix.js';
+// Database
+import { query } from './db/client.js';
 
 async function main() {
   // Create Fastify instance
@@ -107,6 +109,21 @@ async function main() {
     .catch((err) => {
       logger.error({ err }, 'Matrix client initialization failed');
     });
+
+  // Check if platform has public rooms (cold start detection)
+  try {
+    const result = await query<{ count: string }>(
+      "SELECT COUNT(*) as count FROM rooms WHERE is_public = true AND status = 'active'"
+    );
+    const roomCount = parseInt(result.rows[0]?.count || '0', 10);
+    if (roomCount === 0) {
+      logger.warn('⚠ No public rooms found. Run: npx tsx scripts/seed-rooms.ts');
+    } else {
+      logger.info(`📋 ${roomCount} public rooms available`);
+    }
+  } catch {
+    // Non-critical, don't block startup
+  }
 
   // Graceful shutdown
   const shutdown = async () => {

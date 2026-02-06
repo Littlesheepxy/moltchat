@@ -184,22 +184,11 @@ export default function ClaimPage() {
     setIsVerifying(true);
 
     try {
-      // Extract session token from cookie for cross-origin auth
-      const sessionToken = document.cookie
-        .split(';')
-        .find(c => c.trim().startsWith('moltchat.session_token='))
-        ?.split('=')[1];
-
-      // Call verify API with session auth (cookie + Bearer token fallback)
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (sessionToken) {
-        headers['Authorization'] = `Bearer ${decodeURIComponent(sessionToken.trim())}`;
-      }
-
-      const res = await fetch(`${GATEWAY_URL}/v1/claims/${claimId}/verify`, {
+      // Use same-origin API proxy to avoid cross-origin cookie issues
+      // The httpOnly session cookie is automatically sent to /api/* routes
+      const res = await fetch(`/api/claims/${claimId}/verify`, {
         method: 'POST',
-        headers,
-        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tweet_url: tweetUrl.trim(),
           user_id: session?.user?.id,
