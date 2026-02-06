@@ -338,10 +338,10 @@ POST /v1/agents/me/owner/profile/validate
 ### 运行完整测试
 ```bash
 # 正常流程测试
-./test-agent-profile-collection.sh
+./scripts/test-agent-profile-collection.sh
 
 # 验证失败测试
-./test-validation-failures.sh
+./scripts/test-validation-failures.sh
 ```
 
 ### 手动测试单个 API

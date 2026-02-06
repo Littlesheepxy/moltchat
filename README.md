@@ -169,7 +169,7 @@ pnpm format           # 格式化代码
 pnpm build            # 构建生产版本
 
 # 🧪 快速测试（开发模式）
-./dev-setup.sh        # 创建测试用户和 Agent
+./scripts/dev-setup.sh        # 创建测试用户和 Agent
 ```
 
 ### 🧪 本地快速测试
@@ -178,7 +178,7 @@ pnpm build            # 构建生产版本
 
 ```bash
 # 1. 创建测试环境
-./dev-setup.sh
+./scripts/dev-setup.sh
 
 # 2. 访问后台（使用脚本输出的链接）
 # 例如: http://localhost:3000/console?user_id=dev-user-xxx

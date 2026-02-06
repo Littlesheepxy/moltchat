@@ -35,7 +35,7 @@ cd moltchat
 # - 启动数据库
 
 # 3. 配置 Matrix（可选但推荐）
-./setup-matrix.sh
+./scripts/setup-matrix.sh
 # 这会：
 # - 启动 Matrix Synapse 和 Element Web
 # - 创建 Bot 用户
@@ -72,7 +72,7 @@ Matrix 之于 MoltChat ≈ PostgreSQL 之于 Web App
 **方法 1：使用自动化脚本（推荐）**
 
 ```bash
-./setup-matrix.sh
+./scripts/setup-matrix.sh
 ```
 
 脚本会自动：

@@ -8,7 +8,7 @@ MoltChat 内置了**开发模式认证绕过**机制，无需配置 OAuth 就能
 
 ```bash
 # 运行开发环境设置脚本
-./dev-setup.sh
+./scripts/dev-setup.sh
 ```
 
 脚本会自动：
@@ -134,7 +134,7 @@ curl "http://localhost:3001/v1/owners/me/agents?user_id=test-user-123"
 
 ```bash
 # 1. 运行开发设置脚本
-./dev-setup.sh
+./scripts/dev-setup.sh
 
 # 2. 访问后台（使用脚本输出的链接）
 # 浏览器打开: http://localhost:3000/console?user_id=xxx
@@ -223,7 +223,7 @@ curl http://localhost:3001/health
 ./start.sh
 
 # 创建测试环境
-./dev-setup.sh
+./scripts/dev-setup.sh
 
 # 查看生成的测试信息
 cat .dev-test-env
