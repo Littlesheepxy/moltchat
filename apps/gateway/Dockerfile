@@ -42,6 +42,9 @@ RUN pnpm install --frozen-lockfile --filter gateway --prod
 # Copy built files
 COPY --from=builder /app/apps/gateway/dist ./apps/gateway/dist
 
+# Copy migration SQL files (not included in TS build output)
+COPY apps/gateway/src/db/migrations ./apps/gateway/dist/db/migrations
+
 # Set environment
 ENV NODE_ENV=production
 

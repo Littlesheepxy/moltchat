@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { useI18n } from '@/lib/i18n-provider';
 import { Input } from '@/components/ui/input';
@@ -18,12 +18,17 @@ import {
   Gamepad2,
   TrendingUp,
   MessageCircle,
+  Share2,
   Plus,
   RefreshCw,
   Flame,
   ChevronRight,
   Zap,
   Menu,
+  Bot,
+  Loader2,
+  UserPlus,
+  Briefcase,
 } from 'lucide-react';
 import type { MoltRoom } from '@/lib/matrix/types';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -33,6 +38,23 @@ import { ActivityIndicator } from './ActivityIndicator';
 import { LiveChatPreview } from './LiveChatPreview';
 import { generateMockAgents, generateMockMessages, getAgentAvatarUrl } from '@/lib/avatar';
 
+interface AgentItem {
+  id: string;
+  name: string;
+  twitter_handle: string | null;
+  bio?: string;
+  status?: string;
+}
+
+interface OwnerItem {
+  user_id: string;
+  display_name: string | null;
+  image: string | null;
+  headline: string | null;
+  industry: string | null;
+  agent_name: string | null;
+}
+
 interface DiscoverViewProps {
   rooms: MoltRoom[];
   onRoomSelect: (roomId: string) => void;
@@ -40,6 +62,7 @@ interface DiscoverViewProps {
   onRefresh?: () => void;
   isLoading?: boolean;
   onOpenMobileMenu?: () => void;
+  onAgentClick?: (agentId: string) => void;
 }
 
 // 标签类型定义
@@ -257,7 +280,7 @@ function RoomCard({
             </CardDescription>
           )}
           
-          {/* Bottom: Agent Avatars + Stats */}
+          {/* Bottom: Agent Avatars + Stats + Share */}
           <div className="flex items-center justify-between">
             <AgentAvatarStack agents={agents} maxDisplay={3} size="sm" />
             <div className="flex items-center gap-3 text-xs text-muted-foreground">
@@ -269,6 +292,21 @@ function RoomCard({
                 <Clock className="h-3.5 w-3.5" />
                 {formatTime(room.timestamp)}
               </span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const url = `${window.location.origin}/watch/${room.roomId}`;
+                  if (navigator.share) {
+                    navigator.share({ title: room.name, text: room.topic || room.name, url });
+                  } else {
+                    navigator.clipboard.writeText(url);
+                  }
+                }}
+                className="inline-flex items-center gap-1 hover:text-primary transition-colors p-0.5 -mr-0.5"
+                title="Share"
+              >
+                <Share2 className="h-3.5 w-3.5" />
+              </button>
             </div>
           </div>
         </CardContent>
@@ -287,10 +325,26 @@ export function DiscoverView({
   onRefresh,
   isLoading = false,
   onOpenMobileMenu,
+  onAgentClick,
 }: DiscoverViewProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'recent' | 'popular' | 'active'>('recent');
+  const [agents, setAgents] = useState<AgentItem[]>([]);
+  const [owners, setOwners] = useState<OwnerItem[]>([]);
+  const [isLoadingDirectory, setIsLoadingDirectory] = useState(true);
+
+  // Fetch agents and owners for the directory section
+  useEffect(() => {
+    const gatewayUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3002';
+    Promise.all([
+      fetch(`${gatewayUrl}/v1/agents/available?limit=20`).then(r => r.json()).catch(() => null),
+      fetch(`${gatewayUrl}/v1/owners?limit=12`).then(r => r.json()).catch(() => null),
+    ]).then(([agentsRes, ownersRes]) => {
+      if (agentsRes?.success && agentsRes.data?.agents) setAgents(agentsRes.data.agents);
+      if (ownersRes?.success && ownersRes.data?.owners) setOwners(ownersRes.data.owners);
+    }).finally(() => setIsLoadingDirectory(false));
+  }, []);
 
   const sortLabels: Record<string, string> = {
     recent: t('chat.recent'),
@@ -503,6 +557,125 @@ export function DiscoverView({
                 ))}
               </div>
             </div>
+
+            {/* ====== Directory: Agents & Owners ====== */}
+            {!searchQuery && (
+              <>
+                {/* Divider */}
+                <div className="px-3 sm:px-6">
+                  <div className="border-b border-border/50" />
+                </div>
+
+                {/* Active Agents */}
+                <div className="p-3 sm:p-6 pb-2">
+                  <div className="flex items-center justify-between mb-3 sm:mb-4">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 rounded-lg bg-green-500/10">
+                        <Bot className="h-4 w-4 text-green-600" />
+                      </div>
+                      <h2 className="text-base sm:text-lg font-bold">
+                        {t('discover.agentDirectory') || 'Agent Directory'}
+                      </h2>
+                      <span className="text-sm text-muted-foreground">({agents.length})</span>
+                    </div>
+                  </div>
+
+                  {isLoadingDirectory ? (
+                    <div className="flex justify-center py-8">
+                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : agents.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Bot className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                      <p className="text-sm">{t('discover.noAgents') || 'No agents yet'}</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                      {agents.map((agent) => (
+                        <button
+                          key={agent.id}
+                          onClick={() => onAgentClick?.(agent.id)}
+                          className="flex flex-col items-center gap-2 p-3 sm:p-4 rounded-xl bg-card border border-border/20 hover:border-primary/30 hover:shadow-sm transition-all group text-center"
+                        >
+                          <div className="relative">
+                            <img
+                              src={getAgentAvatarUrl(agent.name)}
+                              alt={agent.name}
+                              className="w-12 h-12 sm:w-14 sm:h-14 rounded-full group-hover:scale-105 transition-transform"
+                            />
+                            {agent.status === 'claimed' && (
+                              <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-green-500 border-2 border-card" />
+                            )}
+                          </div>
+                          <div className="min-w-0 w-full">
+                            <div className="text-sm font-medium truncate">{agent.name}</div>
+                            {agent.twitter_handle && (
+                              <div className="text-[11px] text-muted-foreground truncate">@{agent.twitter_handle}</div>
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Owners */}
+                {owners.length > 0 && (
+                  <>
+                    <div className="px-3 sm:px-6">
+                      <div className="border-b border-border/50" />
+                    </div>
+                    <div className="p-3 sm:p-6 pb-6">
+                      <div className="flex items-center justify-between mb-3 sm:mb-4">
+                        <div className="flex items-center gap-2">
+                          <div className="p-1.5 rounded-lg bg-blue-500/10">
+                            <Users className="h-4 w-4 text-blue-600" />
+                          </div>
+                          <h2 className="text-base sm:text-lg font-bold">
+                            {t('discover.ownerCommunity') || 'Owner Community'}
+                          </h2>
+                          <span className="text-sm text-muted-foreground">({owners.length})</span>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                        {owners.map((owner) => (
+                          <div
+                            key={owner.user_id}
+                            className="flex items-center gap-3 p-3 rounded-xl bg-card border border-border/20 hover:border-border/40 transition-colors"
+                          >
+                            {owner.image ? (
+                              <img src={owner.image} alt="" className="w-10 h-10 rounded-full flex-shrink-0 object-cover" />
+                            ) : (
+                              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-accent to-muted flex items-center justify-center flex-shrink-0">
+                                <span className="text-sm font-bold text-muted-foreground">
+                                  {(owner.display_name || '?')[0].toUpperCase()}
+                                </span>
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-medium truncate">
+                                {owner.display_name || (t('discover.anonymous') || 'Anonymous')}
+                              </div>
+                              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                {owner.headline && (
+                                  <span className="truncate">{owner.headline}</span>
+                                )}
+                              </div>
+                            </div>
+                            {owner.agent_name && (
+                              <span className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-full bg-primary/8 text-primary/70 flex-shrink-0">
+                                <Bot className="h-2.5 w-2.5" />
+                                {owner.agent_name}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
           </>
         )}
       </div>

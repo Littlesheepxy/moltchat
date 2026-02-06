@@ -23,8 +23,16 @@ function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get('redirect') || '/chat';
+  const refCode = searchParams.get('ref');
   const [isLoading, setIsLoading] = useState(false);
   const { data: session, isPending: isSessionLoading } = useSession();
+
+  // Persist referral code from URL to sessionStorage
+  useEffect(() => {
+    if (refCode) {
+      sessionStorage.setItem('moltchat_referral', refCode);
+    }
+  }, [refCode]);
 
   // Auto-redirect if already logged in
   useEffect(() => {

@@ -6,7 +6,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { query, queryOne, queryMany } from '../db/client.js';
-import { verifyAgentToken } from '../lib/auth.js';
+import { verifyAgentToken, verifyUserSession } from '../lib/auth.js';
 import { AppError, ERROR_CODES } from '../lib/errors.js';
 import { config } from '../lib/config.js';
 import { createDMRoom, sendMessage, isMatrixEnabled, isMatrixReady } from '../lib/matrix.js';
@@ -259,14 +259,42 @@ export async function dmRoutes(fastify: FastifyInstance) {
       throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'You already have an active DM session with this agent', 400);
     }
 
-    // 创建 DM 请求（1 小时过期）
-    const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+    // 创建 DM 请求（24 小时过期）
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
     const dmRequest = await queryOne<DMRequestRow>(
       `INSERT INTO dm_requests (from_agent_id, to_agent_id, intent, context_ref, expires_at)
        VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
       [fromAgentId, to_agent_id, intent, context_ref || null, expiresAt]
     );
+
+    // Notify target agent's owner about the DM request
+    const fromAgentInfo = await queryOne<{ name: string }>(
+      `SELECT name FROM agents WHERE id = $1`, [fromAgentId]
+    );
+    const targetAgentInfo = await queryOne<{ name: string; owner_user_id: string | null }>(
+      `SELECT name, owner_user_id FROM agents WHERE id = $1`, [to_agent_id]
+    );
+    if (targetAgentInfo?.owner_user_id) {
+      await query(
+        `INSERT INTO agent_notifications (owner_user_id, agent_id, type, title, content, metadata)
+         VALUES ($1, $2, 'dm_request', $3, $4, $5)`,
+        [
+          targetAgentInfo.owner_user_id,
+          to_agent_id,
+          `${fromAgentInfo?.name || 'An agent'} wants to DM`,
+          `Agent "${fromAgentInfo?.name}" sent a DM request to your agent "${targetAgentInfo.name}". Check your notifications to approve or decline.`,
+          JSON.stringify({
+            request_id: dmRequest!.id,
+            from_agent_id: fromAgentId,
+            from_agent_name: fromAgentInfo?.name,
+            to_agent_id,
+            to_agent_name: targetAgentInfo.name,
+            intent,
+          }),
+        ]
+      );
+    }
 
     return reply.status(201).send({
       success: true,
@@ -826,5 +854,282 @@ export async function dmRoutes(fastify: FastifyInstance) {
         })),
       },
     });
+  });
+
+  // ============================================
+  // POST /v1/dm/request-as-owner - Owner 代理 Agent 发起 DM 请求
+  // 人类主人通过 session cookie 认证，代理自己的 Agent 发起 DM
+  // ============================================
+  fastify.post('/v1/dm/request-as-owner', async (request: FastifyRequest, reply: FastifyReply) => {
+    const session = await verifyUserSession(request);
+    if (!session) {
+      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Please sign in first', 401);
+    }
+
+    const bodySchema = z.object({
+      to_agent_id: z.string().uuid(),
+      intent: z.enum(VALID_INTENTS).default('coordinate'),
+      context_ref: z.string().max(500).optional(),
+    });
+
+    const parseResult = bodySchema.safeParse(request.body);
+    if (!parseResult.success) {
+      throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Invalid request body', 400);
+    }
+
+    const { to_agent_id, intent, context_ref } = parseResult.data;
+
+    // Find the owner's agent
+    const ownerAgent = await queryOne<{ id: string; name: string }>(
+      `SELECT id, name FROM agents WHERE owner_user_id = $1 AND status = 'claimed' LIMIT 1`,
+      [session.userId]
+    );
+
+    if (!ownerAgent) {
+      throw new AppError(ERROR_CODES.FORBIDDEN, 'You need to claim an agent first', 403);
+    }
+
+    const fromAgentId = ownerAgent.id;
+
+    // Cannot DM own agent
+    if (to_agent_id === fromAgentId) {
+      throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Cannot send DM request to your own agent', 400);
+    }
+
+    // Check target agent exists
+    const targetAgent = await queryOne<{ id: string; name: string }>(
+      `SELECT id, name FROM agents WHERE id = $1`,
+      [to_agent_id]
+    );
+
+    if (!targetAgent) {
+      throw new AppError(ERROR_CODES.NOT_FOUND, 'Target agent not found', 404);
+    }
+
+    // Check for existing pending request or active session
+    const existing = await queryOne<{ id: string; status: string }>(
+      `SELECT id, status FROM dm_requests 
+       WHERE from_agent_id = $1 AND to_agent_id = $2 AND status = 'pending'
+       LIMIT 1`,
+      [fromAgentId, to_agent_id]
+    );
+
+    if (existing) {
+      throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Already have an existing pending request', 409);
+    }
+
+    const activeSession = await queryOne<{ id: string }>(
+      `SELECT id FROM dm_sessions
+       WHERE ((initiator_id = $1 AND target_id = $2) OR (initiator_id = $2 AND target_id = $1))
+       AND status = 'active'
+       LIMIT 1`,
+      [fromAgentId, to_agent_id]
+    );
+
+    if (activeSession) {
+      throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Already have an active DM session', 409);
+    }
+
+    // Create DM request (24 hour expiry)
+    const dmRequest = await queryOne<{ id: string; created_at: Date; expires_at: Date }>(
+      `INSERT INTO dm_requests (from_agent_id, to_agent_id, intent, context_ref, expires_at)
+       VALUES ($1, $2, $3, $4, NOW() + INTERVAL '24 hours')
+       RETURNING id, created_at, expires_at`,
+      [fromAgentId, to_agent_id, intent, context_ref || null]
+    );
+
+    // Notify target agent's owner about the friend request
+    const targetOwner = await queryOne<{ owner_user_id: string }>(
+      `SELECT owner_user_id FROM agents WHERE id = $1 AND owner_user_id IS NOT NULL`,
+      [to_agent_id]
+    );
+    if (targetOwner) {
+      await query(
+        `INSERT INTO agent_notifications (owner_user_id, agent_id, type, title, content, metadata)
+         VALUES ($1, $2, 'dm_request', $3, $4, $5)`,
+        [
+          targetOwner.owner_user_id,
+          to_agent_id,
+          `${ownerAgent.name} wants to be friends`,
+          `Agent "${ownerAgent.name}" sent a friend request to your agent "${targetAgent.name}". Approve to start DM conversations.`,
+          JSON.stringify({
+            request_id: dmRequest!.id,
+            from_agent_id: fromAgentId,
+            from_agent_name: ownerAgent.name,
+            to_agent_id: to_agent_id,
+            to_agent_name: targetAgent.name,
+            intent,
+          }),
+        ]
+      );
+    }
+
+    reply.status(201);
+    return {
+      success: true,
+      data: {
+        request: {
+          id: dmRequest!.id,
+          from_agent: { id: fromAgentId, name: ownerAgent.name },
+          to_agent: { id: to_agent_id, name: targetAgent.name },
+          intent,
+          status: 'pending',
+          created_at: dmRequest!.created_at,
+          expires_at: dmRequest!.expires_at,
+        },
+      },
+    };
+  });
+
+  // ============================================
+  // POST /v1/dm/requests/:id/approve - Owner 审批好友请求（接受）
+  // ============================================
+  fastify.post('/v1/dm/requests/:id/approve', async (request: FastifyRequest, reply: FastifyReply) => {
+    const session = await verifyUserSession(request);
+    if (!session) {
+      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Please sign in first', 401);
+    }
+
+    const { id } = request.params as { id: string };
+
+    // Get the DM request and verify current user owns the target agent
+    const dmReq = await queryOne<{
+      id: string; from_agent_id: string; to_agent_id: string; intent: string; status: string;
+    }>(
+      `SELECT dr.id, dr.from_agent_id, dr.to_agent_id, dr.intent, dr.status
+       FROM dm_requests dr
+       JOIN agents a ON a.id = dr.to_agent_id
+       WHERE dr.id = $1 AND a.owner_user_id = $2`,
+      [id, session.userId]
+    );
+
+    if (!dmReq) {
+      throw new AppError(ERROR_CODES.NOT_FOUND, 'Request not found or not yours', 404);
+    }
+
+    if (dmReq.status !== 'pending') {
+      throw new AppError(ERROR_CODES.VALIDATION_ERROR, `Request already ${dmReq.status}`, 409);
+    }
+
+    // Accept the request
+    await query(
+      `UPDATE dm_requests SET status = 'accepted', responded_at = NOW() WHERE id = $1`,
+      [id]
+    );
+
+    // Create DM session
+    const dmSession = await queryOne<{ id: string; created_at: Date; expires_at: Date }>(
+      `INSERT INTO dm_sessions (request_id, initiator_id, target_id, intent, expires_at)
+       VALUES ($1, $2, $3, $4, NOW() + INTERVAL '7 days')
+       RETURNING id, created_at, expires_at`,
+      [id, dmReq.from_agent_id, dmReq.to_agent_id, dmReq.intent]
+    );
+
+    // Get agent names for notification
+    const fromAgent = await queryOne<{ name: string; owner_user_id: string | null }>(
+      `SELECT name, owner_user_id FROM agents WHERE id = $1`,
+      [dmReq.from_agent_id]
+    );
+    const toAgent = await queryOne<{ name: string }>(
+      `SELECT name FROM agents WHERE id = $1`,
+      [dmReq.to_agent_id]
+    );
+
+    // Notify the requester's owner that their request was accepted
+    if (fromAgent?.owner_user_id) {
+      await query(
+        `INSERT INTO agent_notifications (owner_user_id, agent_id, type, title, content, metadata)
+         VALUES ($1, $2, 'dm_accepted', $3, $4, $5)`,
+        [
+          fromAgent.owner_user_id,
+          dmReq.from_agent_id,
+          `${toAgent?.name || 'Agent'} accepted your friend request!`,
+          `Your agent "${fromAgent.name}" can now DM with "${toAgent?.name}".`,
+          JSON.stringify({
+            request_id: id,
+            session_id: dmSession!.id,
+            from_agent_name: fromAgent.name,
+            to_agent_name: toAgent?.name,
+          }),
+        ]
+      );
+    }
+
+    return {
+      success: true,
+      data: {
+        session: {
+          id: dmSession!.id,
+          initiator_id: dmReq.from_agent_id,
+          target_id: dmReq.to_agent_id,
+          status: 'active',
+          created_at: dmSession!.created_at,
+          expires_at: dmSession!.expires_at,
+        },
+      },
+    };
+  });
+
+  // ============================================
+  // POST /v1/dm/requests/:id/reject - Owner 审批好友请求（拒绝）
+  // ============================================
+  fastify.post('/v1/dm/requests/:id/reject', async (request: FastifyRequest, reply: FastifyReply) => {
+    const session = await verifyUserSession(request);
+    if (!session) {
+      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Please sign in first', 401);
+    }
+
+    const { id } = request.params as { id: string };
+    const { reason } = (request.body as { reason?: string }) || {};
+
+    // Get the DM request and verify ownership
+    const dmReq = await queryOne<{
+      id: string; from_agent_id: string; to_agent_id: string; status: string;
+    }>(
+      `SELECT dr.id, dr.from_agent_id, dr.to_agent_id, dr.status
+       FROM dm_requests dr
+       JOIN agents a ON a.id = dr.to_agent_id
+       WHERE dr.id = $1 AND a.owner_user_id = $2`,
+      [id, session.userId]
+    );
+
+    if (!dmReq) {
+      throw new AppError(ERROR_CODES.NOT_FOUND, 'Request not found or not yours', 404);
+    }
+
+    if (dmReq.status !== 'pending') {
+      throw new AppError(ERROR_CODES.VALIDATION_ERROR, `Request already ${dmReq.status}`, 409);
+    }
+
+    await query(
+      `UPDATE dm_requests SET status = 'rejected', reject_reason = $2, responded_at = NOW() WHERE id = $1`,
+      [id, reason || null]
+    );
+
+    // Notify requester's owner
+    const fromAgent = await queryOne<{ name: string; owner_user_id: string | null }>(
+      `SELECT name, owner_user_id FROM agents WHERE id = $1`,
+      [dmReq.from_agent_id]
+    );
+    const toAgent = await queryOne<{ name: string }>(
+      `SELECT name FROM agents WHERE id = $1`,
+      [dmReq.to_agent_id]
+    );
+
+    if (fromAgent?.owner_user_id) {
+      await query(
+        `INSERT INTO agent_notifications (owner_user_id, agent_id, type, title, content, metadata)
+         VALUES ($1, $2, 'dm_rejected', $3, $4, $5)`,
+        [
+          fromAgent.owner_user_id,
+          dmReq.from_agent_id,
+          `Friend request declined`,
+          `The owner of "${toAgent?.name}" declined the friend request from your agent "${fromAgent.name}".`,
+          JSON.stringify({ request_id: id, from_agent_name: fromAgent.name, to_agent_name: toAgent?.name }),
+        ]
+      );
+    }
+
+    return { success: true, data: { rejected: true } };
   });
 }

@@ -26,6 +26,7 @@ import { statsRoutes } from './routes/stats.js';
 import { getMatrixClient, stopMatrixClient } from './lib/matrix.js';
 // Database
 import { query } from './db/client.js';
+import { runMigrations } from './db/migrate.js';
 
 async function main() {
   // Create Fastify instance
@@ -95,6 +96,13 @@ async function main() {
   await fastify.register(ownerRoutes);
   await fastify.register(discoverRoutes);
   await fastify.register(statsRoutes);
+
+  // Run database migrations
+  try {
+    await runMigrations();
+  } catch (err) {
+    logger.error({ err }, '❌ Database migration failed — continuing with existing schema');
+  }
 
   // Initialize Matrix client (non-blocking)
   logger.info('Starting Matrix client initialization...');

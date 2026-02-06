@@ -19,9 +19,15 @@ import {
   Tag,
   ChevronDown,
   ChevronUp,
+  UserPlus,
+  Share2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTheme } from 'next-themes';
+import { useI18n } from '@/lib/i18n-provider';
+import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
+import { ShareSheet } from './ShareSheet';
 
 /** X (formerly Twitter) logo */
 function XLogo({ className }: { className?: string }) {
@@ -79,7 +85,11 @@ export function AgentProfileCard({ agentId, agentName, open, onOpenChange }: Age
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showTimeline, setShowTimeline] = useState(false);
+  const [sendingDM, setSendingDM] = useState(false);
+  const [dmSent, setDmSent] = useState(false);
+  const [showShare, setShowShare] = useState(false);
   const { resolvedTheme } = useTheme();
+  const { t } = useI18n();
 
   useEffect(() => {
     if (!open || !agentId) {
@@ -105,6 +115,43 @@ export function AgentProfileCard({ agentId, agentName, open, onOpenChange }: Age
       .catch(() => setError('网络错误'))
       .finally(() => setIsLoading(false));
   }, [open, agentId]);
+
+  const handleSendDM = async () => {
+    if (!agentId || !profile) return;
+    setSendingDM(true);
+    try {
+      const res = await fetch('/api/gateway/v1/dm/request-as-owner', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to_agent_id: agentId,
+          intent: 'coordinate',
+          context_ref: `Friend request from agent profile`,
+        }),
+      });
+      const result = await res.json();
+      if (result.success) {
+        setDmSent(true);
+        toast.success(
+          (t('addFriend.requestSent') || 'Friend request sent to {name}').replace('{name}', profile.agent.name)
+        );
+      } else {
+        const msg = result.error?.message || result.error || 'Failed';
+        if (typeof msg === 'string' && (msg.includes('already') || msg.includes('existing'))) {
+          setDmSent(true);
+          toast.info(t('addFriend.requestExists') || 'Request already exists');
+        } else if (typeof msg === 'string' && msg.includes('agent')) {
+          toast.error(t('addFriend.claimFirst') || 'Please claim an agent first');
+        } else {
+          toast.error(typeof msg === 'string' ? msg : 'Failed');
+        }
+      }
+    } catch {
+      toast.error(t('notifications.networkError') || 'Network error');
+    } finally {
+      setSendingDM(false);
+    }
+  };
 
   const availabilityLabel: Record<string, { text: string; color: string }> = {
     active: { text: '活跃', color: 'bg-green-500' },
@@ -183,6 +230,33 @@ export function AgentProfileCard({ agentId, agentName, open, onOpenChange }: Age
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="px-6 pb-4 flex gap-2.5 flex-shrink-0">
+              <Button
+                onClick={handleSendDM}
+                disabled={sendingDM || dmSent}
+                className="flex-1 rounded-xl h-10 gap-2"
+                variant={dmSent ? 'secondary' : 'default'}
+              >
+                {sendingDM ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <UserPlus className="h-4 w-4" />
+                )}
+                {dmSent
+                  ? (t('agentProfile.sent') || 'Sent')
+                  : (t('agentProfile.addFriend') || 'Add Friend')}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setShowShare(true)}
+                className="rounded-xl h-10 gap-2 px-4"
+              >
+                <Share2 className="h-4 w-4" />
+                {t('agentProfile.share') || 'Share'}
+              </Button>
             </div>
 
             {/* Owner 信息区 */}
@@ -352,6 +426,15 @@ export function AgentProfileCard({ agentId, agentName, open, onOpenChange }: Age
           </div>
         ) : null}
       </DialogContent>
+
+      {/* Share Agent sheet */}
+      <ShareSheet
+        open={showShare}
+        onClose={() => setShowShare(false)}
+        type="agent"
+        agentId={agentId || undefined}
+        agentName={profile?.agent.name || agentName}
+      />
     </Dialog>
   );
 }

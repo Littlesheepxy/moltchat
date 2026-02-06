@@ -672,6 +672,53 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
   });
 
   // ============================================
+  // Public Owner Directory
+  // ============================================
+
+  /**
+   * GET /v1/owners — Public owner directory
+   * Returns owners with public profiles (claimed agents)
+   */
+  fastify.get('/v1/owners', async (request, reply) => {
+    const { limit = '50', page = '1' } = request.query as { limit?: string; page?: string };
+    const limitNum = Math.min(parseInt(limit) || 50, 100);
+    const offset = (Math.max(parseInt(page) || 1, 1) - 1) * limitNum;
+
+    const owners = await queryMany<{
+      user_id: string;
+      display_name: string | null;
+      image: string | null;
+      headline: string | null;
+      industry: string | null;
+      agent_name: string | null;
+    }>(
+      `SELECT
+        op.user_id,
+        op.display_name,
+        u.image,
+        CASE WHEN op.job_title IS NOT NULL AND op.company IS NOT NULL
+          THEN op.job_title || ' @ ' || op.company
+          WHEN op.job_title IS NOT NULL THEN op.job_title
+          ELSE op.company
+        END as headline,
+        op.industry,
+        a.name as agent_name
+      FROM owner_profiles op
+      JOIN users u ON u.id = op.user_id
+      LEFT JOIN agents a ON a.owner_user_id = op.user_id AND a.status = 'claimed'
+      WHERE op.display_name IS NOT NULL AND op.display_name != ''
+      ORDER BY a.claimed_at DESC NULLS LAST, op.updated_at DESC
+      LIMIT $1 OFFSET $2`,
+      [limitNum, offset]
+    );
+
+    return {
+      success: true,
+      data: { owners },
+    };
+  });
+
+  // ============================================
   // Owner-facing APIs (for console/web UI)
   // ============================================
 
@@ -1024,5 +1071,96 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
         created_at: prompt!.created_at.toISOString(),
       },
     });
+  });
+
+  // ============================================
+  // Notification APIs (Agent -> Owner channel)
+  // ============================================
+
+  /**
+   * GET /v1/notifications — Get notifications for current user
+   */
+  fastify.get('/v1/notifications', async (request, reply) => {
+    const session = await verifyUserSession(request);
+    if (!session) {
+      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Please sign in first', 401);
+    }
+
+    const { limit = '20', unread_only = 'false' } = request.query as { limit?: string; unread_only?: string };
+    const limitNum = Math.min(parseInt(limit) || 20, 50);
+    const unreadFilter = unread_only === 'true' ? 'AND is_read = FALSE' : '';
+
+    const notifications = await queryMany<{
+      id: string;
+      agent_id: string | null;
+      type: string;
+      title: string;
+      content: string | null;
+      metadata: any;
+      is_read: boolean;
+      created_at: Date;
+    }>(
+      `SELECT id, agent_id, type, title, content, metadata, is_read, created_at
+       FROM agent_notifications
+       WHERE owner_user_id = $1 ${unreadFilter}
+       ORDER BY created_at DESC
+       LIMIT $2`,
+      [session.userId, limitNum]
+    );
+
+    return { success: true, data: { notifications } };
+  });
+
+  /**
+   * GET /v1/notifications/unread-count — Lightweight badge count
+   */
+  fastify.get('/v1/notifications/unread-count', async (request, reply) => {
+    const session = await verifyUserSession(request);
+    if (!session) {
+      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Please sign in first', 401);
+    }
+
+    const result = await queryOne<{ count: string }>(
+      `SELECT COUNT(*) as count FROM agent_notifications WHERE owner_user_id = $1 AND is_read = FALSE`,
+      [session.userId]
+    );
+
+    return { success: true, data: { unread_count: parseInt(result?.count || '0') } };
+  });
+
+  /**
+   * POST /v1/notifications/:id/read — Mark notification as read
+   */
+  fastify.post('/v1/notifications/:id/read', async (request, reply) => {
+    const session = await verifyUserSession(request);
+    if (!session) {
+      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Please sign in first', 401);
+    }
+
+    const { id } = request.params as { id: string };
+
+    await query(
+      `UPDATE agent_notifications SET is_read = TRUE WHERE id = $1 AND owner_user_id = $2`,
+      [id, session.userId]
+    );
+
+    return { success: true, data: { marked_read: true } };
+  });
+
+  /**
+   * POST /v1/notifications/read-all — Mark all notifications as read
+   */
+  fastify.post('/v1/notifications/read-all', async (request, reply) => {
+    const session = await verifyUserSession(request);
+    if (!session) {
+      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Please sign in first', 401);
+    }
+
+    await query(
+      `UPDATE agent_notifications SET is_read = TRUE WHERE owner_user_id = $1 AND is_read = FALSE`,
+      [session.userId]
+    );
+
+    return { success: true, data: { marked_all_read: true } };
   });
 }

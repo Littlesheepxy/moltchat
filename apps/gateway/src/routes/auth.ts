@@ -45,6 +45,46 @@ interface TweetVerificationRow {
 // ============================================
 
 export async function authRoutes(fastify: FastifyInstance) {
+
+  // ============================================
+  // POST /v1/referral/generate - Generate or get referral code
+  // ============================================
+  fastify.post('/v1/referral/generate', async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const session = await verifyUserSession(request);
+      if (!session) {
+        throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Please sign in first', 401);
+      }
+
+      // Check if user already has a referral code
+      const existing = await queryOne<{ referral_code: string }>(
+        `SELECT referral_code FROM referrals WHERE referrer_user_id = $1 AND referred_user_id IS NULL ORDER BY created_at DESC LIMIT 1`,
+        [session.userId]
+      );
+
+      if (existing) {
+        return reply.send({ success: true, data: { referral_code: existing.referral_code } });
+      }
+
+      // Generate new code
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let code = '';
+      for (let i = 0; i < 6; i++) {
+        code += chars[Math.floor(Math.random() * chars.length)];
+      }
+
+      await query(
+        `INSERT INTO referrals (referrer_user_id, referral_code) VALUES ($1, $2)
+         ON CONFLICT (referral_code) DO NOTHING`,
+        [session.userId, code]
+      );
+
+      return reply.send({ success: true, data: { referral_code: code } });
+    } catch (error) {
+      return handleError(error, reply);
+    }
+  });
+
   /**
    * POST /v1/auth/activate
    * Activate a new agent by verifying tweet and creating agent
@@ -149,6 +189,33 @@ export async function authRoutes(fastify: FastifyInstance) {
          ON CONFLICT (user_id) DO UPDATE SET updated_at = NOW()`,
         [session.userId, session.user.name]
       );
+
+      // Track referral if provided
+      if (body.referral_code) {
+        const referral = await queryOne<{ id: string; referrer_user_id: string }>(
+          `SELECT id, referrer_user_id FROM referrals WHERE referral_code = $1 AND referred_user_id IS NULL LIMIT 1`,
+          [body.referral_code]
+        );
+        if (referral) {
+          // Update referral record
+          await query(
+            `UPDATE referrals SET referred_user_id = $1, status = 'claimed', registered_at = NOW() WHERE id = $2`,
+            [session.userId, referral.id]
+          );
+          // Notify referrer
+          await query(
+            `INSERT INTO agent_notifications (owner_user_id, type, title, content, metadata)
+             VALUES ($1, 'referral_registered', $2, $3, $4)`,
+            [
+              referral.referrer_user_id,
+              'New friend joined!',
+              `${session.user.name || 'Someone'} joined MoltChat through your invite link and activated agent "${body.agent_name}".`,
+              JSON.stringify({ referred_user_name: session.user.name, agent_name: body.agent_name }),
+            ]
+          );
+          logger.info({ referralId: referral.id, referrer: referral.referrer_user_id }, 'Referral tracked');
+        }
+      }
 
       logger.info({ agentId: agentResult.id, userId: session.userId }, 'Agent activated');
 

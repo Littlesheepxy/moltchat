@@ -12,7 +12,7 @@ import { isAuthenticated, getAgent, clearAuth } from '@/lib/auth';
 import { useI18n } from '@/lib/i18n-provider';
 import { signOut, useSession } from '@/lib/auth-client';
 import { getAgentAvatarUrl } from '@/lib/avatar';
-import { Menu, Settings, Loader2, MessageSquare, Bot, Users, Plus, Compass, PanelLeftClose, Eye } from 'lucide-react';
+import { Menu, Settings, Loader2, MessageSquare, Bot, Users, Plus, Compass, PanelLeftClose, Eye, UserPlus, Share2 } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -20,6 +20,9 @@ import Image from 'next/image';
 import { DiscoverView } from './DiscoverView';
 import { CreateRoomDialog } from './CreateRoomDialog';
 import { RealChatMessages } from './RealChatMessages';
+import { ShareSheet } from './ShareSheet';
+import { AddAgentFriendSheet } from './AddAgentFriendSheet';
+import { NotificationBell } from './NotificationBell';
 import type { MoltRoom } from '@/lib/matrix/types';
 import { User } from 'lucide-react';
 import { AgentProfileCard } from './AgentProfileCard';
@@ -94,6 +97,8 @@ function DesktopLayout() {
   const [profileAgentId, setProfileAgentId] = useState<string | null>(null);
   const [showAgentProfile, setShowAgentProfile] = useState(false);
   const [showUserManagement, setShowUserManagement] = useState(false);
+  const [showAddFriend, setShowAddFriend] = useState(false);
+  const [showInviteShare, setShowInviteShare] = useState(false);
 
   const handleAgentClick = useCallback((agentId: string) => {
     setProfileAgentId(agentId);
@@ -268,8 +273,38 @@ function DesktopLayout() {
 
         {/* 底部操作区 */}
         <div className={cn(
-          isSidebarCollapsed ? 'p-2 space-y-1' : 'p-3 space-y-2'
+          isSidebarCollapsed ? 'p-2 space-y-1' : 'p-3 space-y-1.5'
         )}>
+          {/* 添加好友 */}
+          <Button
+            variant="ghost"
+            onClick={() => setShowAddFriend(true)}
+            className={cn(
+              'rounded-xl',
+              isSidebarCollapsed ? 'w-full h-10 p-0' : 'w-full justify-start gap-2.5 h-10 px-3'
+            )}
+          >
+            <UserPlus className="h-[18px] w-[18px] text-primary" />
+            {!isSidebarCollapsed && <span className="text-sm">{t('chat.addFriend') || '添加好友'}</span>}
+          </Button>
+          {/* 邀请分享 */}
+          <Button
+            variant="ghost"
+            onClick={() => setShowInviteShare(true)}
+            className={cn(
+              'rounded-xl',
+              isSidebarCollapsed ? 'w-full h-10 p-0' : 'w-full justify-start gap-2.5 h-10 px-3'
+            )}
+          >
+            <Share2 className="h-[18px] w-[18px] text-primary" />
+            {!isSidebarCollapsed && <span className="text-sm">{t('chat.inviteShare') || '邀请分享'}</span>}
+          </Button>
+
+          {/* 通知 */}
+          <NotificationBell collapsed={isSidebarCollapsed} />
+
+          <div className="h-px bg-border/30 my-1" />
+
           {/* 用户中心 */}
           <Button
             variant="ghost"
@@ -306,6 +341,7 @@ function DesktopLayout() {
             onRoomSelect={handleDiscoverSelect}
             onCreateRoom={() => setShowCreateRoom(true)}
             isLoading={isLoadingRooms}
+            onAgentClick={handleAgentClick}
           />
         ) : (
           <>
@@ -499,6 +535,24 @@ function DesktopLayout() {
         open={showUserManagement}
         onOpenChange={setShowUserManagement}
         onLogout={handleLogout}
+      />
+
+      {/* 添加好友 */}
+      <AddAgentFriendSheet
+        open={showAddFriend}
+        onClose={() => setShowAddFriend(false)}
+        onViewAgent={(agentId) => {
+          setShowAddFriend(false);
+          setProfileAgentId(agentId);
+          setShowAgentProfile(true);
+        }}
+      />
+
+      {/* 邀请分享 */}
+      <ShareSheet
+        open={showInviteShare}
+        onClose={() => setShowInviteShare(false)}
+        type="invite"
       />
     </div>
   );

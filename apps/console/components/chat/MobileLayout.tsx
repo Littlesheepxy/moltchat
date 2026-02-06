@@ -8,7 +8,7 @@ import { isAuthenticated, getAgent, clearAuth } from '@/lib/auth';
 import { getAgentAvatarUrl } from '@/lib/avatar';
 import {
   MessageSquare, Compass, Users, User, Plus, Search, Bot,
-  ArrowLeft, ChevronRight, LogOut, Shield, Eye,
+  ArrowLeft, ChevronRight, LogOut, Shield, Eye, Bell,
   Loader2, Palette,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,10 @@ import {
   type ProfileData, type UserInfo, type AgentSummary,
 } from './UserManagementDialog';
 import { RealChatMessages } from './RealChatMessages';
+import { MobilePlusMenu } from './PlusMenu';
+import { ShareSheet } from './ShareSheet';
+import { AddAgentFriendSheet } from './AddAgentFriendSheet';
+import { NotificationBell, useUnreadNotificationCount, MobileNotificationList } from './NotificationBell';
 import type { MoltRoom } from '@/lib/matrix/types';
 
 // ============================================
@@ -38,15 +42,26 @@ interface AgentInfo {
   twitter_handle: string | null;
 }
 
+interface OwnerInfo {
+  user_id: string;
+  display_name: string | null;
+  image: string | null;
+  headline: string | null;
+  industry: string | null;
+  agent_name: string | null;
+}
+
 // ============================================
 // Contacts Tab Content
 // ============================================
 
 function ContactsTab({ onAgentClick }: { onAgentClick: (agentId: string) => void }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [segment, setSegment] = useState<'agents' | 'owners'>('agents');
   const [agents, setAgents] = useState<AgentInfo[]>([]);
+  const [owners, setOwners] = useState<OwnerInfo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingOwners, setIsLoadingOwners] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
@@ -62,6 +77,22 @@ function ContactsTab({ onAgentClick }: { onAgentClick: (agentId: string) => void
       .finally(() => setIsLoading(false));
   }, []);
 
+  // Load owners when switching to owners segment
+  useEffect(() => {
+    if (segment !== 'owners' || owners.length > 0) return;
+    setIsLoadingOwners(true);
+    const gatewayUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3002';
+    fetch(`${gatewayUrl}/v1/owners?limit=50`)
+      .then(res => res.json())
+      .then(result => {
+        if (result.success && result.data?.owners) {
+          setOwners(result.data.owners);
+        }
+      })
+      .catch(err => console.error('Failed to load owners:', err))
+      .finally(() => setIsLoadingOwners(false));
+  }, [segment, owners.length]);
+
   const filtered = useMemo(() => {
     if (!searchQuery) return agents;
     const q = searchQuery.toLowerCase();
@@ -70,6 +101,16 @@ function ContactsTab({ onAgentClick }: { onAgentClick: (agentId: string) => void
       a.twitter_handle?.toLowerCase().includes(q)
     );
   }, [agents, searchQuery]);
+
+  const filteredOwners = useMemo(() => {
+    if (!searchQuery) return owners;
+    const q = searchQuery.toLowerCase();
+    return owners.filter(o =>
+      o.display_name?.toLowerCase().includes(q) ||
+      o.agent_name?.toLowerCase().includes(q) ||
+      o.industry?.toLowerCase().includes(q)
+    );
+  }, [owners, searchQuery]);
 
   return (
     <div className="flex flex-col h-full">
@@ -148,12 +189,48 @@ function ContactsTab({ onAgentClick }: { onAgentClick: (agentId: string) => void
             )}
           </div>
         ) : (
-          /* Owners - placeholder for now */
-          <div className="text-center py-12 text-muted-foreground">
-            <Users className="h-10 w-10 mx-auto mb-2 opacity-30" />
-            <p className="text-sm">Coming soon</p>
-            <p className="text-xs mt-1 opacity-60">Owner directory is under development</p>
-          </div>
+          /* Owners list */
+          isLoadingOwners ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            </div>
+          ) : filteredOwners.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <Users className="h-10 w-10 mx-auto mb-2 opacity-30" />
+              <p className="text-sm">{searchQuery ? (t('common.noOwnersFound') || 'No owners found') : (t('common.noOwners') || 'No owners yet')}</p>
+            </div>
+          ) : (
+            <div className="space-y-0.5">
+              {filteredOwners.map((owner) => (
+                <div
+                  key={owner.user_id}
+                  className="flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-accent/30 transition-colors"
+                >
+                  {owner.image ? (
+                    <img src={owner.image} alt="" className="w-10 h-10 rounded-full flex-shrink-0 object-cover" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-accent to-muted flex items-center justify-center flex-shrink-0">
+                      <span className="text-sm font-bold text-muted-foreground">
+                        {(owner.display_name || '?')[0].toUpperCase()}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium truncate">{owner.display_name || (t('discover.anonymous') || 'Anonymous')}</div>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      {owner.headline && <span className="truncate">{owner.headline}</span>}
+                      {owner.agent_name && (
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-primary/8 text-primary/70 flex-shrink-0">
+                          <Bot className="h-2.5 w-2.5" />
+                          {owner.agent_name}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
         )}
       </div>
     </div>
@@ -164,7 +241,7 @@ function ContactsTab({ onAgentClick }: { onAgentClick: (agentId: string) => void
 // Me Tab Content — Full User Center
 // ============================================
 
-type MeSubView = 'main' | 'profile' | 'agents' | 'appearance' | 'security';
+type MeSubView = 'main' | 'profile' | 'agents' | 'appearance' | 'security' | 'notifications';
 
 function MeTab({ onLogout }: { onLogout: () => void }) {
   const { t, locale } = useI18n();
@@ -222,7 +299,7 @@ function MeTab({ onLogout }: { onLogout: () => void }) {
   if (subView === 'profile') {
     return (
       <div className="flex flex-col h-full">
-        <SubViewHeader title={locale === 'zh' ? '个人资料' : 'Profile'} />
+        <SubViewHeader title={t('me.profile') || 'Profile'} />
         <div className="flex-1 overflow-y-auto">
           {isLoading ? (
             <div className="flex items-center justify-center py-20">
@@ -256,7 +333,7 @@ function MeTab({ onLogout }: { onLogout: () => void }) {
   if (subView === 'appearance') {
     return (
       <div className="flex flex-col h-full">
-        <SubViewHeader title={locale === 'zh' ? '外观与语言' : 'Appearance'} />
+        <SubViewHeader title={t('me.appearance') || 'Appearance'} />
         <div className="flex-1 overflow-y-auto">
           <AppearancePanel />
         </div>
@@ -267,9 +344,20 @@ function MeTab({ onLogout }: { onLogout: () => void }) {
   if (subView === 'security') {
     return (
       <div className="flex flex-col h-full">
-        <SubViewHeader title={locale === 'zh' ? '账号安全' : 'Security'} />
+        <SubViewHeader title={t('me.security') || 'Security'} />
         <div className="flex-1 overflow-y-auto">
           <SecurityPanel userInfo={effectiveUserInfo} profile={profile} onLogout={onLogout} />
+        </div>
+      </div>
+    );
+  }
+
+  if (subView === 'notifications') {
+    return (
+      <div className="flex flex-col h-full">
+        <SubViewHeader title={t('me.notifications') || 'Notifications'} />
+        <div className="flex-1 overflow-y-auto">
+          <MobileNotificationList />
         </div>
       </div>
     );
@@ -278,17 +366,18 @@ function MeTab({ onLogout }: { onLogout: () => void }) {
   // Main menu
   const menuSections = [
     {
-      label: locale === 'zh' ? '管理' : 'Manage',
+      label: t('me.manage') || 'Manage',
       items: [
-        { id: 'profile' as MeSubView, icon: User, label: locale === 'zh' ? '个人资料' : 'Profile', desc: locale === 'zh' ? '名称、简介、行业、兴趣' : 'Name, bio, industry, topics' },
-        { id: 'agents' as MeSubView, icon: Bot, label: 'Agent 管理', desc: locale === 'zh' ? '配置 Agent 角色、私信策略' : 'Role, DM policy, speaking style' },
+        { id: 'profile' as MeSubView, icon: User, label: t('me.profile') || 'Profile', desc: t('me.profileDesc') || 'Name, bio, industry, topics' },
+        { id: 'agents' as MeSubView, icon: Bot, label: t('me.agentManagement') || 'Agent Management', desc: t('me.agentManagementDesc') || 'Role, DM policy, speaking style' },
+        { id: 'notifications' as MeSubView, icon: Bell, label: t('me.notifications') || 'Notifications', desc: t('me.notificationsDesc') || 'Friend requests, alerts' },
       ],
     },
     {
-      label: locale === 'zh' ? '偏好' : 'Preferences',
+      label: t('me.preferences') || 'Preferences',
       items: [
-        { id: 'appearance' as MeSubView, icon: Palette, label: locale === 'zh' ? '外观与语言' : 'Appearance & Language', desc: locale === 'zh' ? '主题、显示语言' : 'Theme, display language' },
-        { id: 'security' as MeSubView, icon: Shield, label: locale === 'zh' ? '账号安全' : 'Account Security', desc: locale === 'zh' ? '关联账号、会话管理' : 'Linked accounts, sessions' },
+        { id: 'appearance' as MeSubView, icon: Palette, label: t('me.appearance') || 'Appearance & Language', desc: t('me.appearanceDesc') || 'Theme, display language' },
+        { id: 'security' as MeSubView, icon: Shield, label: t('me.security') || 'Account Security', desc: t('me.securityDesc') || 'Linked accounts, sessions' },
       ],
     },
   ];
@@ -362,7 +451,7 @@ function MeTab({ onLogout }: { onLogout: () => void }) {
           className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-destructive/10 hover:bg-destructive/20 active:bg-destructive/30 transition-colors text-destructive"
         >
           <LogOut className="h-4 w-4" />
-          <span className="text-sm font-medium">{t('settings.logout') || 'Sign Out'}</span>
+          <span className="text-sm font-medium">{t('chat.logout') || 'Sign Out'}</span>
         </button>
       </div>
 
@@ -378,22 +467,29 @@ function MeTab({ onLogout }: { onLogout: () => void }) {
 // Rooms Tab Content
 // ============================================
 
-function RoomsTab({ rooms, isLoading, onRoomSelect, onCreateRoom }: {
+function RoomsTab({ rooms, isLoading, onRoomSelect, onCreateRoom, onAddFriend, onInviteShare }: {
   rooms: MoltRoom[];
   isLoading: boolean;
   onRoomSelect: (roomId: string) => void;
   onCreateRoom: () => void;
+  onAddFriend: () => void;
+  onInviteShare: () => void;
 }) {
   const { t, locale } = useI18n();
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header with + button */}
+      {/* Header with notification + menu */}
       <div className="px-4 pt-3 pb-2 flex items-center justify-between flex-shrink-0">
         <h1 className="text-lg font-bold">{t('chat.rooms') || 'Rooms'}</h1>
-        <Button variant="ghost" size="icon" onClick={onCreateRoom} className="h-9 w-9 rounded-lg">
-          <Plus className="h-5 w-5" />
-        </Button>
+        <div className="flex items-center gap-1">
+          <NotificationBell iconOnly />
+          <MobilePlusMenu
+            onCreateRoom={onCreateRoom}
+            onAddFriend={onAddFriend}
+            onInviteShare={onInviteShare}
+          />
+        </div>
       </div>
 
       {/* Room list */}
@@ -405,7 +501,7 @@ function RoomsTab({ rooms, isLoading, onRoomSelect, onCreateRoom }: {
         ) : rooms.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
             <MessageSquare className="h-10 w-10 mx-auto mb-2 opacity-30" />
-            <p className="text-sm">{locale === 'zh' ? '还没有房间' : 'No rooms yet'}</p>
+            <p className="text-sm">{t('common.noRooms') || 'No rooms yet'}</p>
             <Button variant="outline" size="sm" onClick={onCreateRoom} className="mt-3 rounded-xl">
               <Plus className="h-3.5 w-3.5 mr-1" />
               {t('chat.createRoom') || 'Create Room'}
@@ -572,27 +668,36 @@ function BottomTabBar({ activeTab, onTabChange }: {
   activeTab: MobileTab;
   onTabChange: (tab: MobileTab) => void;
 }) {
-  const { locale } = useI18n();
-  const tabs: { id: MobileTab; icon: typeof MessageSquare; label: string }[] = [
-    { id: 'rooms', icon: MessageSquare, label: locale === 'zh' ? '房间' : 'Rooms' },
-    { id: 'discover', icon: Compass, label: locale === 'zh' ? '发现' : 'Discover' },
-    { id: 'contacts', icon: Users, label: locale === 'zh' ? '通讯录' : 'Contacts' },
-    { id: 'me', icon: User, label: locale === 'zh' ? '我的' : 'Me' },
+  const { t } = useI18n();
+  const { unreadCount } = useUnreadNotificationCount();
+
+  const tabs: { id: MobileTab; icon: typeof MessageSquare; label: string; badge?: number }[] = [
+    { id: 'rooms', icon: MessageSquare, label: t('tabs.rooms') || 'Rooms' },
+    { id: 'discover', icon: Compass, label: t('tabs.discover') || 'Discover' },
+    { id: 'contacts', icon: Users, label: t('tabs.contacts') || 'Contacts' },
+    { id: 'me', icon: User, label: t('tabs.me') || 'Me', badge: unreadCount },
   ];
 
   return (
     <nav className="flex-shrink-0 bg-card border-t border-border/50 pb-[env(safe-area-inset-bottom)]">
       <div className="flex items-center justify-around h-14">
-        {tabs.map(({ id, icon: Icon, label }) => (
+        {tabs.map(({ id, icon: Icon, label, badge }) => (
           <button
             key={id}
             onClick={() => onTabChange(id)}
             className={cn(
-              'flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors',
+              'flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors relative',
               activeTab === id ? 'text-primary' : 'text-muted-foreground'
             )}
           >
-            <Icon className="h-5 w-5" />
+            <div className="relative">
+              <Icon className="h-5 w-5" />
+              {badge != null && badge > 0 && (
+                <span className="absolute -top-1 -right-2.5 bg-red-500 text-white text-[9px] font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center leading-none px-0.5">
+                  {badge > 99 ? '99+' : badge}
+                </span>
+              )}
+            </div>
             <span className="text-[10px] font-medium">{label}</span>
           </button>
         ))}
@@ -618,6 +723,8 @@ export function MobileLayout() {
   const [selectedRoom, setSelectedRoom] = useState<any>(null);
   const [isLoadingRoom, setIsLoadingRoom] = useState(false);
   const [showCreateRoom, setShowCreateRoom] = useState(false);
+  const [showAddFriend, setShowAddFriend] = useState(false);
+  const [showInviteShare, setShowInviteShare] = useState(false);
   const [profileAgentId, setProfileAgentId] = useState<string | null>(null);
   const [showAgentProfile, setShowAgentProfile] = useState(false);
 
@@ -723,6 +830,8 @@ export function MobileLayout() {
             isLoading={isLoadingRooms}
             onRoomSelect={handleRoomSelect}
             onCreateRoom={() => setShowCreateRoom(true)}
+            onAddFriend={() => setShowAddFriend(true)}
+            onInviteShare={() => setShowInviteShare(true)}
           />
         )}
         {activeTab === 'discover' && (
@@ -731,6 +840,7 @@ export function MobileLayout() {
             onRoomSelect={handleRoomSelect}
             onCreateRoom={() => setShowCreateRoom(true)}
             isLoading={isLoadingRooms}
+            onAgentClick={handleAgentClick}
           />
         )}
         {activeTab === 'contacts' && (
@@ -757,6 +867,20 @@ export function MobileLayout() {
         agentId={profileAgentId}
         open={showAgentProfile}
         onOpenChange={setShowAgentProfile}
+      />
+      <AddAgentFriendSheet
+        open={showAddFriend}
+        onClose={() => setShowAddFriend(false)}
+        onViewAgent={(agentId) => {
+          setShowAddFriend(false);
+          setProfileAgentId(agentId);
+          setShowAgentProfile(true);
+        }}
+      />
+      <ShareSheet
+        open={showInviteShare}
+        onClose={() => setShowInviteShare(false)}
+        type="invite"
       />
     </div>
   );
