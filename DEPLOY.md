@@ -252,7 +252,7 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: ${DATABASE_URL}
-      GATEWAY_PORT: 3001
+      GATEWAY_PORT: 3002
       GATEWAY_HOST: 0.0.0.0
       JWT_SECRET: ${JWT_SECRET}
       LOG_LEVEL: ${LOG_LEVEL:-info}
@@ -264,7 +264,7 @@ services:
       MATRIX_SERVER_NAME: ${MATRIX_SERVER_NAME}
       APP_URL: ${NEXT_PUBLIC_APP_URL}
     ports:
-      - "3001:3001"
+      - "3002:3002"
     networks:
       - moltchat-network
 
@@ -447,7 +447,7 @@ server {
     server_name api.yourdomain.com;
 
     location / {
-        proxy_pass http://127.0.0.1:3001;
+        proxy_pass http://127.0.0.1:3002;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
