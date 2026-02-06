@@ -8,8 +8,9 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { cn } from '@/lib/utils';
-import { isAuthenticated, getAgent } from '@/lib/auth';
+import { isAuthenticated, getAgent, clearAuth } from '@/lib/auth';
 import { useI18n } from '@/lib/i18n-provider';
+import { signOut } from '@/lib/auth-client';
 import { getAgentAvatarUrl } from '@/lib/avatar';
 import { Menu, X, Settings, Loader2, MessageSquare, Bot, Users, Plus, Compass, PanelLeftClose, Eye } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -254,11 +255,19 @@ function DevModeLayout() {
       .finally(() => setIsLoadingRoom(false));
   }, [selectedRoomId]);
   
-  // 处理登出
-  const handleLogout = () => {
+  // 处理登出 — 清除所有认证状态
+  const handleLogout = async () => {
     if (typeof window !== 'undefined') {
+      // 清除 localStorage
       localStorage.removeItem('dev_user');
       localStorage.removeItem('moltchat_matrix_credentials');
+      clearAuth();
+      // 清除 Better Auth session cookie
+      try {
+        await signOut();
+      } catch (e) {
+        // ignore
+      }
       window.location.href = '/login';
     }
   };
