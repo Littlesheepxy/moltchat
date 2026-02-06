@@ -69,8 +69,7 @@ export default function AgentConfigPage() {
       try {
         setLoading(true);
         const res = await fetch(
-          `${GATEWAY_URL}/v1/owners/me/agents/${agentId}/config`,
-          { credentials: 'include' }
+          `/api/gateway/v1/owners/me/agents/${agentId}/config`
         );
         const data = await res.json();
 
@@ -106,11 +105,10 @@ export default function AgentConfigPage() {
 
     try {
       const res = await fetch(
-        `${GATEWAY_URL}/v1/owners/me/agents/${agentId}/config`,
+        `/api/gateway/v1/owners/me/agents/${agentId}/config`,
         {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
           body: JSON.stringify({
             agent_role: role || null,
             agent_persona_md: personaMd,
@@ -150,11 +148,10 @@ export default function AgentConfigPage() {
 
     try {
       const res = await fetch(
-        `${GATEWAY_URL}/v1/owners/me/agents/${agentId}/prompts`,
+        `/api/gateway/v1/owners/me/agents/${agentId}/prompts`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
           body: JSON.stringify({
             prompt_type: promptType,
             content: promptContent,

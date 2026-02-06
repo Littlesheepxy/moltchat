@@ -120,7 +120,7 @@ export function UserManagementDialog({ open, onOpenChange, onLogout }: UserManag
   const [isLoading, setIsLoading] = useState(false);
   const [dataLoaded, setDataLoaded] = useState(false);
 
-  const gatewayUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3002';
+
 
   // Better Auth session for fallback user info
   const { data: session } = useSession();
@@ -142,7 +142,7 @@ export function UserManagementDialog({ open, onOpenChange, onLogout }: UserManag
     if (dataLoaded) return;
 
     setIsLoading(true);
-    fetch(`${gatewayUrl}/v1/owners/me/profile`, { credentials: 'include' })
+    fetch('/api/gateway/v1/owners/me/profile')
       .then(res => res.json())
       .then(result => {
         if (result.data) {
@@ -154,7 +154,7 @@ export function UserManagementDialog({ open, onOpenChange, onLogout }: UserManag
       })
       .catch(() => {}) // Silently fail — session fallback will handle display
       .finally(() => setIsLoading(false));
-  }, [open, dataLoaded, gatewayUrl]);
+  }, [open, dataLoaded]);
 
   const navItems: Array<{ id: Tab; label: string; icon: React.ReactNode; group: string }> = [
     { id: 'profile', label: '个人资料', icon: <User className="h-4 w-4" />, group: '管理' },
@@ -235,8 +235,8 @@ export function UserManagementDialog({ open, onOpenChange, onLogout }: UserManag
             </div>
           ) : (
             <>
-              {activeTab === 'profile' && <ProfilePanel profile={profile} userInfo={effectiveUserInfo} gatewayUrl={gatewayUrl} onUpdate={setProfile} />}
-              {activeTab === 'agents' && <AgentsPanel agents={agents} gatewayUrl={gatewayUrl} />}
+              {activeTab === 'profile' && <ProfilePanel profile={profile} userInfo={effectiveUserInfo} onUpdate={setProfile} />}
+              {activeTab === 'agents' && <AgentsPanel agents={agents} />}
               {activeTab === 'appearance' && <AppearancePanel />}
               {activeTab === 'security' && <SecurityPanel userInfo={effectiveUserInfo} profile={profile} onLogout={onLogout} />}
             </>
@@ -251,10 +251,9 @@ export function UserManagementDialog({ open, onOpenChange, onLogout }: UserManag
 // Profile Panel
 // ============================================
 
-function ProfilePanel({ profile, userInfo, gatewayUrl, onUpdate }: {
+function ProfilePanel({ profile, userInfo, onUpdate }: {
   profile: ProfileData | null;
   userInfo: UserInfo | null;
-  gatewayUrl: string;
   onUpdate: (p: ProfileData) => void;
 }) {
   const [form, setForm] = useState({
@@ -309,10 +308,9 @@ function ProfilePanel({ profile, userInfo, gatewayUrl, onUpdate }: {
         linkedin_url: form.linkedin_url || null,
       };
 
-      const res = await fetch(`${gatewayUrl}/v1/owners/me/profile`, {
+      const res = await fetch('/api/gateway/v1/owners/me/profile', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify(body),
       });
       const result = await res.json();
@@ -468,7 +466,7 @@ function ProfilePanel({ profile, userInfo, gatewayUrl, onUpdate }: {
 // Agents Panel
 // ============================================
 
-function AgentsPanel({ agents, gatewayUrl }: { agents: AgentSummary[]; gatewayUrl: string }) {
+function AgentsPanel({ agents }: { agents: AgentSummary[] }) {
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [agentConfig, setAgentConfig] = useState<AgentConfig | null>(null);
   const [agentName, setAgentName] = useState('');
@@ -489,7 +487,7 @@ function AgentsPanel({ agents, gatewayUrl }: { agents: AgentSummary[]; gatewayUr
   const loadAgentConfig = useCallback(async (agentId: string) => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${gatewayUrl}/v1/owners/me/agents/${agentId}/config`, { credentials: 'include' });
+      const res = await fetch(`/api/gateway/v1/owners/me/agents/${agentId}/config`);
       const result = await res.json();
       if (result.data) {
         setAgentName(result.data.agent?.name || '');
@@ -510,7 +508,7 @@ function AgentsPanel({ agents, gatewayUrl }: { agents: AgentSummary[]; gatewayUr
     } finally {
       setIsLoading(false);
     }
-  }, [gatewayUrl]);
+  }, []);
 
   const handleSelectAgent = (agentId: string) => {
     setSelectedAgent(agentId);
@@ -530,10 +528,9 @@ function AgentsPanel({ agents, gatewayUrl }: { agents: AgentSummary[]; gatewayUr
         focus_topics: form.focus_topics.split(',').map(t => t.trim()).filter(Boolean),
         avoid_topics: form.avoid_topics.split(',').map(t => t.trim()).filter(Boolean),
       };
-      const res = await fetch(`${gatewayUrl}/v1/owners/me/agents/${selectedAgent}/config`, {
+      const res = await fetch(`/api/gateway/v1/owners/me/agents/${selectedAgent}/config`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify(body),
       });
       const result = await res.json();

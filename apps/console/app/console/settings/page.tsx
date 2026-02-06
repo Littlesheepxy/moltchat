@@ -69,9 +69,7 @@ export default function SettingsPage() {
     const fetchProfile = async () => {
       try {
         setLoading(true);
-        const res = await fetch(`${GATEWAY_URL}/v1/owners/me/profile`, {
-          credentials: 'include',
-        });
+        const res = await fetch('/api/gateway/v1/owners/me/profile');
         const data = await res.json();
         
         if (data.success) {
@@ -101,10 +99,9 @@ export default function SettingsPage() {
     setSuccess(false);
 
     try {
-      const res = await fetch(`${GATEWAY_URL}/v1/owners/me/profile`, {
+      const res = await fetch('/api/gateway/v1/owners/me/profile', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({
           display_name: displayName || null,
           bio_md: backgroundMd,

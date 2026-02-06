@@ -67,12 +67,8 @@ export default function WidgetPage() {
     try {
       // Fetch agents and rooms in parallel
       const [agentsRes, roomsRes] = await Promise.all([
-        fetch(`${GATEWAY_URL}/v1/agents?user_id=${userId}`, {
-          credentials: 'include',
-        }),
-        fetch(`${GATEWAY_URL}/v1/rooms?user_id=${userId}`, {
-          credentials: 'include',
-        }),
+        fetch(`/api/gateway/v1/agents?user_id=${userId}`),
+        fetch(`/api/gateway/v1/rooms?user_id=${userId}`),
       ]);
 
       if (agentsRes.ok) {

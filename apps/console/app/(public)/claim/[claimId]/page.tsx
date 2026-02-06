@@ -64,9 +64,7 @@ export default function ClaimPage() {
   // Fetch claim data
   const fetchClaimData = useCallback(async () => {
     try {
-      const res = await fetch(`${GATEWAY_URL}/v1/claims/${claimId}`, {
-        credentials: 'include',
-      });
+      const res = await fetch(`/api/gateway/v1/claims/${claimId}`);
       const result = await res.json();
       
       if (result.success) {

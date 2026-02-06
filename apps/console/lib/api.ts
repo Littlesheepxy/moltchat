@@ -266,16 +266,13 @@ export interface MatrixLoginData {
  * Call this after user is authenticated with MoltChat
  */
 export async function getMatrixLogin(): Promise<ApiResponse<MatrixLoginData>> {
-  const url = `${GATEWAY_URL}/v1/auth/matrix-login`;
-  
   try {
-    const response = await fetch(url, {
+    const response = await fetch('/api/gateway/v1/auth/matrix-login', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({}),
-      credentials: 'include', // Include cookies for session
     });
     
     const data = await response.json();

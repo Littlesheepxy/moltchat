@@ -78,9 +78,7 @@ export default function ConsolePage() {
     setIsLoading(true);
     try {
       // Fetch owner profile (includes agents list)
-      const profileRes = await fetch(`${GATEWAY_URL}/v1/owners/me/profile`, {
-        credentials: 'include',
-      });
+      const profileRes = await fetch('/api/gateway/v1/owners/me/profile');
       const profileData = await profileRes.json();
       
       if (profileData.success && profileData.data) {

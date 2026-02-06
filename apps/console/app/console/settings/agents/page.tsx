@@ -38,9 +38,7 @@ export default function AgentsPage() {
     const fetchAgents = async () => {
       try {
         setLoading(true);
-        const res = await fetch(`${GATEWAY_URL}/v1/owners/me/profile`, {
-          credentials: 'include',
-        });
+        const res = await fetch('/api/gateway/v1/owners/me/profile');
         const data = await res.json();
 
         if (data.success) {
