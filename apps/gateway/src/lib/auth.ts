@@ -299,24 +299,56 @@ function stripCookieCache(value: string): string {
  * Supports: cookie (same-origin) and Bearer token (cross-origin)
  */
 export function extractSessionToken(request: FastifyRequest): string | null {
+  const url = request.url;
+  const isDebugRoute = url.includes('/owners/me') || url.includes('/claims/');
+
   // 1. Try cookie first (same-origin requests)
   const cookies = request.headers.cookie;
   if (cookies) {
+    // Look for both possible cookie names (with and without __Secure- prefix)
     const sessionCookie = cookies
       .split(';')
-      .find(c => c.trim().startsWith('moltchat.session_token='));
+      .find(c => {
+        const trimmed = c.trim();
+        return trimmed.startsWith('moltchat.session_token=') 
+          || trimmed.startsWith('__Secure-moltchat.session_token=');
+      });
     
     if (sessionCookie) {
-      const token = sessionCookie.split('=')[1];
-      if (token) return stripCookieCache(decodeURIComponent(token.trim()));
+      // Extract value after the first '='
+      const eqIndex = sessionCookie.indexOf('=');
+      const token = eqIndex >= 0 ? sessionCookie.substring(eqIndex + 1).trim() : null;
+      if (token) {
+        const raw = stripCookieCache(decodeURIComponent(token));
+        if (isDebugRoute) {
+          request.log.info(`[Auth] cookie token found (${raw.length} chars)`);
+        }
+        return raw;
+      }
     }
+
+    if (isDebugRoute) {
+      // Log cookie names to help debug
+      const cookieNames = cookies.split(';').map(c => c.trim().split('=')[0]);
+      request.log.info(`[Auth] no session cookie found. Cookie names: ${cookieNames.join(', ')}`);
+    }
+  } else if (isDebugRoute) {
+    request.log.info('[Auth] no cookies in request');
   }
 
   // 2. Fallback to Authorization header (cross-origin requests / proxy)
   const authHeader = request.headers.authorization;
   if (authHeader?.startsWith('Bearer ')) {
     const value = authHeader.slice(7).trim();
-    return stripCookieCache(value);
+    const raw = stripCookieCache(value);
+    if (isDebugRoute) {
+      request.log.info(`[Auth] bearer token found (${raw.length} chars)`);
+    }
+    return raw;
+  }
+
+  if (isDebugRoute) {
+    request.log.info('[Auth] no session token found in cookie or header');
   }
 
   return null;

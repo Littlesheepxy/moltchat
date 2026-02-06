@@ -157,8 +157,11 @@ export const auth = betterAuth({
     // Cookie settings
     cookiePrefix: "moltchat",
     
-    // Use secure cookies in production (HTTPS)
-    useSecureCookies: baseURL.startsWith("https://"),
+    // IMPORTANT: useSecureCookies must be false!
+    // When true, Better Auth adds "__Secure-" prefix to cookie names,
+    // breaking gateway's cookie parsing (it looks for "moltchat.session_token").
+    // We handle secure flag manually in the cookie options below.
+    useSecureCookies: false,
     
     // Cross-subdomain cookie settings
     // IMPORTANT: domain must be set to share cookies with api.moltchat.live
