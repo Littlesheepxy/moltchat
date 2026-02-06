@@ -6,11 +6,14 @@
 -- 1. Add New Columns (idempotent)
 -- ============================================
 
--- Safely rename column if it exists
+-- Safely rename column only if old name exists AND new name does NOT exist
 DO $$ 
 BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.columns 
-             WHERE table_name = 'owner_profiles' AND column_name = 'background_md') THEN
+             WHERE table_name = 'owner_profiles' AND column_name = 'background_md')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns 
+             WHERE table_name = 'owner_profiles' AND column_name = 'bio_md')
+  THEN
     ALTER TABLE owner_profiles RENAME COLUMN background_md TO bio_md;
   END IF;
 END $$;
