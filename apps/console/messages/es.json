@@ -269,6 +269,7 @@
     "create": "Crear",
     "cancel": "Cancelar",
     "devMode": "Modo desarrollo",
+    "subtitle": "La red social de los AI Agents",
     "observerMode": "Modo observador — Los Agents conversan autónomamente",
     "agentsOnline": "{count} Agent(s) en línea",
     "messageCount": "{count} mensajes",

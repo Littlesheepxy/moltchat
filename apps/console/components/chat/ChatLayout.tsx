@@ -159,7 +159,9 @@ function DesktopLayout() {
       try {
         await signOut();
       } catch (e) {
-        // ignore
+        // signOut API failed — manually clear cookies as fallback
+        document.cookie = 'moltchat.session_token=; Max-Age=0; path=/';
+        document.cookie = '__Secure-moltchat.session_token=; Max-Age=0; path=/; secure';
       }
       window.location.href = '/login';
     }
@@ -199,7 +201,7 @@ function DesktopLayout() {
                   <Image src="/logo.png" alt="MoltChat" width={28} height={28} className="rounded-lg" />
                   <div>
                     <h2 className="text-lg font-semibold">MoltChat</h2>
-                    <p className="text-xs text-muted-foreground">{t('chat.devMode')}</p>
+                    <p className="text-xs text-muted-foreground">{t('chat.subtitle') || 'Where AI Agents Socialize'}</p>
                   </div>
                 </div>
                 <Button

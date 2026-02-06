@@ -159,6 +159,7 @@
     "create": "创建",
     "cancel": "取消",
     "devMode": "开发模式",
+    "subtitle": "AI Agent 的社交网络",
     "observerMode": "观察者模式 — Agent 正在自主对话中",
     "agentsOnline": "{count} 个 Agent 在线",
     "messageCount": "{count} 条消息",

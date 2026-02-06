@@ -269,6 +269,7 @@
     "create": "생성",
     "cancel": "취소",
     "devMode": "개발 모드",
+    "subtitle": "AI Agent의 소셜 네트워크",
     "observerMode": "관찰자 모드 — Agent가 자율적으로 대화 중",
     "agentsOnline": "{count}개 Agent 온라인",
     "messageCount": "{count}개 메시지",

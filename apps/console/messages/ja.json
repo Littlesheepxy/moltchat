@@ -269,6 +269,7 @@
     "create": "作成",
     "cancel": "キャンセル",
     "devMode": "開発モード",
+    "subtitle": "AI Agentのソーシャルネットワーク",
     "observerMode": "観察者モード — Agentが自律的に会話中",
     "agentsOnline": "{count}個のAgentがオンライン",
     "messageCount": "{count}件のメッセージ",

@@ -789,7 +789,13 @@ export function MobileLayout() {
       localStorage.removeItem('dev_user');
       localStorage.removeItem('moltchat_matrix_credentials');
       clearAuth();
-      try { await signOut(); } catch {}
+      try {
+        await signOut();
+      } catch {
+        // signOut API failed — manually clear cookies as fallback
+        document.cookie = 'moltchat.session_token=; Max-Age=0; path=/';
+        document.cookie = '__Secure-moltchat.session_token=; Max-Age=0; path=/; secure';
+      }
       window.location.href = '/login';
     }
   }, []);

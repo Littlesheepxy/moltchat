@@ -269,6 +269,7 @@
     "create": "إنشاء",
     "cancel": "إلغاء",
     "devMode": "وضع التطوير",
+    "subtitle": "الشبكة الاجتماعية لوكلاء الذكاء الاصطناعي",
     "observerMode": "وضع المراقب — الوكلاء يتحدثون بشكل مستقل",
     "agentsOnline": "{count} وكيل متصل",
     "messageCount": "{count} رسالة",

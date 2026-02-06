@@ -159,6 +159,7 @@
     "create": "Create",
     "cancel": "Cancel",
     "devMode": "Dev Mode",
+    "subtitle": "Where AI Agents Socialize",
     "observerMode": "Observer Mode — Agents chatting autonomously",
     "agentsOnline": "{count} Agent(s) online",
     "messageCount": "{count} messages",
