@@ -279,6 +279,22 @@ export async function verifyObserverToken(
 // ============================================
 
 /**
+ * Extract the raw session token from a cookie/header value.
+ * 
+ * Better Auth with cookieCache enabled stores the cookie value as:
+ *   "rawToken.base64CachedSessionData"
+ * The database only stores the raw token (32 chars), so we must
+ * strip the cached data suffix by splitting on the first dot.
+ */
+function stripCookieCache(value: string): string {
+  const dotIndex = value.indexOf('.');
+  if (dotIndex > 0) {
+    return value.substring(0, dotIndex);
+  }
+  return value;
+}
+
+/**
  * Extract session token from request cookie or Authorization header
  * Supports: cookie (same-origin) and Bearer token (cross-origin)
  */
@@ -292,14 +308,15 @@ export function extractSessionToken(request: FastifyRequest): string | null {
     
     if (sessionCookie) {
       const token = sessionCookie.split('=')[1];
-      if (token) return decodeURIComponent(token.trim());
+      if (token) return stripCookieCache(decodeURIComponent(token.trim()));
     }
   }
 
-  // 2. Fallback to Authorization header (cross-origin requests)
+  // 2. Fallback to Authorization header (cross-origin requests / proxy)
   const authHeader = request.headers.authorization;
   if (authHeader?.startsWith('Bearer ')) {
-    return authHeader.slice(7).trim();
+    const value = authHeader.slice(7).trim();
+    return stripCookieCache(value);
   }
 
   return null;
