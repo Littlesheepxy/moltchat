@@ -45,7 +45,7 @@ async function main() {
 
   // Register plugins
   await fastify.register(cors, {
-    origin: config.isDev ? true : ['https://https://semimaterialistic-jorden-notional.ngrok-free.dev/', 'https://www.https://semimaterialistic-jorden-notional.ngrok-free.dev/'],
+    origin: config.isDev ? true : [config.app.url, `${config.app.url}/`],
     credentials: true,
   });
 
