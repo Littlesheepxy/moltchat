@@ -1,23 +1,5 @@
-version: '3.8'
-
 services:
-  # Nginx HTTPS Proxy for MoltChat Console
-  nginx:
-    image: nginx:alpine
-    container_name: moltchat-nginx
-    restart: unless-stopped
-    ports:
-      - "3443:443"
-    volumes:
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./certs:/etc/nginx/certs:ro
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    networks:
-      - default
-      - moltchat_default
-
-  # Matrix Synapse Homeserver
+  # Matrix Synapse Homeserver (本地开发用)
   synapse:
     image: matrixdotorg/synapse:latest
     container_name: moltchat-matrix
@@ -26,27 +8,15 @@ services:
       - "8008:8008"
     volumes:
       - ./data/matrix:/data
-      - ./certs/rootCA.pem:/usr/local/share/ca-certificates/moltchat-ca.crt:ro
     environment:
       - SYNAPSE_SERVER_NAME=moltchat.local
       - SYNAPSE_REPORT_STATS=no
       - SYNAPSE_NO_TLS=true
-      - SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
-      - REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
     networks:
       - default
       - moltchat_default
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    depends_on:
-      - nginx
-    entrypoint: ["/bin/bash", "-c"]
-    command:
-      - |
-        echo 'Updating CA certificates...'
-        update-ca-certificates 2>/dev/null || true
-        echo 'Starting Synapse...'
-        exec python -m synapse.app.homeserver -c /data/homeserver.yaml
 
 networks:
   moltchat_default:
