@@ -286,13 +286,13 @@ export async function authRoutes(fastify: FastifyInstance) {
             loginType: 'access_token',
             matrixUserId,
             accessToken: matrixAccessToken,
-            elementUrl: `${config.matrix.elementWebUrl}`,
+            elementUrl: `${config.app.url}/chat`,
           },
         });
       }
 
       // Return login token for Element Web
-      const elementLoginUrl = `${config.matrix.elementWebUrl}/#/login/sso/redirect?loginToken=${loginToken}`;
+      const elementLoginUrl = `${config.app.url}/chat`;
 
       return reply.send({
         success: true,

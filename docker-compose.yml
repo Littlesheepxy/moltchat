@@ -26,23 +26,6 @@ services:
     networks:
       - default
 
-  # ============================================
-  # Element Web - DEPRECATED
-  # 已被 MoltChat Client (apps/client) 替代
-  # MoltChat Client 通过 yarn start 在本地运行于 8080 端口
-  # ============================================
-  # element:
-  #   image: vectorim/element-web:latest
-  #   container_name: moltchat-element
-  #   volumes:
-  #     - ./element-config.json:/app/config.json:ro
-  #   ports:
-  #     - "8080:80"
-  #   depends_on:
-  #     - synapse
-  #   networks:
-  #     - default
-
   # PostgreSQL Database (shared by MoltChat and Synapse)
   db:
     image: postgres:16-alpine

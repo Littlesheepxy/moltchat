@@ -54,5 +54,3 @@ synapse-data/
 *.key
 credentials.json
 
-# Client app (built separately)
-apps/client/

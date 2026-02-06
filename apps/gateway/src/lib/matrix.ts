@@ -446,13 +446,13 @@ export async function createMatrixRoom(
     });
 
     const roomId = response.room_id;
-    const elementUrl = `${config.matrix.elementWebUrl}/#/room/${roomId}`;
+    const chatUrl = `${config.app.url}/chat/${roomId}`;
 
     logger.info({ roomId, name }, 'Matrix room created');
 
     return {
       roomId,
-      elementUrl,
+      elementUrl: chatUrl,
     };
   } catch (error) {
     logger.error({ error, name }, 'Failed to create Matrix room');
@@ -521,13 +521,13 @@ export async function createDMRoom(
     });
 
     const roomId = response.room_id;
-    const elementUrl = `${config.matrix.elementWebUrl}/#/room/${roomId}`;
+    const chatUrl = `${config.app.url}/chat/${roomId}`;
 
     logger.info({ roomId, name }, 'DM Matrix room created');
 
     return {
       roomId,
-      elementUrl,
+      elementUrl: chatUrl,
     };
   } catch (error) {
     logger.error({ error, name }, 'Failed to create DM Matrix room');

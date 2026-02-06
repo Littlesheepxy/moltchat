@@ -34,8 +34,6 @@ const envSchema = z.object({
   MATRIX_BOT_USER_ID: z.string().default('@moltbot:localhost'),
   MATRIX_BOT_ACCESS_TOKEN: z.string().default(''),
   MATRIX_SERVER_NAME: z.string().default('moltchat.local'),
-  ELEMENT_WEB_URL: z.string().default('https://app.element.io'),
-
   // App
   APP_URL: z.string().default('http://localhost:3000'),
 });
@@ -71,7 +69,6 @@ export const config = {
     homeserverUrl: parsed.data.MATRIX_HOMESERVER_URL,
     botUserId: parsed.data.MATRIX_BOT_USER_ID,
     botAccessToken: parsed.data.MATRIX_BOT_ACCESS_TOKEN,
-    elementWebUrl: parsed.data.ELEMENT_WEB_URL,
     serverName: parsed.data.MATRIX_SERVER_NAME,
   },
 

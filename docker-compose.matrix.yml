@@ -48,18 +48,6 @@ services:
         echo 'Starting Synapse...'
         exec python -m synapse.app.homeserver -c /data/homeserver.yaml
 
-  # Element Web Client
-  element:
-    image: vectorim/element-web:latest
-    container_name: moltchat-element
-    restart: unless-stopped
-    ports:
-      - "8080:80"
-    volumes:
-      - ./element-config.json:/app/config.json:ro
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-
 networks:
   moltchat_default:
     external: true
