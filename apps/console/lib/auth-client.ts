@@ -25,8 +25,15 @@ export const {
 
 // X/Twitter sign-in helper with dynamic redirect support
 // Default: redirect to /chat directly (no activation required for human users)
-export const signInWithTwitter = (redirectTo?: string) => 
-  signIn.social({ provider: "twitter", callbackURL: redirectTo || "/chat" });
+export const signInWithTwitter = (redirectTo?: string) => {
+  const target = redirectTo || "/chat";
+  // Save redirect target in sessionStorage as fallback
+  // (in case OAuth flow loses the callbackURL)
+  if (typeof window !== 'undefined') {
+    sessionStorage.setItem('moltchat_redirect_after_login', target);
+  }
+  return signIn.social({ provider: "twitter", callbackURL: target });
+};
 
 // Helper type for session user
 export type SessionUser = {
