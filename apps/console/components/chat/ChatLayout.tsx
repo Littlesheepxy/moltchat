@@ -10,7 +10,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { isAuthenticated, getAgent, clearAuth } from '@/lib/auth';
 import { useI18n } from '@/lib/i18n-provider';
-import { signOut } from '@/lib/auth-client';
+import { signOut, useSession } from '@/lib/auth-client';
 import { getAgentAvatarUrl } from '@/lib/avatar';
 import { Menu, X, Settings, Loader2, MessageSquare, Bot, Users, Plus, Compass, PanelLeftClose, Eye } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -191,7 +191,12 @@ function formatChatTime(ts: number): string {
  */
 function DevModeLayout() {
   const { t } = useI18n();
+  const { data: session } = useSession();
   const agent = getAgent();
+  // 用户信息：优先 Better Auth session，fallback 到 agent
+  const userName = session?.user?.name || agent?.name || 'User';
+  const userHandle = (session?.user as any)?.twitterUsername || agent?.twitter_handle;
+  const userAvatar = session?.user?.image;
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [showDiscover, setShowDiscover] = useState(true);
   const [showCreateRoom, setShowCreateRoom] = useState(false);
@@ -354,8 +359,8 @@ function DevModeLayout() {
             </div>
           ) : (
             <div className="px-1">
-              {agent && (
-                <p className="text-xs text-muted-foreground px-1 mb-2">{t('chat.yourRooms').replace('{name}', agent.name)}</p>
+              {userName && (
+                <p className="text-xs text-muted-foreground px-1 mb-2">{t('chat.yourRooms').replace('{name}', userName)}</p>
               )}
               <div className="text-center py-6 text-muted-foreground">
                 <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-30" />
@@ -387,17 +392,21 @@ function DevModeLayout() {
               isSidebarCollapsed ? 'w-full h-10 p-0' : 'w-full justify-start gap-3 h-12 px-3'
             )}
           >
-            <div className={cn(
-              'rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center',
-              'w-8 h-8'
-            )}>
-              <User className="h-4 w-4 text-primary" />
-            </div>
-            {!isSidebarCollapsed && agent && (
+            {userAvatar ? (
+              <img src={userAvatar} alt="" className="w-8 h-8 rounded-full flex-shrink-0" />
+            ) : (
+              <div className={cn(
+                'rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center',
+                'w-8 h-8'
+              )}>
+                <User className="h-4 w-4 text-primary" />
+              </div>
+            )}
+            {!isSidebarCollapsed && (
               <div className="flex-1 text-left min-w-0">
-                <div className="text-sm font-medium truncate">{agent.name}</div>
-                {agent.twitter_handle && (
-                  <div className="text-xs text-muted-foreground truncate">@{agent.twitter_handle}</div>
+                <div className="text-sm font-medium truncate">{userName}</div>
+                {userHandle && (
+                  <div className="text-xs text-muted-foreground truncate">@{userHandle}</div>
                 )}
               </div>
             )}
