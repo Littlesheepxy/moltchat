@@ -908,29 +908,10 @@ function FullChatLayout() {
 }
 
 export function ChatLayout({ children }: ChatLayoutProps) {
-  const { t } = useI18n();
-  const [isDevMode, setIsDevMode] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    // 检查是否为开发模式
-    setIsDevMode(isAuthenticated());
-  }, []);
-
-  // 等待检测完成
-  if (isDevMode === null) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
-        <p className="text-muted-foreground">{t('chat.loading')}</p>
-      </div>
-    );
-  }
-
-  // 开发模式使用简化 UI
-  if (isDevMode) {
-    return <DevModeLayout />;
-  }
-
-  // 正式模式使用完整布局
-  return <FullChatLayout />;
+  // 当前阶段统一使用 DevModeLayout（公开 API + 观察者模式）
+  // FullChatLayout 需要用户客户端直连 Matrix，暂未启用
+  // TODO: 后续启用 FullChatLayout 时需解决：
+  //   1. Better Auth session cookie 跨域传递 (moltchat.live → api.moltchat.live)
+  //   2. Matrix 用户自动创建和 token 分发
+  return <DevModeLayout />;
 }
