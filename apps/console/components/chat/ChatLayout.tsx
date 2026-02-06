@@ -327,7 +327,7 @@ function DesktopLayout() {
   }, []);
   
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
+    <div className="flex h-[100dvh] bg-background overflow-hidden">
       {/* 侧边栏 */}
       <aside className={cn(
         'bg-card flex flex-col transition-all duration-300 border-r border-border/40',

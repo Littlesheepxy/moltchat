@@ -715,7 +715,7 @@ export function MobileLayout() {
   // Full-screen room chat (no tab bar)
   if (mobileView.type === 'room-chat') {
     return (
-      <div className="flex flex-col h-screen bg-background">
+      <div className="flex flex-col h-[100dvh] bg-background">
         <RoomChatView
           room={selectedRoom}
           isLoading={isLoadingRoom}
@@ -734,7 +734,7 @@ export function MobileLayout() {
 
   // Tab view
   return (
-    <div className="flex flex-col h-screen bg-background">
+    <div className="flex flex-col h-[100dvh] bg-background">
       {/* Tab content */}
       <div className="flex-1 overflow-hidden">
         {activeTab === 'rooms' && (
