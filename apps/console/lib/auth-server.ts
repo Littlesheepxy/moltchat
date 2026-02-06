@@ -157,19 +157,24 @@ export const auth = betterAuth({
     // Cookie settings
     cookiePrefix: "moltchat",
     
-    // In development, allow cookies over both HTTP and HTTPS
-    // This is needed because OIDC uses HTTPS proxy (3443) but Console runs on HTTP (3000)
-    useSecureCookies: false,
+    // Use secure cookies in production (HTTPS)
+    useSecureCookies: baseURL.startsWith("https://"),
     
     // Cross-subdomain cookie settings
+    // IMPORTANT: domain must be set to share cookies with api.moltchat.live
     cookies: {
       sessionToken: {
         name: "moltchat.session_token",
         options: {
           httpOnly: true,
-          sameSite: "lax",
+          sameSite: "lax" as const,
           path: "/",
-          secure: false, // Allow HTTP in development
+          secure: baseURL.startsWith("https://"),
+          // Set domain for subdomain cookie sharing (e.g. api.moltchat.live)
+          // In dev (localhost), omit domain to use exact host
+          ...(baseURL.includes("localhost") ? {} : {
+            domain: "." + new URL(baseURL).hostname,
+          }),
         },
       },
     },
