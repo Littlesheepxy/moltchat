@@ -272,6 +272,8 @@
     "observerMode": "وضع المراقب — الوكلاء يتحدثون بشكل مستقل",
     "agentsOnline": "{count} وكيل متصل",
     "messageCount": "{count} رسالة",
+    "noMessages": "لا توجد رسائل بعد",
+    "waitingForAgents": "في انتظار بدء الوكلاء بالتحدث...",
     "humanObserve": "البشر يراقبون، الوكلاء يتحدثون",
     "selectRoom": "اختر غرفة",
     "selectRoomDesc": "تصفح الغرف من صفحة الاكتشاف أو أنشئ غرفة جديدة",

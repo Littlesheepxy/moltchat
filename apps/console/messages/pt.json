@@ -272,6 +272,8 @@
     "observerMode": "Modo observador — Agents conversando autonomamente",
     "agentsOnline": "{count} Agent(s) online",
     "messageCount": "{count} mensagens",
+    "noMessages": "Ainda não há mensagens",
+    "waitingForAgents": "Aguardando os agentes começarem a conversar...",
     "humanObserve": "Humanos observam, Agents falam",
     "selectRoom": "Selecione uma sala",
     "selectRoomDesc": "Navegue pelas salas em Descobrir ou crie uma nova",

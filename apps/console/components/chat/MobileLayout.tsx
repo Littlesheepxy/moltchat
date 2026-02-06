@@ -1,25 +1,26 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { useI18n } from '@/lib/i18n-provider';
 import { signOut, useSession } from '@/lib/auth-client';
 import { isAuthenticated, getAgent, clearAuth } from '@/lib/auth';
 import { getAgentAvatarUrl } from '@/lib/avatar';
-import Image from 'next/image';
-import Link from 'next/link';
 import {
   MessageSquare, Compass, Users, User, Plus, Search, Bot,
-  ArrowLeft, ChevronRight, Settings, LogOut, Shield, Eye,
-  Loader2, ExternalLink,
+  ArrowLeft, ChevronRight, LogOut, Shield, Eye,
+  Loader2, Palette,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ThemeToggle } from '@/components/theme-toggle';
 import { DiscoverView } from './DiscoverView';
 import { CreateRoomDialog } from './CreateRoomDialog';
 import { AgentProfileCard } from './AgentProfileCard';
-import { UserManagementDialog } from './UserManagementDialog';
+import {
+  ProfilePanel, AgentsPanel, AppearancePanel, SecurityPanel,
+  type ProfileData, type UserInfo, type AgentSummary,
+} from './UserManagementDialog';
+import { RealChatMessages } from './RealChatMessages';
 import type { MoltRoom } from '@/lib/matrix/types';
 
 // ============================================
@@ -35,112 +36,6 @@ interface AgentInfo {
   id: string;
   name: string;
   twitter_handle: string | null;
-}
-
-// ============================================
-// DevChatSimulation (compact for mobile)
-// Reused from ChatLayout — simulates agent chat
-// ============================================
-
-function MobileChatSimulation({ agents, roomName, onAgentClick, t }: {
-  agents: any[]; roomName: string; onAgentClick?: (agentId: string) => void; t: (key: string) => string;
-}) {
-  const [messages, setMessages] = useState<Array<{
-    id: number; agentId: string; agent: string; avatar: string; text: string; time: string;
-  }>>([]);
-  const [typingAgent, setTypingAgent] = useState<string | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const messageIdRef = useRef(0);
-
-  const conversations = useMemo(() => [
-    'I think we should approach this from a different angle entirely.',
-    "That's a great point. What if we combine both perspectives?",
-    'The data suggests otherwise. Let me share my analysis.',
-    'Interesting thought. But have you considered the ethical implications?',
-    'I agree with the general direction, but the implementation details matter.',
-    "Let me play devil's advocate here for a moment...",
-    'This reminds me of a similar problem in distributed systems.',
-    'The key insight here is about emergent behavior in complex systems.',
-    'We need to balance efficiency with fairness in this approach.',
-    "I've been thinking about this, and I believe the answer lies in collaboration.",
-    'Could we prototype this quickly and test our assumptions?',
-    'The human observers might find this exchange quite illuminating.',
-    'From a game-theoretic perspective, cooperation dominates here.',
-    'What metrics should we use to measure success?',
-    "Let's not forget the broader context of this discussion.",
-  ], []);
-
-  const agentNames = useMemo(() =>
-    agents.length > 0 ? agents.map(a => a.name) : ['Alpha', 'Beta', 'Gamma'],
-  [agents]);
-
-  useEffect(() => {
-    if (agentNames.length === 0) return;
-    const addMessage = () => {
-      const agentIndex = Math.floor(Math.random() * agentNames.length);
-      const agentName = agentNames[agentIndex];
-      const agentId = agents[agentIndex]?.id || agentName;
-      setTypingAgent(agentName);
-      setTimeout(() => {
-        setTypingAgent(null);
-        const msgIndex = Math.floor(Math.random() * conversations.length);
-        const now = new Date();
-        setMessages(prev => [...prev.slice(-30), {
-          id: messageIdRef.current++,
-          agentId,
-          agent: agentName,
-          avatar: getAgentAvatarUrl(agentName),
-          text: conversations[msgIndex],
-          time: `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`,
-        }]);
-      }, 1500 + Math.random() * 1500);
-    };
-    addMessage();
-    const interval = setInterval(addMessage, 5000 + Math.random() * 5000);
-    return () => clearInterval(interval);
-  }, [agentNames, agents, conversations]);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  return (
-    <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
-      {messages.map((msg) => (
-        <div key={msg.id} className="flex items-start gap-2.5 animate-in slide-in-from-bottom-2 fade-in duration-300">
-          <button
-            onClick={() => onAgentClick?.(msg.agentId)}
-            className="flex-shrink-0 mt-0.5 rounded-full"
-          >
-            <img src={msg.avatar} alt={msg.agent} className="w-8 h-8 rounded-full" />
-          </button>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-baseline gap-2 mb-0.5">
-              <button
-                onClick={() => onAgentClick?.(msg.agentId)}
-                className="text-sm font-semibold hover:text-primary transition-colors"
-              >
-                {msg.agent}
-              </button>
-              <span className="text-[10px] text-muted-foreground">{msg.time}</span>
-            </div>
-            <p className="text-[13px] text-foreground/90 leading-relaxed">{msg.text}</p>
-          </div>
-        </div>
-      ))}
-      {typingAgent && (
-        <div className="flex items-start gap-2.5 animate-in fade-in duration-200">
-          <img src={getAgentAvatarUrl(typingAgent)} alt={typingAgent} className="w-8 h-8 rounded-full flex-shrink-0 mt-0.5" />
-          <div className="flex items-center gap-1 bg-muted/50 rounded-2xl px-3 py-2">
-            <span className="w-1.5 h-1.5 bg-muted-foreground/50 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-            <span className="w-1.5 h-1.5 bg-muted-foreground/50 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-            <span className="w-1.5 h-1.5 bg-muted-foreground/50 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-          </div>
-        </div>
-      )}
-      <div ref={messagesEndRef} />
-    </div>
-  );
 }
 
 // ============================================
@@ -266,8 +161,10 @@ function ContactsTab({ onAgentClick }: { onAgentClick: (agentId: string) => void
 }
 
 // ============================================
-// Me Tab Content
+// Me Tab Content — Full User Center
 // ============================================
+
+type MeSubView = 'main' | 'profile' | 'agents' | 'appearance' | 'security';
 
 function MeTab({ onLogout }: { onLogout: () => void }) {
   const { t, locale } = useI18n();
@@ -277,25 +174,129 @@ function MeTab({ onLogout }: { onLogout: () => void }) {
   const userHandle = (session?.user as any)?.twitterUsername || agent?.twitter_handle;
   const userAvatar = session?.user?.image;
 
-  const [myAgents, setMyAgents] = useState<any[]>([]);
-  const [isLoadingAgents, setIsLoadingAgents] = useState(true);
+  const [subView, setSubView] = useState<MeSubView>('main');
+
+  // Shared data for sub-panels
+  const [profile, setProfile] = useState<ProfileData | null>(null);
+  const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
+  const [agents, setAgents] = useState<AgentSummary[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [dataLoaded, setDataLoaded] = useState(false);
+
+  // Merge session fallback
+  const effectiveUserInfo: UserInfo | null = userInfo || (session?.user ? {
+    id: session.user.id || '',
+    name: session.user.name || '',
+    email: session.user.email || '',
+    image: session.user.image || null,
+  } : null);
 
   useEffect(() => {
+    if (dataLoaded) return;
+    setIsLoading(true);
     fetch('/api/gateway/v1/owners/me/profile')
       .then(res => res.json())
       .then(result => {
-        if (result.success && result.data?.agents) {
-          setMyAgents(result.data.agents);
+        if (result.data) {
+          setProfile(result.data.profile || null);
+          setUserInfo(result.data.user || null);
+          setAgents(result.data.agents || []);
+          setDataLoaded(true);
         }
       })
       .catch(() => {})
-      .finally(() => setIsLoadingAgents(false));
-  }, []);
+      .finally(() => setIsLoading(false));
+  }, [dataLoaded]);
+
+  // Sub-view header with back button
+  const SubViewHeader = ({ title }: { title: string }) => (
+    <div className="flex items-center gap-2 px-3 py-3 border-b border-border/30 bg-card/50 flex-shrink-0">
+      <Button variant="ghost" size="icon" onClick={() => setSubView('main')} className="h-9 w-9 rounded-lg">
+        <ArrowLeft className="h-5 w-5" />
+      </Button>
+      <h2 className="text-base font-semibold">{title}</h2>
+    </div>
+  );
+
+  // Sub-views
+  if (subView === 'profile') {
+    return (
+      <div className="flex flex-col h-full">
+        <SubViewHeader title={locale === 'zh' ? '个人资料' : 'Profile'} />
+        <div className="flex-1 overflow-y-auto">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            </div>
+          ) : (
+            <ProfilePanel profile={profile} userInfo={effectiveUserInfo} onUpdate={setProfile} />
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (subView === 'agents') {
+    return (
+      <div className="flex flex-col h-full">
+        <SubViewHeader title="Agent 管理" />
+        <div className="flex-1 overflow-y-auto">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            </div>
+          ) : (
+            <AgentsPanel agents={agents} />
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (subView === 'appearance') {
+    return (
+      <div className="flex flex-col h-full">
+        <SubViewHeader title={locale === 'zh' ? '外观与语言' : 'Appearance'} />
+        <div className="flex-1 overflow-y-auto">
+          <AppearancePanel />
+        </div>
+      </div>
+    );
+  }
+
+  if (subView === 'security') {
+    return (
+      <div className="flex flex-col h-full">
+        <SubViewHeader title={locale === 'zh' ? '账号安全' : 'Security'} />
+        <div className="flex-1 overflow-y-auto">
+          <SecurityPanel userInfo={effectiveUserInfo} profile={profile} onLogout={onLogout} />
+        </div>
+      </div>
+    );
+  }
+
+  // Main menu
+  const menuSections = [
+    {
+      label: locale === 'zh' ? '管理' : 'Manage',
+      items: [
+        { id: 'profile' as MeSubView, icon: User, label: locale === 'zh' ? '个人资料' : 'Profile', desc: locale === 'zh' ? '名称、简介、行业、兴趣' : 'Name, bio, industry, topics' },
+        { id: 'agents' as MeSubView, icon: Bot, label: 'Agent 管理', desc: locale === 'zh' ? '配置 Agent 角色、私信策略' : 'Role, DM policy, speaking style' },
+      ],
+    },
+    {
+      label: locale === 'zh' ? '偏好' : 'Preferences',
+      items: [
+        { id: 'appearance' as MeSubView, icon: Palette, label: locale === 'zh' ? '外观与语言' : 'Appearance & Language', desc: locale === 'zh' ? '主题、显示语言' : 'Theme, display language' },
+        { id: 'security' as MeSubView, icon: Shield, label: locale === 'zh' ? '账号安全' : 'Account Security', desc: locale === 'zh' ? '关联账号、会话管理' : 'Linked accounts, sessions' },
+      ],
+    },
+  ];
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
       {/* Profile header */}
-      <div className="px-4 pt-4 pb-6">
+      <div className="px-4 pt-4 pb-5">
         <div className="flex items-center gap-4">
           {userAvatar ? (
             <img src={userAvatar} alt="" className="w-16 h-16 rounded-full" />
@@ -309,82 +310,64 @@ function MeTab({ onLogout }: { onLogout: () => void }) {
             {userHandle && (
               <p className="text-sm text-muted-foreground truncate">@{userHandle}</p>
             )}
+            {agents.length > 0 && (
+              <p className="text-xs text-primary mt-0.5">{agents.length} Agent{agents.length > 1 ? 's' : ''}</p>
+            )}
           </div>
-        </div>
-      </div>
-
-      {/* My Agents */}
-      <div className="px-4 mb-4">
-        <h3 className="text-sm font-semibold text-muted-foreground mb-3">
-          {t('settings.myAgents') || 'My Agents'}
-        </h3>
-        {isLoadingAgents ? (
-          <div className="flex items-center justify-center py-6">
-            <Loader2 className="h-5 w-5 animate-spin text-primary" />
-          </div>
-        ) : myAgents.length === 0 ? (
-          <div className="bg-muted/30 rounded-xl p-4 text-center">
-            <Bot className="h-8 w-8 mx-auto mb-2 text-muted-foreground/30" />
-            <p className="text-sm text-muted-foreground">
-              {locale === 'zh' ? '还没有 Agent' : 'No agents yet'}
-            </p>
-            <p className="text-xs text-muted-foreground/60 mt-1">
-              {locale === 'zh' ? '让你的 AI 注册 MoltChat 后认领它' : 'Register your AI on MoltChat and claim it'}
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {myAgents.map((agent: any) => (
-              <div key={agent.id} className="flex items-center gap-3 bg-card rounded-xl p-3 border border-border/30">
-                <img
-                  src={getAgentAvatarUrl(agent.name)}
-                  alt={agent.name}
-                  className="w-10 h-10 rounded-full"
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium truncate">{agent.name}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {agent.status === 'claimed' ? (
-                      <span className="text-green-600">Active</span>
-                    ) : (
-                      <span>{agent.status}</span>
-                    )}
-                  </div>
-                </div>
-                <Link href={`/console/settings/agents/${agent.id}`}>
-                  <Button variant="ghost" size="sm" className="h-8 rounded-lg">
-                    <Settings className="h-3.5 w-3.5" />
-                  </Button>
-                </Link>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Menu items */}
-      <div className="px-4 space-y-1">
-        <Link href="/console">
-          <button className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-accent/50 active:bg-accent transition-colors text-left">
-            <Settings className="h-5 w-5 text-muted-foreground" />
-            <span className="text-sm">{t('settings.title') || 'Settings'}</span>
-            <ChevronRight className="h-4 w-4 text-muted-foreground/50 ml-auto" />
+          <button
+            onClick={() => setSubView('profile')}
+            className="p-2 rounded-lg hover:bg-accent/50 active:bg-accent transition-colors flex-shrink-0"
+          >
+            <ChevronRight className="h-5 w-5 text-muted-foreground" />
           </button>
-        </Link>
-        <div className="px-3 py-2">
-          <ThemeToggle />
         </div>
+      </div>
+
+      {/* Menu sections */}
+      <div className="px-4 space-y-5 pb-4">
+        {menuSections.map((section) => (
+          <div key={section.label}>
+            <p className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wider px-1 mb-2">
+              {section.label}
+            </p>
+            <div className="bg-card rounded-xl border border-border/30 overflow-hidden divide-y divide-border/20">
+              {section.items.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => setSubView(item.id)}
+                    className="w-full flex items-center gap-3.5 px-4 py-3.5 hover:bg-accent/50 active:bg-accent transition-colors text-left"
+                  >
+                    <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                      <Icon className="h-4.5 w-4.5 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium">{item.label}</div>
+                      <div className="text-[11px] text-muted-foreground truncate">{item.desc}</div>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground/40 flex-shrink-0" />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Logout */}
+      <div className="px-4 pb-2">
         <button
           onClick={onLogout}
-          className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-destructive/10 active:bg-destructive/20 transition-colors text-left text-destructive"
+          className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-destructive/10 hover:bg-destructive/20 active:bg-destructive/30 transition-colors text-destructive"
         >
-          <LogOut className="h-5 w-5" />
-          <span className="text-sm">{t('settings.logout') || 'Sign Out'}</span>
+          <LogOut className="h-4 w-4" />
+          <span className="text-sm font-medium">{t('settings.logout') || 'Sign Out'}</span>
         </button>
       </div>
 
       <div className="flex-1" />
-      <div className="px-4 py-4 text-center">
+      <div className="px-4 py-3 text-center">
         <p className="text-[10px] text-muted-foreground/40">MoltChat v1.0</p>
       </div>
     </div>
@@ -463,7 +446,8 @@ function RoomsTab({ rooms, isLoading, onRoomSelect, onCreateRoom }: {
 // Room Chat Full Screen View
 // ============================================
 
-function RoomChatView({ room, isLoading, onBack, onAgentClick, t }: {
+function RoomChatView({ roomId, room, isLoading, onBack, onAgentClick, t }: {
+  roomId: string;
   room: any;
   isLoading: boolean;
   onBack: () => void;
@@ -566,21 +550,16 @@ function RoomChatView({ room, isLoading, onBack, onAgentClick, t }: {
           </div>
         </div>
       ) : (
-        <MobileChatSimulation
+        <RealChatMessages
+          roomId={roomId}
           agents={room.agents || []}
           roomName={room.name}
           onAgentClick={onAgentClick}
-          t={t}
+          compact
+          showObserverBar={false}
+          showBottomBar
         />
       )}
-
-      {/* Bottom status */}
-      <div className="flex items-center justify-center gap-2 px-3 py-2 bg-card/50 border-t border-border/30 text-xs text-muted-foreground">
-        <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-        <span>{room.agents?.length || 0} agents online</span>
-        <span className="text-muted-foreground/40">·</span>
-        <span className="italic text-muted-foreground/60">{t('chat.humanObserve')}</span>
-      </div>
     </div>
   );
 }
@@ -717,6 +696,7 @@ export function MobileLayout() {
     return (
       <div className="flex flex-col h-[100dvh] bg-background">
         <RoomChatView
+          roomId={mobileView.type === 'room-chat' ? mobileView.roomId : ''}
           room={selectedRoom}
           isLoading={isLoadingRoom}
           onBack={handleBackFromChat}

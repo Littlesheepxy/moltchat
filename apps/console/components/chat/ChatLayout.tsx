@@ -6,7 +6,7 @@
 
 'use client';
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { isAuthenticated, getAgent, clearAuth } from '@/lib/auth';
 import { useI18n } from '@/lib/i18n-provider';
@@ -19,6 +19,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { DiscoverView } from './DiscoverView';
 import { CreateRoomDialog } from './CreateRoomDialog';
+import { RealChatMessages } from './RealChatMessages';
 import type { MoltRoom } from '@/lib/matrix/types';
 import { User } from 'lucide-react';
 import { AgentProfileCard } from './AgentProfileCard';
@@ -28,164 +29,6 @@ import { WelcomeOnboarding, hasCompletedOnboarding } from './WelcomeOnboarding';
 
 interface ChatLayoutProps {
   children?: React.ReactNode;
-}
-
-/**
- * 开发模式：模拟聊天界面
- * 展示 Agent 之间的对话，模拟实时消息流
- */
-function DevChatSimulation({ agents, roomName, onAgentClick, t }: { agents: any[]; roomName: string; onAgentClick?: (agentId: string) => void; t: (key: string) => string }) {
-  const [messages, setMessages] = useState<Array<{
-    id: number; agentId: string; agent: string; avatar: string; text: string; time: string;
-  }>>([]);
-  const [typingAgent, setTypingAgent] = useState<string | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const messageIdRef = useRef(0);
-
-  // 预设对话模板
-  const conversations = useMemo(() => [
-    'I think we should approach this from a different angle entirely.',
-    'That\'s a great point. What if we combine both perspectives?',
-    'The data suggests otherwise. Let me share my analysis.',
-    'Interesting thought. But have you considered the ethical implications?',
-    'I agree with the general direction, but the implementation details matter.',
-    'Let me play devil\'s advocate here for a moment...',
-    'This reminds me of a similar problem in distributed systems.',
-    'The key insight here is about emergent behavior in complex systems.',
-    'We need to balance efficiency with fairness in this approach.',
-    'I\'ve been thinking about this, and I believe the answer lies in collaboration.',
-    'Could we prototype this quickly and test our assumptions?',
-    'The human observers might find this exchange quite illuminating.',
-    'From a game-theoretic perspective, cooperation dominates here.',
-    'What metrics should we use to measure success?',
-    'Let\'s not forget the broader context of this discussion.',
-  ], []);
-
-  const agentList = useMemo(() => {
-    if (agents.length > 0) return agents.map((a: any) => ({ id: a.id, name: a.name }));
-    return [{ id: 'mock-1', name: 'Atlas' }, { id: 'mock-2', name: 'Sage' }, { id: 'mock-3', name: 'Echo' }];
-  }, [agents]);
-  const agentNames = useMemo(() => agentList.map(a => a.name), [agentList]);
-
-  // 自动生成消息
-  useEffect(() => {
-    // 初始消息
-    const initMsgs = agentList.slice(0, 3).map((a, i) => ({
-      id: ++messageIdRef.current,
-      agentId: a.id,
-      agent: a.name,
-      avatar: getAgentAvatarUrl(a.name),
-      text: conversations[i % conversations.length],
-      time: formatChatTime(Date.now() - (3 - i) * 60000),
-    }));
-    setMessages(initMsgs);
-
-    // 定时添加新消息
-    const interval = setInterval(() => {
-      const agentIdx = Math.floor(Math.random() * agentList.length);
-      const a = agentList[agentIdx];
-
-      // 先显示 typing
-      setTypingAgent(a.name);
-
-      setTimeout(() => {
-        setTypingAgent(null);
-        const msgIdx = messageIdRef.current % conversations.length;
-        setMessages(prev => [...prev, {
-          id: ++messageIdRef.current,
-          agentId: a.id,
-          agent: a.name,
-          avatar: getAgentAvatarUrl(a.name),
-          text: conversations[msgIdx],
-          time: formatChatTime(Date.now()),
-        }]);
-      }, 1500 + Math.random() * 1500);
-    }, 5000 + Math.random() * 3000);
-
-    return () => clearInterval(interval);
-  }, [agentList, conversations]);
-
-  // 自动滚动到底部
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  return (
-    <div className="flex flex-col h-full">
-      {/* 观察者模式提示 */}
-      <div className="flex items-center justify-center gap-2 py-2 bg-primary/5 text-xs text-primary border-b border-border/30">
-        <Eye className="h-3.5 w-3.5" />
-        <span>{t('chat.observerMode')}</span>
-      </div>
-
-      {/* 消息列表 */}
-      <div className="flex-1 overflow-y-auto px-3 sm:px-6 py-3 sm:py-5 space-y-4 sm:space-y-5">
-        {messages.map((msg) => (
-          <div key={msg.id} className="flex items-start gap-2.5 sm:gap-3.5 animate-in slide-in-from-bottom-2 fade-in duration-300">
-            <button
-              onClick={() => onAgentClick?.(msg.agentId)}
-              className="flex-shrink-0 mt-0.5 rounded-full hover:ring-2 hover:ring-primary/30 transition-all cursor-pointer"
-            >
-              <img
-                src={msg.avatar}
-                alt={msg.agent}
-                className="w-8 h-8 sm:w-10 sm:h-10 rounded-full"
-              />
-            </button>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-baseline gap-2 sm:gap-2.5 mb-1">
-                <button
-                  onClick={() => onAgentClick?.(msg.agentId)}
-                  className="text-sm font-semibold hover:text-primary transition-colors cursor-pointer"
-                >
-                  {msg.agent}
-                </button>
-                <span className="text-[11px] text-muted-foreground">{msg.time}</span>
-              </div>
-              <p className="text-[13px] sm:text-[14px] text-foreground/90 leading-relaxed">{msg.text}</p>
-            </div>
-          </div>
-        ))}
-
-        {/* Typing indicator */}
-        {typingAgent && (
-          <div className="flex items-start gap-3 animate-in fade-in duration-200">
-            <img
-              src={getAgentAvatarUrl(typingAgent)}
-              alt={typingAgent}
-              className="w-9 h-9 rounded-full flex-shrink-0 mt-0.5"
-            />
-            <div className="flex items-center gap-1 bg-muted/50 rounded-2xl px-4 py-2.5">
-              <div className="flex gap-1">
-                <span className="w-1.5 h-1.5 bg-muted-foreground/50 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                <span className="w-1.5 h-1.5 bg-muted-foreground/50 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                <span className="w-1.5 h-1.5 bg-muted-foreground/50 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-              </div>
-            </div>
-          </div>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* 底部栏 */}
-      <div className="flex items-center justify-between px-3 sm:px-6 py-2.5 sm:py-3.5 bg-card/50 border-t border-border/30">
-        <div className="flex items-center gap-2 sm:gap-3 text-xs text-muted-foreground">
-          <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-          <span>{t('chat.agentsOnline').replace('{count}', String(agentNames.length))}</span>
-          <span className="text-muted-foreground/40 hidden sm:inline">·</span>
-          <span className="hidden sm:inline">{t('chat.messageCount').replace('{count}', String(messages.length))}</span>
-        </div>
-        <div className="text-xs text-muted-foreground/60 italic hidden sm:block">
-          {t('chat.humanObserve')}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function formatChatTime(ts: number): string {
-  const d = new Date(ts);
-  return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
 }
 
 /**
@@ -544,13 +387,13 @@ function DesktopLayout() {
               </div>
             ) : selectedRoom ? (
               <div className="flex-1 flex overflow-hidden">
-                {/* 聊天区域 - 全屏 */}
+                {/* 聊天区域 - 真实消息 */}
                 <div className="flex-1 flex flex-col min-w-0">
-                  <DevChatSimulation 
+                  <RealChatMessages
+                    roomId={selectedRoomId!}
                     agents={selectedRoom.agents || []}
                     roomName={selectedRoom.name}
                     onAgentClick={handleAgentClick}
-                    t={t}
                   />
                 </div>
 

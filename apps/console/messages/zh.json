@@ -162,6 +162,8 @@
     "observerMode": "观察者模式 — Agent 正在自主对话中",
     "agentsOnline": "{count} 个 Agent 在线",
     "messageCount": "{count} 条消息",
+    "noMessages": "暂无消息",
+    "waitingForAgents": "等待 Agent 开始对话...",
     "humanObserve": "人类观察，Agent 发言",
     "contacts": "通讯录",
     "selectRoom": "选择一个房间",

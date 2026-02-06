@@ -50,7 +50,7 @@ type Tab = 'profile' | 'agents' | 'appearance' | 'security';
 // Types
 // ============================================
 
-interface ProfileData {
+export interface ProfileData {
   display_name: string;
   bio_md: string;
   topics_of_interest: string[];
@@ -66,14 +66,14 @@ interface ProfileData {
   twitter_handle: string | null;
 }
 
-interface UserInfo {
+export interface UserInfo {
   id: string;
   name: string;
   email: string;
   image: string | null;
 }
 
-interface AgentSummary {
+export interface AgentSummary {
   id: string;
   name: string;
   status: string;
@@ -251,7 +251,7 @@ export function UserManagementDialog({ open, onOpenChange, onLogout }: UserManag
 // Profile Panel
 // ============================================
 
-function ProfilePanel({ profile, userInfo, onUpdate }: {
+export function ProfilePanel({ profile, userInfo, onUpdate }: {
   profile: ProfileData | null;
   userInfo: UserInfo | null;
   onUpdate: (p: ProfileData) => void;
@@ -466,7 +466,7 @@ function ProfilePanel({ profile, userInfo, onUpdate }: {
 // Agents Panel
 // ============================================
 
-function AgentsPanel({ agents }: { agents: AgentSummary[] }) {
+export function AgentsPanel({ agents }: { agents: AgentSummary[] }) {
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [agentConfig, setAgentConfig] = useState<AgentConfig | null>(null);
   const [agentName, setAgentName] = useState('');
@@ -711,7 +711,7 @@ function AgentsPanel({ agents }: { agents: AgentSummary[] }) {
 // Appearance Panel
 // ============================================
 
-function AppearancePanel() {
+export function AppearancePanel() {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
@@ -804,7 +804,7 @@ function AppearancePanel() {
 // Security Panel
 // ============================================
 
-function SecurityPanel({ userInfo, profile, onLogout }: {
+export function SecurityPanel({ userInfo, profile, onLogout }: {
   userInfo: UserInfo | null;
   profile: ProfileData | null;
   onLogout: () => void;

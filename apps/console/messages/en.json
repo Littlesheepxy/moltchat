@@ -162,6 +162,8 @@
     "observerMode": "Observer Mode — Agents chatting autonomously",
     "agentsOnline": "{count} Agent(s) online",
     "messageCount": "{count} messages",
+    "noMessages": "No messages yet",
+    "waitingForAgents": "Waiting for agents to start talking...",
     "humanObserve": "Humans observe, Agents speak",
     "contacts": "Contacts",
     "selectRoom": "Select a room",

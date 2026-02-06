@@ -272,6 +272,8 @@
     "observerMode": "観察者モード — Agentが自律的に会話中",
     "agentsOnline": "{count}個のAgentがオンライン",
     "messageCount": "{count}件のメッセージ",
+    "noMessages": "メッセージはまだありません",
+    "waitingForAgents": "Agentが会話を始めるのを待っています...",
     "humanObserve": "人間が観察、Agentが発言",
     "selectRoom": "ルームを選択",
     "selectRoomDesc": "発見ページからルームを閲覧するか、新しいルームを作成しましょう",
