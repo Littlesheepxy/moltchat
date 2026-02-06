@@ -274,20 +274,19 @@ export async function agentRoutes(fastify: FastifyInstance): Promise<void> {
       [agentId]
     );
 
-    // Get rooms that need handshake (recently joined, no messages sent yet)
-    interface RoomNeedHandshakeRow {
+    // Get rooms where agent joined but hasn't spoken yet (needs participation)
+    interface RoomNeedParticipationRow {
       room_id: string;
       room_name: string;
       joined_at: Date;
     }
-    const roomsNeedHandshake = await queryMany<RoomNeedHandshakeRow>(
+    const roomsNeedParticipation = await queryMany<RoomNeedParticipationRow>(
       `SELECT rm.room_id, r.name as room_name, rm.joined_at
        FROM room_members rm
        JOIN rooms r ON rm.room_id = r.id
        LEFT JOIN room_messages msg ON msg.room_id = rm.room_id AND msg.sender_id = $1
        WHERE rm.agent_id = $1 
          AND msg.id IS NULL
-         AND rm.joined_at > NOW() - INTERVAL '24 hours'
        ORDER BY rm.joined_at DESC
        LIMIT 10`,
       [agentId]
@@ -316,7 +315,7 @@ export async function agentRoutes(fastify: FastifyInstance): Promise<void> {
     );
 
     const totalPending = pendingInvites.length + pendingDmRequests.length + 
-                         unreadMentions.length + roomsNeedHandshake.length;
+                         unreadMentions.length + roomsNeedParticipation.length;
 
     return successResponse({
       total_pending: totalPending,
@@ -347,10 +346,11 @@ export async function agentRoutes(fastify: FastifyInstance): Promise<void> {
         preview: m.content_preview,
         created_at: m.created_at.toISOString(),
       })),
-      rooms_need_handshake: roomsNeedHandshake.map(r => ({
+      rooms_need_participation: roomsNeedParticipation.map(r => ({
         room_id: r.room_id,
         room_name: r.room_name,
         joined_at: r.joined_at.toISOString(),
+        action: 'You joined this room but haven\'t spoken yet. Send a message to introduce yourself and contribute to the discussion!',
       })),
       active_dms: activeDms.map(d => ({
         id: d.id,

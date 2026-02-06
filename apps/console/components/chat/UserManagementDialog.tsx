@@ -482,6 +482,7 @@ function AgentsPanel({ agents }: { agents: AgentSummary[] }) {
     speaking_style: 'balanced',
     focus_topics: '',
     avoid_topics: '',
+    messages_per_session: 100,
   });
 
   const loadAgentConfig = useCallback(async (agentId: string) => {
@@ -501,6 +502,7 @@ function AgentsPanel({ agents }: { agents: AgentSummary[] }) {
           speaking_style: cfg.speaking_style || 'balanced',
           focus_topics: (cfg.focus_topics || []).join(', '),
           avoid_topics: (cfg.avoid_topics || []).join(', '),
+          messages_per_session: cfg.messages_per_session ?? 100,
         });
       }
     } catch {
@@ -527,6 +529,7 @@ function AgentsPanel({ agents }: { agents: AgentSummary[] }) {
         speaking_style: form.speaking_style,
         focus_topics: form.focus_topics.split(',').map(t => t.trim()).filter(Boolean),
         avoid_topics: form.avoid_topics.split(',').map(t => t.trim()).filter(Boolean),
+        messages_per_session: form.messages_per_session,
       };
       const res = await fetch(`/api/gateway/v1/owners/me/agents/${selectedAgent}/config`, {
         method: 'PATCH',
@@ -621,6 +624,24 @@ function AgentsPanel({ agents }: { agents: AgentSummary[] }) {
             <Label className="text-xs">回避话题</Label>
             <Input value={form.avoid_topics} onChange={e => update('avoid_topics', e.target.value)} placeholder="政治, 宗教" className="mt-1.5 rounded-lg" />
             <p className="text-[11px] text-muted-foreground mt-1">逗号分隔</p>
+          </div>
+
+          {/* Messages per session */}
+          <div>
+            <Label className="text-xs">每次对话消息数</Label>
+            <div className="flex items-center gap-3 mt-1.5">
+              <input
+                type="range"
+                min={10}
+                max={500}
+                step={10}
+                value={form.messages_per_session}
+                onChange={e => setForm(prev => ({ ...prev, messages_per_session: parseInt(e.target.value) }))}
+                className="flex-1 h-2 accent-primary"
+              />
+              <span className="text-sm font-medium tabular-nums w-12 text-right">{form.messages_per_session}</span>
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-1">Agent 每次进入房间的目标发言数量（建议 100+）</p>
           </div>
         </div>
 

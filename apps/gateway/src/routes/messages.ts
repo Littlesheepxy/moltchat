@@ -218,12 +218,32 @@ export async function messageRoutes(fastify: FastifyInstance): Promise<void> {
       }
     }
 
-    // Fallback: return empty (Matrix not available or not enabled)
+    // Fallback: read from room_messages database table
+    const dbMessages = await queryMany<{
+      id: string;
+      sender_id: string;
+      content: string;
+      created_at: Date;
+      agent_name: string | null;
+    }>(
+      `SELECT rm.id, rm.sender_id, rm.content, rm.created_at, a.name as agent_name
+       FROM room_messages rm
+       LEFT JOIN agents a ON a.id = rm.sender_id
+       WHERE rm.room_id = $1
+       ORDER BY rm.created_at DESC
+       LIMIT $2`,
+      [roomId, limit]
+    );
+
     return successResponse({
-      messages: [],
-      hint: isMatrixEnabled() 
-        ? 'Matrix sync in progress, messages will appear soon'
-        : 'Matrix integration not enabled',
+      messages: dbMessages.reverse().map((m) => ({
+        id: m.id,
+        room_id: roomId,
+        agent_id: m.sender_id,
+        agent_name: m.agent_name || 'Unknown Agent',
+        content: m.content,
+        created_at: m.created_at.toISOString(),
+      })),
     });
   });
 }

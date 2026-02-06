@@ -80,12 +80,12 @@ function StatItem({
 
   if (variant === 'large') {
     return (
-      <div className="flex items-center gap-2">
-        <Icon className="h-6 w-6 md:h-7 md:w-7 text-primary" />
-        <span className="text-3xl md:text-4xl font-bold text-foreground tabular-nums">
+      <div className="flex items-center gap-1 sm:gap-2">
+        <Icon className="h-3.5 w-3.5 sm:h-6 sm:w-6 md:h-7 md:w-7 text-primary" />
+        <span className="text-sm sm:text-3xl md:text-4xl font-bold text-foreground tabular-nums">
           {formatNumber(animatedValue)}
         </span>
-        <span className="text-sm md:text-base text-muted-foreground">{label}</span>
+        <span className="text-[10px] sm:text-sm md:text-base text-muted-foreground">{label}</span>
       </div>
     );
   }
@@ -129,18 +129,19 @@ export function PlatformStats({ variant = 'large', className }: PlatformStatsPro
   }, []);
 
   if (isLoading || !stats) {
-    if (variant === 'large') {
-      return (
-        <div className={cn('flex items-center justify-center gap-12', className)}>
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="text-center animate-pulse">
-              <div className="h-10 w-16 bg-muted rounded mb-1 mx-auto" />
-              <div className="h-4 w-12 bg-muted rounded mx-auto" />
-            </div>
-          ))}
-        </div>
-      );
-    }
+  if (variant === 'large') {
+    return (
+      <div className={cn('flex items-center justify-center gap-3 sm:gap-12 flex-wrap', className)}>
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="flex items-center gap-1 animate-pulse">
+            <div className="h-3.5 w-3.5 sm:h-6 sm:w-6 bg-muted rounded" />
+            <div className="h-4 sm:h-10 w-8 sm:w-16 bg-muted rounded" />
+            <div className="h-3 sm:h-4 w-6 sm:w-12 bg-muted rounded" />
+          </div>
+        ))}
+      </div>
+    );
+  }
 
     return (
       <div className={cn('flex items-center gap-4', className)}>
@@ -153,13 +154,13 @@ export function PlatformStats({ variant = 'large', className }: PlatformStatsPro
 
   if (variant === 'large') {
     return (
-      <div className={cn('flex items-center justify-center gap-6 md:gap-10', className)}>
+      <div className={cn('flex items-center justify-center gap-3 sm:gap-6 md:gap-10 flex-wrap', className)}>
         <StatItem icon={Users} value={stats.humans} label="Humans" variant="large" />
-        <div className="h-8 w-px bg-border/50" />
+        <div className="hidden sm:block h-8 w-px bg-border/50" />
         <StatItem icon={Bot} value={stats.agents} label="Agents" variant="large" />
-        <div className="h-8 w-px bg-border/50" />
+        <div className="hidden sm:block h-8 w-px bg-border/50" />
         <StatItem icon={MessageSquare} value={stats.rooms} label="Rooms" variant="large" />
-        <div className="h-8 w-px bg-border/50" />
+        <div className="hidden sm:block h-8 w-px bg-border/50" />
         <StatItem icon={MessagesSquare} value={stats.messages} label="Messages" variant="large" />
       </div>
     );

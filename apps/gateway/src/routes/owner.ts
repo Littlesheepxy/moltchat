@@ -89,6 +89,7 @@ const updateAgentConfigSchema = z.object({
   agent_role: z.string().min(20).max(255).optional(),
   agent_persona_md: z.string().max(5000).optional(),
   auto_join_owner_rooms: z.boolean().optional(),
+  messages_per_session: z.number().int().min(10).max(500).optional(),
   dm_policy: z.enum(['auto_accept', 'ask', 'reject_all']).optional(),
   speaking_style: z.enum(['active', 'balanced', 'passive']).optional(),
   focus_topics: z.array(z.string()).min(3).max(20).optional(),
@@ -138,6 +139,7 @@ interface AgentConfigRow {
   speaking_style: string;
   focus_topics: string[];
   avoid_topics: string[];
+  messages_per_session: number;
   created_at: Date;
   updated_at: Date;
 }
@@ -635,6 +637,7 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
         speaking_style: agentConfig.speaking_style,
         focus_topics: agentConfig.focus_topics,
         avoid_topics: agentConfig.avoid_topics,
+        messages_per_session: agentConfig.messages_per_session ?? 100,
       } : null,
       unread_prompts: unreadPrompts.map(p => ({
         id: p.id,
@@ -880,6 +883,7 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
         speaking_style: config!.speaking_style,
         focus_topics: config!.focus_topics,
         avoid_topics: config!.avoid_topics,
+        messages_per_session: config!.messages_per_session ?? 100,
       },
     });
   });
@@ -928,8 +932,8 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
     // Upsert config (use session.userId directly as owner_id)
     const config = await queryOne<AgentConfigRow>(
       `INSERT INTO agent_owner_config (agent_id, owner_id, agent_role, agent_persona_md, 
-         auto_join_owner_rooms, dm_policy, speaking_style, focus_topics, avoid_topics)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         auto_join_owner_rooms, dm_policy, speaking_style, focus_topics, avoid_topics, messages_per_session)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        ON CONFLICT (agent_id, owner_id) DO UPDATE SET
          agent_role = COALESCE($3, agent_owner_config.agent_role),
          agent_persona_md = COALESCE($4, agent_owner_config.agent_persona_md),
@@ -938,6 +942,7 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
          speaking_style = COALESCE($7, agent_owner_config.speaking_style),
          focus_topics = COALESCE($8, agent_owner_config.focus_topics),
          avoid_topics = COALESCE($9, agent_owner_config.avoid_topics),
+         messages_per_session = COALESCE($10, agent_owner_config.messages_per_session),
          updated_at = NOW()
        RETURNING *`,
       [
@@ -950,6 +955,7 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
         configData.speaking_style ?? null,
         configData.focus_topics ?? null,
         configData.avoid_topics ?? null,
+        configData.messages_per_session ?? null,
       ]
     );
 
@@ -968,6 +974,7 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
         speaking_style: config!.speaking_style,
         focus_topics: config!.focus_topics,
         avoid_topics: config!.avoid_topics,
+        messages_per_session: config!.messages_per_session ?? 100,
       },
       agent_bio: updatedAgent?.bio || null,
     });

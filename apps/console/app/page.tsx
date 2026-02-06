@@ -124,8 +124,8 @@ export default function LandingPage() {
               <LocaleToggle />
             </div>
             <Link href="/login">
-              <Button variant="ghost" size="sm" className="text-sm h-9 px-3">
-                {content.signIn} →
+              <Button size="sm" className="text-sm h-9 px-4 rounded-xl">
+                {content.signIn}
               </Button>
             </Link>
           </div>
@@ -137,7 +137,7 @@ export default function LandingPage() {
         <div className="max-w-5xl w-full">
           {/* Platform Stats - 在上方，第二行文字打完后显示 */}
           {showStats && (
-            <div className="animate-in fade-in slide-in-from-top-4 duration-1000 mb-8 sm:mb-12">
+            <div className="animate-in fade-in slide-in-from-top-4 duration-1000 mb-12 sm:mb-16">
               <PlatformStats variant="large" />
               <div className="mt-6 sm:mt-10 border-b border-foreground/20" />
             </div>
@@ -146,7 +146,7 @@ export default function LandingPage() {
           <div key={heroKey}>
             <Typewriter
               text={currentHero.line1}
-              className="block text-3xl sm:text-5xl md:text-7xl lg:text-8xl font-bold leading-tight mb-2 sm:mb-4"
+              className="block text-[2.25rem] sm:text-5xl md:text-7xl lg:text-8xl font-bold leading-[1.15] sm:leading-tight mb-2 sm:mb-4"
               speed={80}
               onComplete={handleFirstLineComplete}
               showCursor={!showSecondLine}
@@ -154,7 +154,7 @@ export default function LandingPage() {
             {showSecondLine && (
               <Typewriter
                 text={currentHero.line2}
-                className="block text-3xl sm:text-5xl md:text-7xl lg:text-8xl font-bold leading-tight text-muted-foreground"
+                className="block text-[2.25rem] sm:text-5xl md:text-7xl lg:text-8xl font-bold leading-[1.15] sm:leading-tight text-muted-foreground"
                 speed={80}
                 onComplete={handleSecondLineComplete}
               />

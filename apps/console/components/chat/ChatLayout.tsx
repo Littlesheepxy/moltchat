@@ -12,7 +12,7 @@ import { isAuthenticated, getAgent, clearAuth } from '@/lib/auth';
 import { useI18n } from '@/lib/i18n-provider';
 import { signOut, useSession } from '@/lib/auth-client';
 import { getAgentAvatarUrl } from '@/lib/avatar';
-import { Menu, X, Settings, Loader2, MessageSquare, Bot, Users, Plus, Compass, PanelLeftClose, Eye } from 'lucide-react';
+import { Menu, Settings, Loader2, MessageSquare, Bot, Users, Plus, Compass, PanelLeftClose, Eye } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -23,6 +23,8 @@ import type { MoltRoom } from '@/lib/matrix/types';
 import { User } from 'lucide-react';
 import { AgentProfileCard } from './AgentProfileCard';
 import { UserManagementDialog } from './UserManagementDialog';
+import { MobileLayout } from './MobileLayout';
+import { WelcomeOnboarding, hasCompletedOnboarding } from './WelcomeOnboarding';
 
 interface ChatLayoutProps {
   children?: React.ReactNode;
@@ -190,6 +192,46 @@ function formatChatTime(ts: number): string {
  * 开发模式下的简化 UI - 美化版
  */
 function DevModeLayout() {
+  // Detect mobile first — render completely different layout
+  const [isMobile, setIsMobile] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    setIsMounted(true);
+    window.addEventListener('resize', checkMobile);
+    // Check if first visit
+    if (!hasCompletedOnboarding()) {
+      setShowOnboarding(true);
+    }
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // On mobile, render the dedicated mobile layout with bottom tab bar
+  if (isMounted && isMobile) {
+    return (
+      <>
+        <MobileLayout />
+        <WelcomeOnboarding open={showOnboarding} onClose={() => setShowOnboarding(false)} />
+      </>
+    );
+  }
+
+  // Desktop layout below
+  return (
+    <>
+      <DesktopLayout />
+      <WelcomeOnboarding open={showOnboarding} onClose={() => setShowOnboarding(false)} />
+    </>
+  );
+}
+
+/**
+ * Desktop layout — sidebar + main area
+ */
+function DesktopLayout() {
   const { t } = useI18n();
   const { data: session } = useSession();
   const agent = getAgent();
@@ -209,23 +251,13 @@ function DevModeLayout() {
   const [profileAgentId, setProfileAgentId] = useState<string | null>(null);
   const [showAgentProfile, setShowAgentProfile] = useState(false);
   const [showUserManagement, setShowUserManagement] = useState(false);
-  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-
-  // Detect mobile
-  const [isMobile, setIsMobile] = useState(false);
-  useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 768);
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
 
   const handleAgentClick = useCallback((agentId: string) => {
     setProfileAgentId(agentId);
     setShowAgentProfile(true);
   }, []);
 
-  // 从 API 加载真实房间列表
+  // From API 加载真实房间列表
   useEffect(() => {
     const gatewayUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3002';
     fetch(`${gatewayUrl}/v1/rooms?page=1&limit=50`)
@@ -288,54 +320,30 @@ function DevModeLayout() {
   };
   
   const sidebarWidth = isSidebarCollapsed ? 'w-16' : 'w-72';
-  
-  // Close mobile sidebar when selecting a room
-  const handleRoomSelect = useCallback((roomId: string) => {
-    setSelectedRoomId(roomId);
-    setShowDiscover(false);
-    if (isMobile) {
-      setIsMobileSidebarOpen(false);
-    }
-  }, [isMobile]);
 
   const handleDiscoverSelect = useCallback((roomId: string) => {
     setSelectedRoomId(roomId);
     setShowDiscover(false);
-    if (isMobile) {
-      setIsMobileSidebarOpen(false);
-    }
-  }, [isMobile]);
+  }, []);
   
   return (
     <div className="flex h-screen bg-background overflow-hidden">
-      {/* Mobile sidebar overlay backdrop */}
-      {isMobile && isMobileSidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-40 transition-opacity duration-300"
-          onClick={() => setIsMobileSidebarOpen(false)}
-        />
-      )}
-
       {/* 侧边栏 */}
       <aside className={cn(
         'bg-card flex flex-col transition-all duration-300 border-r border-border/40',
-        isMobile
-          ? cn('fixed inset-y-0 left-0 z-50 w-72 transform transition-transform duration-300', 
-              isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full')
-          : sidebarWidth
+        sidebarWidth
       )}>
         {/* Logo */}
-        <div className={cn(isSidebarCollapsed && !isMobile ? 'p-2' : 'p-4')}>
+        <div className={cn(isSidebarCollapsed ? 'p-2' : 'p-4')}>
           <div className={cn(
             'flex items-center',
-            isSidebarCollapsed && !isMobile ? 'flex-col gap-2' : 'justify-between'
+            isSidebarCollapsed ? 'flex-col gap-2' : 'justify-between'
           )}>
-            {isSidebarCollapsed && !isMobile ? (
-              /* 折叠模式：Logo 即展开按钮 */
+            {isSidebarCollapsed ? (
               <button
                 onClick={() => setIsSidebarCollapsed(false)}
                 className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-accent transition-colors"
-                    title={t('chat.expandSidebar')}
+                title={t('chat.expandSidebar')}
               >
                 <Image src="/logo.png" alt="MoltChat" width={32} height={32} className="rounded-lg" />
               </button>
@@ -348,61 +356,48 @@ function DevModeLayout() {
                     <p className="text-xs text-muted-foreground">{t('chat.devMode')}</p>
                   </div>
                 </div>
-                {isMobile ? (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setIsMobileSidebarOpen(false)}
-                    className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                ) : (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setIsSidebarCollapsed(true)}
-                    className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground"
-                  >
-                    <PanelLeftClose className="h-4 w-4" />
-                  </Button>
-                )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setIsSidebarCollapsed(true)}
+                  className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground"
+                >
+                  <PanelLeftClose className="h-4 w-4" />
+                </Button>
               </>
             )}
           </div>
         </div>
 
         {/* 导航 */}
-        <div className={cn(
-          isSidebarCollapsed && !isMobile ? 'p-2 space-y-1' : 'p-2 space-y-1'
-        )}>
+        <div className="p-2 space-y-1">
           <Button
             variant={showDiscover ? 'secondary' : 'ghost'}
-            onClick={() => { setShowDiscover(true); if (isMobile) setIsMobileSidebarOpen(false); }}
+            onClick={() => setShowDiscover(true)}
             className={cn(
               'rounded-xl',
-              isSidebarCollapsed && !isMobile ? 'w-full h-10 p-0' : 'w-full justify-start gap-2'
+              isSidebarCollapsed ? 'w-full h-10 p-0' : 'w-full justify-start gap-2'
             )}
           >
             <Compass className="h-5 w-5" />
-            {(!isSidebarCollapsed || isMobile) && t('chat.discover')}
+            {!isSidebarCollapsed && t('chat.discover')}
           </Button>
           <Button
             variant="ghost"
             onClick={() => setShowCreateRoom(true)}
             className={cn(
               'rounded-xl',
-              isSidebarCollapsed && !isMobile ? 'w-full h-10 p-0' : 'w-full justify-start gap-2'
+              isSidebarCollapsed ? 'w-full h-10 p-0' : 'w-full justify-start gap-2'
             )}
           >
             <Plus className="h-5 w-5" />
-            {(!isSidebarCollapsed || isMobile) && t('chat.createRoom')}
+            {!isSidebarCollapsed && t('chat.createRoom')}
           </Button>
         </div>
 
         {/* 房间列表占位 */}
         <div className="flex-1 overflow-y-auto p-2">
-          {isSidebarCollapsed && !isMobile ? (
+          {isSidebarCollapsed ? (
             <div className="flex flex-col items-center py-4 text-muted-foreground">
               <MessageSquare className="h-6 w-6 opacity-50" />
             </div>
@@ -430,7 +425,7 @@ function DevModeLayout() {
 
         {/* 底部操作区 */}
         <div className={cn(
-          isSidebarCollapsed && !isMobile ? 'p-2 space-y-1' : 'p-3 space-y-2'
+          isSidebarCollapsed ? 'p-2 space-y-1' : 'p-3 space-y-2'
         )}>
           {/* 用户中心 */}
           <Button
@@ -438,20 +433,17 @@ function DevModeLayout() {
             onClick={() => setShowUserManagement(true)}
             className={cn(
               'rounded-xl hover:bg-accent',
-              isSidebarCollapsed && !isMobile ? 'w-full h-10 p-0' : 'w-full justify-start gap-3 h-12 px-3'
+              isSidebarCollapsed ? 'w-full h-10 p-0' : 'w-full justify-start gap-3 h-12 px-3'
             )}
           >
             {userAvatar ? (
               <img src={userAvatar} alt="" className="w-8 h-8 rounded-full flex-shrink-0" />
             ) : (
-              <div className={cn(
-                'rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center',
-                'w-8 h-8'
-              )}>
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
                 <User className="h-4 w-4 text-primary" />
               </div>
             )}
-            {(!isSidebarCollapsed || isMobile) && (
+            {!isSidebarCollapsed && (
               <div className="flex-1 text-left min-w-0">
                 <div className="text-sm font-medium truncate">{userName}</div>
                 {userHandle && (
@@ -471,24 +463,12 @@ function DevModeLayout() {
             onRoomSelect={handleDiscoverSelect}
             onCreateRoom={() => setShowCreateRoom(true)}
             isLoading={isLoadingRooms}
-            onOpenMobileMenu={isMobile ? () => setIsMobileSidebarOpen(true) : undefined}
           />
         ) : (
           <>
             {/* 顶部栏 */}
             <header className="h-14 md:h-16 bg-card/50 px-3 md:px-6 flex items-center justify-between flex-shrink-0 border-b border-border/30">
               <div className="flex items-center gap-2 md:gap-3 min-w-0">
-                {/* Mobile hamburger menu */}
-                {isMobile && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setIsMobileSidebarOpen(true)}
-                    className="h-9 w-9 rounded-lg flex-shrink-0 md:hidden"
-                  >
-                    <Menu className="h-5 w-5" />
-                  </Button>
-                )}
                 <Button
                   variant="ghost"
                   size="sm"
@@ -574,35 +554,13 @@ function DevModeLayout() {
                   />
                 </div>
 
-                {/* 右侧成员面板 - overlay on mobile */}
+                {/* 右侧成员面板 */}
                 {showMemberPanel && (
-                  <>
-                    {isMobile && (
-                      <div 
-                        className="fixed inset-0 bg-black/50 z-40"
-                        onClick={() => setShowMemberPanel(false)}
-                      />
-                    )}
-                  <div className={cn(
-                    'border-l border-border/30 bg-card flex flex-col overflow-hidden animate-in slide-in-from-right-5 duration-200',
-                    isMobile 
-                      ? 'fixed inset-y-0 right-0 z-50 w-[85vw] max-w-80 shadow-2xl' 
-                      : 'w-80'
-                  )}>
+                  <div className="w-80 border-l border-border/30 bg-card flex flex-col overflow-hidden animate-in slide-in-from-right-5 duration-200">
                     {/* 房间信息 */}
                     <div className="px-5 py-5 border-b border-border/30">
                       <div className="flex items-start justify-between">
                         <h3 className="text-base font-semibold mb-2">{selectedRoom.name}</h3>
-                        {isMobile && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setShowMemberPanel(false)}
-                            className="h-8 w-8 rounded-lg -mt-1 -mr-2 flex-shrink-0"
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        )}
                       </div>
                       {selectedRoom.description && (
                         <p className="text-sm text-muted-foreground leading-relaxed">{selectedRoom.description}</p>
@@ -647,25 +605,11 @@ function DevModeLayout() {
                       </div>
                     </div>
                   </div>
-                  </>
                 )}
               </div>
             ) : (
               /* 未选中房间时的占位 */
-              <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground p-4 sm:p-8">
-                {/* Mobile: show menu button at top */}
-                {isMobile && (
-                  <div className="absolute top-3 left-3">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setIsMobileSidebarOpen(true)}
-                      className="h-9 w-9 rounded-lg"
-                    >
-                      <Menu className="h-5 w-5" />
-                    </Button>
-                  </div>
-                )}
+              <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground p-8">
                 <div className="max-w-md text-center">
                   <Compass className="h-12 w-12 sm:h-16 sm:w-16 mx-auto mb-4 text-primary opacity-50" />
                   <h2 className="text-lg sm:text-xl font-semibold mb-2">{t('chat.selectRoom')}</h2>
