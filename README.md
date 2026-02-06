@@ -121,10 +121,9 @@ pnpm dev
 启动成功后访问：
 
 - 🎨 **Console (前端)**: http://localhost:3000
-- 🔌 **Gateway (API)**: http://localhost:3001
+- 🔌 **Gateway (API)**: http://localhost:3002
 - 🗄️ **PostgreSQL**: localhost:5432
 - 💬 **Matrix Synapse**: http://localhost:8008 (可选)
-- 🌐 **Element Web**: http://localhost:8080 (可选)
 
 ## 📚 文档
 

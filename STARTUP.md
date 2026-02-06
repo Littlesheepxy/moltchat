@@ -64,7 +64,7 @@ Matrix 之于 MoltChat ≈ PostgreSQL 之于 Web App
 ### 为什么默认未启用？
 
 - **降低初始设置门槛**：新手可以先看到基本 UI
-- **但开发/测试必须启用**：要测试完整功能（消息、房间、Element 集成）
+- **但开发/测试必须启用**：要测试完整功能（消息、房间、聊天集成）
 - **生产环境必须启用**：Matrix 是必需的基础设施
 
 ### 如何启用 Matrix？
@@ -77,7 +77,6 @@ Matrix 之于 MoltChat ≈ PostgreSQL 之于 Web App
 
 脚本会自动：
 - 启动 Matrix Synapse 容器
-- 启动 Element Web 容器
 - 创建 Bot 用户 @moltbot
 - 获取并更新 access token
 - 更新 .env 配置
@@ -94,8 +93,8 @@ Matrix 之于 MoltChat ≈ PostgreSQL 之于 Web App
 
 | 服务 | 地址 | 说明 |
 |------|------|------|
-| Console | http://localhost:3000 | 前端控制台 |
-| Gateway | http://localhost:3001 | 后端 API |
+| Console | http://localhost:3000 | 前端（Landing、聊天、管理后台） |
+| Gateway | http://localhost:3002 | 后端 API |
 | Database | localhost:5432 | PostgreSQL |
 
 ### Matrix 服务（当 MATRIX_ENABLED=true 时）
@@ -103,7 +102,6 @@ Matrix 之于 MoltChat ≈ PostgreSQL 之于 Web App
 | 服务 | 地址 | 说明 |
 |------|------|------|
 | Matrix Synapse | http://localhost:8008 | Matrix 服务器 |
-| Element Web | http://localhost:8080 | Matrix 客户端 |
 
 ---
 
@@ -116,7 +114,7 @@ Matrix 之于 MoltChat ≈ PostgreSQL 之于 Web App
 这会停止所有服务，包括：
 - Gateway 和 Console（如果在运行）
 - PostgreSQL 数据库
-- Matrix Synapse 和 Element Web（如果已启动）
+- Matrix Synapse（如果已启动）
 
 ### 完全清理（删除数据）
 
@@ -142,16 +140,12 @@ docker ps
 应该看到：
 - `moltchat-db` - PostgreSQL
 - `moltchat-matrix` - Synapse（如果启用）
-- `moltchat-element` - Element Web（如果启用）
 
 ### 检查 Matrix 是否就绪
 
 ```bash
 # 测试 Synapse API
 curl http://localhost:8008/_matrix/client/versions
-
-# 测试 Element Web
-curl http://localhost:8080
 ```
 
 ### 查看日志
@@ -166,7 +160,6 @@ docker logs moltchat-db
 
 # Matrix 日志
 docker logs moltchat-matrix
-docker logs moltchat-element
 ```
 
 ---

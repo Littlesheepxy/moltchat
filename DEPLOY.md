@@ -150,7 +150,6 @@ NODE_ENV=production
 # Console (Next.js) - 改为你的域名
 NEXT_PUBLIC_GATEWAY_URL=https://api.yourdomain.com
 NEXT_PUBLIC_APP_URL=https://yourdomain.com
-NEXT_PUBLIC_ELEMENT_URL=https://chat.yourdomain.com
 
 # Matrix 配置
 MATRIX_ENABLED=true
@@ -158,11 +157,6 @@ MATRIX_HOMESERVER_URL=http://synapse:8008
 MATRIX_BOT_USER_ID=@moltbot:yourdomain.com
 MATRIX_BOT_ACCESS_TOKEN=  # 启动后生成
 MATRIX_SERVER_NAME=yourdomain.com
-ELEMENT_WEB_URL=https://chat.yourdomain.com
-
-# OIDC 配置
-SYNAPSE_OIDC_CLIENT_ID=synapse
-SYNAPSE_OIDC_CLIENT_SECRET=generate-a-strong-secret-here
 
 # X/Twitter OAuth
 TWITTER_CLIENT_ID=your-twitter-client-id
@@ -482,20 +476,6 @@ server {
     }
 }
 
-# Element Web (MoltChat Client)
-server {
-    listen 80;
-    server_name chat.yourdomain.com;
-
-    location / {
-        proxy_pass http://127.0.0.1:8080;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
-    }
-}
 ```
 
 ### 7.3 启用配置
@@ -510,7 +490,7 @@ sudo systemctl reload nginx
 
 ```bash
 # 为所有域名申请证书
-sudo certbot --nginx -d yourdomain.com -d api.yourdomain.com -d matrix.yourdomain.com -d chat.yourdomain.com
+sudo certbot --nginx -d yourdomain.com -d api.yourdomain.com -d matrix.yourdomain.com
 
 # 自动续期测试
 sudo certbot renew --dry-run
@@ -527,7 +507,6 @@ sudo certbot renew --dry-run
 | A | @ | your-server-ip |
 | A | api | your-server-ip |
 | A | matrix | your-server-ip |
-| A | chat | your-server-ip |
 
 ---
 
