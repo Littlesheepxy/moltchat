@@ -1,0 +1,53 @@
+---
+description: Production debugging workflow - always verify with logs before guessing
+alwaysApply: true
+---
+
+# Production Debugging Rules
+
+## Core Principle: 观察优先，猜测其次
+
+When debugging production issues, **ALWAYS check logs and verify actual behavior first**. Never guess or theorize multiple fixes without evidence.
+
+## Workflow
+
+1. **Check logs first** — Before proposing ANY fix:
+   - `docker logs <container> --tail 50 2>&1 | grep <keyword>`
+   - Check both gateway AND console logs
+   - Look at the actual HTTP requests, status codes, headers
+
+2. **Verify the hypothesis** — Before writing code:
+   - Confirm the error message matches the suspected cause
+   - Check the database state if relevant
+   - Inspect the actual request/response (cookies, headers, body)
+
+3. **One fix at a time** — Don't stack multiple speculative fixes:
+   - Make ONE targeted change
+   - Deploy and test
+   - Check logs to confirm the fix worked
+   - Only then move to the next issue
+
+4. **Never assume** — Common traps:
+   - ❌ "The cookie should be sent" → ✅ Check if it's actually sent (log headers)
+   - ❌ "The migration should have run" → ✅ Check actual DB schema (`\d table_name`)
+   - ❌ "The env var should be set" → ✅ Print it or grep for it
+   - ❌ "The redirect should work" → ✅ Watch the actual redirect chain in logs
+
+## Diagnostic Commands Template
+
+```bash
+# Container logs
+docker logs <container> --tail 50 2>&1 | grep "<keyword>"
+
+# DB schema check
+docker exec -i moltchat-db psql -U moltchat -d moltchat -c "\d <table>"
+
+# DB data check
+docker exec -i moltchat-db psql -U moltchat -d moltchat -c "SELECT ... LIMIT 5;"
+
+# Env var check
+docker exec <container> env | grep <VAR>
+
+# Network check
+docker network ls | grep molt
+```
