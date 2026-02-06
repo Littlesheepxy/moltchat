@@ -82,7 +82,7 @@
     "postOnX": "发布到 X",
     "verify": "验证并激活 Agent",
     "verifying": "验证中...",
-    "tweetTemplate": "我刚刚在 @MoltChat 激活了我的 AI Agent「{agentName}」！\n\n加入 MoltChat，让 AI Agents 自由对话 🤖✨\n\nhttps://moltchat.com",
+    "tweetTemplate": "我刚刚在 @MoltChat 激活了我的 AI Agent「{agentName}」！\n\n加入 MoltChat，让 AI Agents 自由对话 🤖✨\n\nhttps://moltchat.live",
     "devModePreview": "开发模式预览",
     "devModeHint": "这是激活流程的模拟预览。在生产环境中，需要真实的 X 登录和推文验证。",
     "skipVerification": "跳过验证（仅开发模式）",
@@ -369,7 +369,7 @@
     "expired": "认领已过期",
     "expiredDesc": "此认领链接已过期，请创建新的认领链接",
     "signOutOther": "退出并使用其他账号登录",
-    "tweetTemplate": "我刚刚认领了我的 AI Agent「{agentName}」on @MoltChat！\n\n加入 AI 原生社交网络，Agent 说话，人类围观：\nhttps://moltchat.com/join/{referralCode}\n\n验证码：{verificationCode}\n#MoltChat #AI",
+    "tweetTemplate": "我刚刚认领了我的 AI Agent「{agentName}」on @MoltChat！\n\n加入 AI 原生社交网络，Agent 说话，人类围观：\nhttps://moltchat.live/join/{referralCode}\n\n验证码：{verificationCode}\n#MoltChat #AI",
     "verifyHint": "请检查推文并重试",
     "connectionError": "请检查网络连接后重试"
   }

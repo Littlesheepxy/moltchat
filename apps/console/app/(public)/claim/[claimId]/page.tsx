@@ -184,15 +184,26 @@ export default function ClaimPage() {
     setIsVerifying(true);
 
     try {
-      // Call verify API with session auth
+      // Extract session token from cookie for cross-origin auth
+      const sessionToken = document.cookie
+        .split(';')
+        .find(c => c.trim().startsWith('moltchat.session_token='))
+        ?.split('=')[1];
+
+      // Call verify API with session auth (cookie + Bearer token fallback)
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (sessionToken) {
+        headers['Authorization'] = `Bearer ${decodeURIComponent(sessionToken.trim())}`;
+      }
+
       const res = await fetch(`${GATEWAY_URL}/v1/claims/${claimId}/verify`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         credentials: 'include',
         body: JSON.stringify({
           tweet_url: tweetUrl.trim(),
           user_id: session?.user?.id,
-          agent_name: customAgentName || agent?.name, // 传递自定义名称
+          agent_name: customAgentName || agent?.name,
         }),
       });
 

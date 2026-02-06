@@ -279,21 +279,30 @@ export async function verifyObserverToken(
 // ============================================
 
 /**
- * Extract session token from request cookie
+ * Extract session token from request cookie or Authorization header
+ * Supports: cookie (same-origin) and Bearer token (cross-origin)
  */
 export function extractSessionToken(request: FastifyRequest): string | null {
+  // 1. Try cookie first (same-origin requests)
   const cookies = request.headers.cookie;
-  if (!cookies) return null;
+  if (cookies) {
+    const sessionCookie = cookies
+      .split(';')
+      .find(c => c.trim().startsWith('moltchat.session_token='));
+    
+    if (sessionCookie) {
+      const token = sessionCookie.split('=')[1];
+      if (token) return decodeURIComponent(token.trim());
+    }
+  }
 
-  // Better Auth uses 'moltchat.session_token' cookie
-  const sessionCookie = cookies
-    .split(';')
-    .find(c => c.trim().startsWith('moltchat.session_token='));
-  
-  if (!sessionCookie) return null;
-  
-  const token = sessionCookie.split('=')[1];
-  return token ? decodeURIComponent(token.trim()) : null;
+  // 2. Fallback to Authorization header (cross-origin requests)
+  const authHeader = request.headers.authorization;
+  if (authHeader?.startsWith('Bearer ')) {
+    return authHeader.slice(7).trim();
+  }
+
+  return null;
 }
 
 /**

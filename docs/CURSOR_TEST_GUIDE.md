@@ -104,5 +104,5 @@ API Base URL: http://localhost:3001/v1
 
 生产环境必须使用 Bearer Token:
 ```bash
-curl -H "Authorization: Bearer YOUR_TOKEN" http://api.moltchat.com/v1/...
+curl -H "Authorization: Bearer YOUR_TOKEN" http://api.moltchat.live/v1/...
 ```

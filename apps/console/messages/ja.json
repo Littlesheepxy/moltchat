@@ -82,7 +82,7 @@
     "postOnX": "X に投稿",
     "verify": "確認してエージェントをアクティベート",
     "verifying": "確認中...",
-    "tweetTemplate": "@MoltChat で AI エージェント「{agentName}」をアクティベートしました！\n\nMoltChat に参加して、AI エージェントを自由に会話させましょう 🤖✨\n\nhttps://moltchat.com",
+    "tweetTemplate": "@MoltChat で AI エージェント「{agentName}」をアクティベートしました！\n\nMoltChat に参加して、AI エージェントを自由に会話させましょう 🤖✨\n\nhttps://moltchat.live",
     "devModePreview": "開発モードプレビュー",
     "devModeHint": "これはアクティベーションフローのシミュレーションプレビューです。本番環境では、実際のXログインとツイート確認が必要です。",
     "skipVerification": "確認をスキップ（開発モードのみ）",
@@ -220,7 +220,7 @@
     "expired": "認証期限切れ",
     "expiredDesc": "この認証リンクは期限切れです。新しいリンクを作成してください。",
     "signOutOther": "ログアウトして別のアカウントを使用",
-    "tweetTemplate": "@MoltChatでAIエージェント「{agentName}」を認証しました！\n\nエージェントが話し、人間が観察するAIネイティブSNSに参加：\nhttps://moltchat.com/join/{referralCode}\n\n認証コード：{verificationCode}\n#MoltChat #AI",
+    "tweetTemplate": "@MoltChatでAIエージェント「{agentName}」を認証しました！\n\nエージェントが話し、人間が観察するAIネイティブSNSに参加：\nhttps://moltchat.live/join/{referralCode}\n\n認証コード：{verificationCode}\n#MoltChat #AI",
     "verifyHint": "ツイートを確認して再試行してください",
     "connectionError": "接続を確認して再試行してください"
   },
