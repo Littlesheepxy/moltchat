@@ -9,6 +9,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { createRoom } from '@/lib/api';
+import { useI18n } from '@/lib/i18n-provider';
 import { getAgentAvatarUrl } from '@/lib/avatar';
 import {
   Dialog,
@@ -40,6 +41,7 @@ interface CreateRoomDialogProps {
 }
 
 export function CreateRoomDialog({ open, onOpenChange, onCreated }: CreateRoomDialogProps) {
+  const { t } = useI18n();
   // Form state
   const [roomName, setRoomName] = useState('');
   const [roomDescription, setRoomDescription] = useState('');
@@ -120,7 +122,7 @@ export function CreateRoomDialog({ open, onOpenChange, onCreated }: CreateRoomDi
 
   const handleCreate = async () => {
     if (!roomName.trim()) {
-      setError('请输入房间名称');
+      setError(t('chat.createRoomDialog.roomNameRequired'));
       return;
     }
 
@@ -136,7 +138,7 @@ export function CreateRoomDialog({ open, onOpenChange, onCreated }: CreateRoomDi
       );
 
       if (!result.success || !result.data) {
-        setError('创建房间失败，请重试');
+        setError(t('chat.createRoomDialog.createFailed'));
         setIsCreating(false);
         return;
       }
@@ -158,7 +160,7 @@ export function CreateRoomDialog({ open, onOpenChange, onCreated }: CreateRoomDi
 
       onCreated?.(roomId);
     } catch (err) {
-      setError('创建房间失败，请重试');
+      setError(t('chat.createRoomDialog.createFailed'));
     } finally {
       setIsCreating(false);
     }
@@ -173,9 +175,9 @@ export function CreateRoomDialog({ open, onOpenChange, onCreated }: CreateRoomDi
         {/* Header */}
         <div className="px-6 pt-6 pb-4">
           <DialogHeader>
-            <DialogTitle className="text-xl font-semibold">新建房间</DialogTitle>
+            <DialogTitle className="text-xl font-semibold">{t('chat.createRoomDialog.title')}</DialogTitle>
             <DialogDescription>
-              创建一个房间并邀请 Agent 加入对话
+              {t('chat.createRoomDialog.description')}
             </DialogDescription>
           </DialogHeader>
         </div>
@@ -184,11 +186,11 @@ export function CreateRoomDialog({ open, onOpenChange, onCreated }: CreateRoomDi
           {/* Room Name */}
           <div className="space-y-2">
             <Label htmlFor="room-name" className="text-sm font-medium">
-              房间名称 <span className="text-destructive">*</span>
+              {t('chat.createRoomDialog.roomName')} <span className="text-destructive">*</span>
             </Label>
             <Input
               id="room-name"
-              placeholder="例如：AI 哲学讨论"
+              placeholder={t('chat.createRoomDialog.roomNamePlaceholder')}
               value={roomName}
               onChange={(e) => setRoomName(e.target.value)}
               className="rounded-xl h-10"
@@ -199,11 +201,11 @@ export function CreateRoomDialog({ open, onOpenChange, onCreated }: CreateRoomDi
           {/* Room Description */}
           <div className="space-y-2">
             <Label htmlFor="room-description" className="text-sm font-medium">
-              房间描述
+              {t('chat.createRoomDialog.roomDescription')}
             </Label>
             <Textarea
               id="room-description"
-              placeholder="描述这个房间的主题..."
+              placeholder={t('chat.createRoomDialog.roomDescriptionPlaceholder')}
               value={roomDescription}
               onChange={(e) => setRoomDescription(e.target.value)}
               className="rounded-xl resize-none h-20"
@@ -213,7 +215,7 @@ export function CreateRoomDialog({ open, onOpenChange, onCreated }: CreateRoomDi
 
           {/* Public/Private Toggle */}
           <div className="space-y-2">
-            <Label className="text-sm font-medium">房间可见性</Label>
+            <Label className="text-sm font-medium">{t('chat.createRoomDialog.visibility')}</Label>
             <div className="flex gap-2">
               <button
                 onClick={() => setIsPublic(true)}
@@ -226,8 +228,8 @@ export function CreateRoomDialog({ open, onOpenChange, onCreated }: CreateRoomDi
               >
                 <Globe className={cn('h-4 w-4 flex-shrink-0', isPublic ? 'text-primary' : 'text-muted-foreground')} />
                 <div>
-                  <div className={cn('text-sm font-medium', isPublic ? 'text-primary' : '')}>公开</div>
-                  <div className="text-xs text-muted-foreground">所有人可在发现页浏览</div>
+                  <div className={cn('text-sm font-medium', isPublic ? 'text-primary' : '')}>{t('chat.createRoomDialog.public')}</div>
+                  <div className="text-xs text-muted-foreground">{t('chat.createRoomDialog.publicDesc')}</div>
                 </div>
               </button>
               <button
@@ -236,8 +238,8 @@ export function CreateRoomDialog({ open, onOpenChange, onCreated }: CreateRoomDi
               >
                 <Lock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                 <div>
-                  <div className="text-sm font-medium text-muted-foreground">私密</div>
-                  <div className="text-xs text-muted-foreground">即将开放</div>
+                  <div className="text-sm font-medium text-muted-foreground">{t('chat.createRoomDialog.private')}</div>
+                  <div className="text-xs text-muted-foreground">{t('chat.createRoomDialog.privateDesc')}</div>
                 </div>
               </button>
             </div>
@@ -246,7 +248,7 @@ export function CreateRoomDialog({ open, onOpenChange, onCreated }: CreateRoomDi
           {/* Agent Selection */}
           <div className="space-y-2">
             <Label className="text-sm font-medium">
-              邀请 Agent
+              {t('chat.createRoomDialog.inviteAgents')}
             </Label>
 
             {/* Selected Agents */}
@@ -278,7 +280,7 @@ export function CreateRoomDialog({ open, onOpenChange, onCreated }: CreateRoomDi
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="搜索 Agent..."
+                placeholder={t('chat.createRoomDialog.searchAgents')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-9 rounded-xl h-9 text-sm"
@@ -294,8 +296,8 @@ export function CreateRoomDialog({ open, onOpenChange, onCreated }: CreateRoomDi
               ) : availableAgents.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
                   <Bot className="h-8 w-8 mb-2 opacity-30" />
-                  <p className="text-sm">暂无可用 Agent</p>
-                  <p className="text-xs mt-1 opacity-70">先在控制台注册 Agent</p>
+                  <p className="text-sm">{t('chat.createRoomDialog.noAgents')}</p>
+                  <p className="text-xs mt-1 opacity-70">{t('chat.createRoomDialog.noAgentsHint')}</p>
                 </div>
               ) : (
                 availableAgents.map(agent => {
@@ -348,8 +350,8 @@ export function CreateRoomDialog({ open, onOpenChange, onCreated }: CreateRoomDi
         <div className="px-6 py-4 bg-muted/30 border-t border-border/50 flex items-center justify-between">
           <p className="text-xs text-muted-foreground">
             {selectedAgents.length > 0
-              ? `已选择 ${selectedAgents.length} 个 Agent`
-              : '可稍后邀请 Agent'}
+              ? t('chat.createRoomDialog.selectedCount').replace('{count}', String(selectedAgents.length))
+              : t('chat.createRoomDialog.canInviteLater')}
           </p>
           <div className="flex gap-2">
             <Button
@@ -358,7 +360,7 @@ export function CreateRoomDialog({ open, onOpenChange, onCreated }: CreateRoomDi
               className="rounded-xl"
               disabled={isCreating}
             >
-              取消
+              {t('chat.cancel')}
             </Button>
             <Button
               onClick={handleCreate}
@@ -368,12 +370,12 @@ export function CreateRoomDialog({ open, onOpenChange, onCreated }: CreateRoomDi
               {isCreating ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  创建中...
+                  {t('chat.createRoomDialog.creating')}
                 </>
               ) : (
                 <>
                   <Plus className="h-4 w-4 mr-1" />
-                  创建房间
+                  {t('chat.createRoomDialog.create')}
                 </>
               )}
             </Button>

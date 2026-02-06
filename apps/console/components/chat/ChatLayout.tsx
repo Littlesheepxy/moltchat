@@ -9,6 +9,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { isAuthenticated, getAgent } from '@/lib/auth';
+import { useI18n } from '@/lib/i18n-provider';
 import { getAgentAvatarUrl } from '@/lib/avatar';
 import { Menu, X, Settings, Loader2, MessageSquare, Bot, Users, Plus, Compass, PanelLeftClose, Eye } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -30,7 +31,7 @@ interface ChatLayoutProps {
  * 开发模式：模拟聊天界面
  * 展示 Agent 之间的对话，模拟实时消息流
  */
-function DevChatSimulation({ agents, roomName, onAgentClick }: { agents: any[]; roomName: string; onAgentClick?: (agentId: string) => void }) {
+function DevChatSimulation({ agents, roomName, onAgentClick, t }: { agents: any[]; roomName: string; onAgentClick?: (agentId: string) => void; t: (key: string) => string }) {
   const [messages, setMessages] = useState<Array<{
     id: number; agentId: string; agent: string; avatar: string; text: string; time: string;
   }>>([]);
@@ -111,7 +112,7 @@ function DevChatSimulation({ agents, roomName, onAgentClick }: { agents: any[]; 
       {/* 观察者模式提示 */}
       <div className="flex items-center justify-center gap-2 py-2 bg-primary/5 text-xs text-primary border-b border-border/30">
         <Eye className="h-3.5 w-3.5" />
-        <span>观察者模式 — Agent 正在自主对话中</span>
+        <span>{t('chat.observerMode')}</span>
       </div>
 
       {/* 消息列表 */}
@@ -167,12 +168,12 @@ function DevChatSimulation({ agents, roomName, onAgentClick }: { agents: any[]; 
       <div className="flex items-center justify-between px-6 py-3.5 bg-card/50 border-t border-border/30">
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-          <span>{agentNames.length} 个 Agent 在线</span>
+          <span>{t('chat.agentsOnline').replace('{count}', String(agentNames.length))}</span>
           <span className="text-muted-foreground/40">·</span>
-          <span>{messages.length} 条消息</span>
+          <span>{t('chat.messageCount').replace('{count}', String(messages.length))}</span>
         </div>
         <div className="text-xs text-muted-foreground/60 italic">
-          人类观察，Agent 发言
+          {t('chat.humanObserve')}
         </div>
       </div>
     </div>
@@ -188,6 +189,7 @@ function formatChatTime(ts: number): string {
  * 开发模式下的简化 UI - 美化版
  */
 function DevModeLayout() {
+  const { t } = useI18n();
   const agent = getAgent();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [showDiscover, setShowDiscover] = useState(true);
@@ -281,7 +283,7 @@ function DevModeLayout() {
               <button
                 onClick={() => setIsSidebarCollapsed(false)}
                 className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-accent transition-colors"
-                title="展开侧边栏"
+                    title={t('chat.expandSidebar')}
               >
                 <Image src="/logo.png" alt="MoltChat" width={32} height={32} className="rounded-lg" />
               </button>
@@ -291,7 +293,7 @@ function DevModeLayout() {
                   <Image src="/logo.png" alt="MoltChat" width={28} height={28} className="rounded-lg" />
                   <div>
                     <h2 className="text-lg font-semibold">MoltChat</h2>
-                    <p className="text-xs text-muted-foreground">开发模式</p>
+                    <p className="text-xs text-muted-foreground">{t('chat.devMode')}</p>
                   </div>
                 </div>
                 <Button
@@ -320,7 +322,7 @@ function DevModeLayout() {
             )}
           >
             <Compass className="h-5 w-5" />
-            {!isSidebarCollapsed && '发现'}
+            {!isSidebarCollapsed && t('chat.discover')}
           </Button>
           <Button
             variant="ghost"
@@ -331,7 +333,7 @@ function DevModeLayout() {
             )}
           >
             <Plus className="h-5 w-5" />
-            {!isSidebarCollapsed && '新建房间'}
+            {!isSidebarCollapsed && t('chat.createRoom')}
           </Button>
         </div>
 
@@ -344,11 +346,11 @@ function DevModeLayout() {
           ) : (
             <div className="px-1">
               {agent && (
-                <p className="text-xs text-muted-foreground px-1 mb-2">你和 {agent.name} 的房间</p>
+                <p className="text-xs text-muted-foreground px-1 mb-2">{t('chat.yourRooms').replace('{name}', agent.name)}</p>
               )}
               <div className="text-center py-6 text-muted-foreground">
                 <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                <p className="text-xs opacity-70">暂无房间</p>
+                <p className="text-xs opacity-70">{t('chat.noRooms')}</p>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -356,7 +358,7 @@ function DevModeLayout() {
                   onClick={() => setShowCreateRoom(true)}
                 >
                   <Plus className="h-3.5 w-3.5 mr-1" />
-                  创建第一个
+                  {t('chat.createFirst')}
                 </Button>
               </div>
             </div>
@@ -417,8 +419,8 @@ function DevModeLayout() {
                   onClick={() => { setShowDiscover(true); setSelectedRoomId(null); setShowMemberPanel(false); }}
                   className="gap-2 rounded-xl text-muted-foreground hover:text-foreground px-3"
                 >
-                  <Compass className="h-4 w-4" />
-                  发现
+                    <Compass className="h-4 w-4" />
+                    {t('chat.discover')}
                 </Button>
                 {selectedRoom && (
                   <>
@@ -450,7 +452,7 @@ function DevModeLayout() {
                         </div>
                         <span className="ml-3 text-xs text-green-600 flex items-center gap-1.5">
                           <span className="w-2 h-2 rounded-full bg-green-500" />
-                          {selectedRoom.agents.length} 在线
+                          {selectedRoom.agents.length} {t('chat.online')}
                         </span>
                       </div>
                     )}
@@ -465,7 +467,7 @@ function DevModeLayout() {
                     size="icon"
                     onClick={() => setShowMemberPanel(!showMemberPanel)}
                     className="h-9 w-9 rounded-lg"
-                    title="成员列表"
+                    title={t('chat.memberList')}
                   >
                     <Users className="h-4 w-4" />
                   </Button>
@@ -492,6 +494,7 @@ function DevModeLayout() {
                     agents={selectedRoom.agents || []}
                     roomName={selectedRoom.name}
                     onAgentClick={handleAgentClick}
+                    t={t}
                   />
                 </div>
 
@@ -511,13 +514,13 @@ function DevModeLayout() {
                         </span>
                         <span className="flex items-center gap-1.5">
                           <Eye className="h-4 w-4" />
-                          观察者模式
+                          {t('chat.observerModeLabel')}
                         </span>
                       </div>
                     </div>
                     {/* 成员列表 */}
                     <div className="flex-1 overflow-y-auto px-4 py-4">
-                      <p className="text-xs font-medium text-muted-foreground mb-3">成员 ({selectedRoom.agents?.length || 0})</p>
+                      <p className="text-xs font-medium text-muted-foreground mb-3">{t('chat.members')} ({selectedRoom.agents?.length || 0})</p>
                       <div className="space-y-1">
                         {selectedRoom.agents?.map((a: any) => (
                           <button
@@ -551,18 +554,18 @@ function DevModeLayout() {
               <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground p-8">
                 <div className="max-w-md text-center">
                   <Compass className="h-16 w-16 mx-auto mb-4 text-primary opacity-50" />
-                  <h2 className="text-xl font-semibold mb-2">选择一个房间</h2>
+                  <h2 className="text-xl font-semibold mb-2">{t('chat.selectRoom')}</h2>
                   <p className="text-sm mb-6">
-                    从发现页浏览房间，或创建一个新房间开始对话
+                    {t('chat.selectRoomDesc')}
                   </p>
                   <div className="flex gap-3 justify-center">
                     <Button onClick={() => setShowDiscover(true)} className="rounded-xl">
                       <Compass className="h-4 w-4 mr-1" />
-                      浏览房间
+                      {t('chat.browseRooms')}
                     </Button>
                     <Button variant="outline" onClick={() => setShowCreateRoom(true)} className="rounded-xl">
                       <Plus className="h-4 w-4 mr-1" />
-                      新建房间
+                      {t('chat.createRoom')}
                     </Button>
                   </div>
                 </div>
@@ -604,6 +607,7 @@ function DevModeLayout() {
  * 正式模式下的完整聊天布局（需要动态导入）
  */
 function FullChatLayout() {
+  const { t } = useI18n();
   // 延迟导入依赖 Matrix 的组件
   const [components, setComponents] = useState<{
     Sidebar: React.ComponentType<any>;
@@ -657,7 +661,7 @@ function FullChatLayout() {
         const credentials = await getMatrixCredentials();
         
         if (!credentials) {
-          setConnectionError('无法获取 Matrix 凭据，请重新登录');
+          setConnectionError(t('chat.connectionFailed'));
           return;
         }
 
@@ -698,7 +702,7 @@ function FullChatLayout() {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
-        <p className="text-muted-foreground">加载中...</p>
+        <p className="text-muted-foreground">{t('chat.loading')}</p>
       </div>
     );
   }
@@ -707,7 +711,7 @@ function FullChatLayout() {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
-        <p className="text-muted-foreground">连接到 Matrix...</p>
+        <p className="text-muted-foreground">{t('chat.connectingMatrix')}</p>
       </div>
     );
   }
@@ -715,12 +719,12 @@ function FullChatLayout() {
   if (connectionError) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-background">
-        <h1 className="text-2xl font-bold mb-4 text-destructive">连接失败</h1>
+        <h1 className="text-2xl font-bold mb-4 text-destructive">{t('chat.connectionFailed')}</h1>
         <p className="text-muted-foreground mb-6">{connectionError}</p>
         <div className="flex gap-4">
-          <Button onClick={() => window.location.reload()} className="rounded-xl">重试</Button>
+          <Button onClick={() => window.location.reload()} className="rounded-xl">{t('chat.retry')}</Button>
           <Button variant="outline" asChild className="rounded-xl">
-            <Link href="/console">返回控制台</Link>
+            <Link href="/console">{t('chat.backToConsole')}</Link>
           </Button>
         </div>
       </div>
@@ -742,12 +746,12 @@ function FullChatLayout() {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-background">
-        <h1 className="text-2xl font-bold mb-4 text-destructive">错误</h1>
+        <h1 className="text-2xl font-bold mb-4 text-destructive">{t('chat.error')}</h1>
         <p className="text-muted-foreground mb-6">{error}</p>
         <div className="flex gap-4">
-          <Button onClick={() => window.location.reload()} className="rounded-xl">重试</Button>
+          <Button onClick={() => window.location.reload()} className="rounded-xl">{t('chat.retry')}</Button>
           <Button variant="outline" asChild className="rounded-xl">
-            <Link href="/console">返回控制台</Link>
+            <Link href="/console">{t('chat.backToConsole')}</Link>
           </Button>
         </div>
       </div>
@@ -816,7 +820,7 @@ function FullChatLayout() {
                   onClick={() => setShowDiscover(true)}
                 >
                   <Compass className="h-4 w-4" />
-                  发现
+                  {t('chat.discover')}
                 </Button>
 
                 <div className="flex items-center gap-2">
@@ -833,9 +837,9 @@ function FullChatLayout() {
                   <span className="text-sm text-muted-foreground">
                     {isConnected
                       ? syncState === 'PREPARED'
-                        ? '已连接'
-                        : '同步中...'
-                      : '未连接'}
+                        ? t('chat.connected')
+                        : t('chat.syncing')
+                      : t('chat.disconnected')}
                   </span>
                 </div>
               </div>
@@ -904,6 +908,7 @@ function FullChatLayout() {
 }
 
 export function ChatLayout({ children }: ChatLayoutProps) {
+  const { t } = useI18n();
   const [isDevMode, setIsDevMode] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -916,7 +921,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
-        <p className="text-muted-foreground">加载中...</p>
+        <p className="text-muted-foreground">{t('chat.loading')}</p>
       </div>
     );
   }

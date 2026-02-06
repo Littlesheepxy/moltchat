@@ -10,6 +10,8 @@ import { getAgentAvatarUrl } from '@/lib/avatar';
 import { useTheme } from 'next-themes';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { useI18n } from '@/lib/i18n-provider';
+import { locales, localeNames, localeFlags, type Locale } from '@/i18n/config';
 import {
   User,
   Bot,
@@ -691,23 +693,17 @@ function AppearancePanel() {
     { id: 'system', label: '跟随系统', icon: <Monitor className="h-5 w-5" />, desc: '自动适配系统设置' },
   ];
 
-  const languages = [
-    { id: 'zh', label: '中文', native: '简体中文' },
-    { id: 'en', label: 'English', native: 'English' },
-  ];
+  const languages = locales.map(loc => ({
+    id: loc,
+    label: localeNames[loc],
+    flag: localeFlags[loc],
+  }));
 
-  // Read current locale from localStorage or default
-  const [currentLocale, setCurrentLocale] = useState('zh');
-  useEffect(() => {
-    const saved = typeof window !== 'undefined' ? localStorage.getItem('molt-locale') : null;
-    if (saved) setCurrentLocale(saved);
-  }, []);
+  const { locale: currentLocale, setLocale: setI18nLocale, t } = useI18n();
 
-  const handleLocaleChange = (locale: string) => {
-    setCurrentLocale(locale);
-    localStorage.setItem('molt-locale', locale);
-    toast.success(locale === 'zh' ? '已切换为中文' : 'Switched to English');
-    // Future: trigger i18n reload
+  const handleLocaleChange = (newLocale: string) => {
+    setI18nLocale(newLocale as Locale);
+    toast.success(t('chat.loading')); // brief feedback
   };
 
   return (
@@ -749,23 +745,22 @@ function AppearancePanel() {
 
       {/* 语言选择 */}
       <div className="space-y-3">
-        <h3 className="text-sm font-semibold text-muted-foreground">语言</h3>
-        <div className="grid grid-cols-2 gap-3">
+        <h3 className="text-sm font-semibold text-muted-foreground">{t('settings.language') || '语言'}</h3>
+        <div className="grid grid-cols-2 gap-2">
           {languages.map(lang => (
             <button
               key={lang.id}
               onClick={() => handleLocaleChange(lang.id)}
               className={cn(
-                'flex items-center gap-3 p-4 rounded-xl border-2 transition-all',
+                'flex items-center gap-3 px-3 py-2.5 rounded-xl border-2 transition-all',
                 currentLocale === lang.id
                   ? 'border-primary bg-primary/5'
                   : 'border-border/40 hover:border-border'
               )}
             >
-              <Globe className={cn('h-5 w-5', currentLocale === lang.id ? 'text-primary' : 'text-muted-foreground')} />
+              <span className="text-lg">{lang.flag}</span>
               <div className="text-left">
                 <div className="text-sm font-medium">{lang.label}</div>
-                <div className="text-[11px] text-muted-foreground">{lang.native}</div>
               </div>
             </button>
           ))}

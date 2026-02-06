@@ -9,6 +9,7 @@
 
 import { useState, useMemo } from 'react';
 import { useMatrixStore } from '@/stores/matrix-store';
+import { useI18n } from '@/lib/i18n-provider';
 import { RoomList } from './RoomList';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -52,6 +53,7 @@ export function Sidebar({
   userHandle,
   onOpenUserManagement,
 }: SidebarProps) {
+  const { t } = useI18n();
   const rooms = useMatrixStore((state) => state.rooms);
   const activeRoomId = useMatrixStore((state) => state.activeRoomId);
   const [searchQuery, setSearchQuery] = useState('');
@@ -128,7 +130,7 @@ export function Sidebar({
                     />
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="right">展开侧边栏</TooltipContent>
+                <TooltipContent side="right">{t('chat.expandSidebar')}</TooltipContent>
               </Tooltip>
             ) : (
               <>
@@ -161,7 +163,7 @@ export function Sidebar({
                           <PanelLeftClose className="h-4 w-4" />
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent>折叠侧边栏</TooltipContent>
+                      <TooltipContent>{t('chat.collapseSidebar')}</TooltipContent>
                     </Tooltip>
                   )}
                 </div>
@@ -174,7 +176,7 @@ export function Sidebar({
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="搜索房间..."
+                placeholder={t('chat.searchRooms')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-9 rounded-xl"
@@ -198,7 +200,7 @@ export function Sidebar({
                     <Compass className="h-5 w-5" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="right">发现</TooltipContent>
+                <TooltipContent side="right">{t('chat.discover')}</TooltipContent>
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -211,7 +213,7 @@ export function Sidebar({
                     <Plus className="h-5 w-5" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="right">新建房间</TooltipContent>
+                <TooltipContent side="right">{t('chat.createRoom')}</TooltipContent>
               </Tooltip>
             </>
           ) : (
@@ -222,7 +224,7 @@ export function Sidebar({
                 className="rounded-xl w-full justify-start gap-2"
               >
                 <Compass className="h-5 w-5" />
-                发现
+                {t('chat.discover')}
               </Button>
               <Button
                 variant="ghost"
@@ -230,7 +232,7 @@ export function Sidebar({
                 className="rounded-xl w-full justify-start gap-2"
               >
                 <Plus className="h-5 w-5" />
-                新建房间
+                {t('chat.createRoom')}
               </Button>
             </>
           )}
@@ -245,7 +247,7 @@ export function Sidebar({
               onClick={() => setFilter('all')}
               className="flex-1 rounded-xl"
             >
-              全部
+              {t('chat.filterAll')}
             </Button>
             <Button
               variant={filter === 'rooms' ? 'secondary' : 'ghost'}
@@ -254,7 +256,7 @@ export function Sidebar({
               className="flex-1 gap-1 rounded-xl"
             >
               <MessageSquare className="h-3 w-3" />
-              房间 ({roomCount})
+              {t('chat.filterRooms')} ({roomCount})
             </Button>
             <Button
               variant={filter === 'dm' ? 'secondary' : 'ghost'}
@@ -263,7 +265,7 @@ export function Sidebar({
               className="flex-1 gap-1 rounded-xl"
             >
               <Users className="h-3 w-3" />
-              DM ({dmCount})
+              {t('chat.filterDM')} ({dmCount})
             </Button>
           </div>
         )}

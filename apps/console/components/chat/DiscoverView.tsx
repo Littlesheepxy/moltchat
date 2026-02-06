@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
 import { cn } from '@/lib/utils';
+import { useI18n } from '@/lib/i18n-provider';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -284,8 +285,15 @@ export function DiscoverView({
   onRefresh,
   isLoading = false 
 }: DiscoverViewProps) {
+  const { t } = useI18n();
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'recent' | 'popular' | 'active'>('recent');
+
+  const sortLabels: Record<string, string> = {
+    recent: t('chat.recent'),
+    popular: t('chat.popular'),
+    active: t('chat.active'),
+  };
 
   // 使用传入的真实房间数据
   const displayRooms = rooms;
@@ -344,7 +352,7 @@ export function DiscoverView({
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               type="text"
-              placeholder="Search rooms..."
+              placeholder={t('chat.searchPlaceholder')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10 rounded-xl h-9 bg-muted/50 border-0 focus-visible:ring-1"
@@ -364,7 +372,7 @@ export function DiscoverView({
                     : 'text-muted-foreground hover:text-foreground'
                 )}
               >
-                {filter}
+                {sortLabels[filter] || filter}
               </button>
             ))}
           </div>
@@ -387,7 +395,7 @@ export function DiscoverView({
             {onCreateRoom && (
               <Button onClick={onCreateRoom} size="sm" className="rounded-xl gap-1.5 h-9">
                 <Plus className="h-3.5 w-3.5" />
-                Create
+                {t('chat.create')}
               </Button>
             )}
           </div>
@@ -399,23 +407,23 @@ export function DiscoverView({
         {isLoading ? (
           <div className="flex flex-col items-center justify-center h-64">
             <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-            <p className="text-muted-foreground mt-4">Loading rooms...</p>
+            <p className="text-muted-foreground mt-4">{t('chat.loadingRooms')}</p>
           </div>
         ) : filteredRooms.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-center">
             <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
               <MessageSquare className="h-8 w-8 text-muted-foreground" />
             </div>
-            <h3 className="text-lg font-semibold mb-2">No rooms found</h3>
+            <h3 className="text-lg font-semibold mb-2">{t('chat.noRoomsFound')}</h3>
             <p className="text-muted-foreground max-w-sm">
               {searchQuery 
-                ? 'Try a different search term' 
-                : 'Start by creating your first room'}
+                ? t('chat.tryDifferentSearch') 
+                : t('chat.startByCreating')}
             </p>
             {!searchQuery && onCreateRoom && (
               <Button onClick={onCreateRoom} className="mt-4 rounded-xl gap-2">
                 <Plus className="h-4 w-4" />
-                Create Room
+                {t('chat.createRoom')}
               </Button>
             )}
           </div>
@@ -429,11 +437,11 @@ export function DiscoverView({
                     <div className="p-1.5 rounded-lg bg-primary/10">
                       <Flame className="h-4 w-4 text-primary" />
                     </div>
-                    <h2 className="text-lg font-bold">Trending Now</h2>
+                    <h2 className="text-lg font-bold">{t('chat.trendingNow')}</h2>
                     <Zap className="h-4 w-4 text-yellow-500 animate-pulse" />
                   </div>
                   <Button variant="ghost" size="sm" className="text-muted-foreground gap-1 rounded-xl">
-                    See all
+                    {t('chat.seeAll')}
                     <ChevronRight className="h-3.5 w-3.5" />
                   </Button>
                 </div>
@@ -462,7 +470,7 @@ export function DiscoverView({
             <div className="p-6">
               <div className="flex items-center gap-2 mb-4">
                 <h2 className="text-lg font-bold">
-                  {searchQuery ? 'Search Results' : 'All Rooms'}
+                  {searchQuery ? t('chat.searchResults') : t('chat.allRooms')}
                 </h2>
                 <span className="text-sm text-muted-foreground">
                   ({filteredRooms.length})
