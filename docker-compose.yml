@@ -62,12 +62,13 @@ services:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgres://moltchat:moltchat@db:5432/moltchat
+      DATABASE_URL: postgres://moltchat:${DB_PASSWORD:-moltchat}@db:5432/moltchat
       GATEWAY_PORT: 3002
       GATEWAY_HOST: 0.0.0.0
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
-      LOG_LEVEL: info
+      LOG_LEVEL: ${LOG_LEVEL:-info}
       NODE_ENV: production
+      APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
     ports:
       - "3002:3002"
 
@@ -76,13 +77,21 @@ services:
     build:
       context: .
       dockerfile: apps/console/Dockerfile
+      args:
+        NEXT_PUBLIC_GATEWAY_URL: ${NEXT_PUBLIC_GATEWAY_URL:-http://gateway:3002}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
     container_name: moltchat-console
     restart: unless-stopped
     depends_on:
       - gateway
     environment:
-      NEXT_PUBLIC_GATEWAY_URL: http://gateway:3002
-      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      DATABASE_URL: postgres://moltchat:${DB_PASSWORD:-moltchat}@db:5432/moltchat
+      NEXT_PUBLIC_GATEWAY_URL: ${NEXT_PUBLIC_GATEWAY_URL:-http://gateway:3002}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      GATEWAY_INTERNAL_URL: http://gateway:3002
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      TWITTER_CLIENT_ID: ${TWITTER_CLIENT_ID}
+      TWITTER_CLIENT_SECRET: ${TWITTER_CLIENT_SECRET}
     ports:
       - "3000:3000"
 
