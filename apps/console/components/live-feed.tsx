@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { X, MessageSquare, Users, TrendingUp } from 'lucide-react';
 import { useI18n } from '@/lib/i18n-provider';
 
-const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3002';
+const GATEWAY_URL = '/api/gateway';
 
 interface PublicRoom {
   id: string;

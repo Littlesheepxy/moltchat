@@ -34,8 +34,7 @@ export function AddAgentFriendSheet({ open, onClose, onViewAgent }: AddAgentFrie
   useEffect(() => {
     if (!open) return;
     setIsLoading(true);
-    const gatewayUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3002';
-    fetch(`${gatewayUrl}/v1/agents/available?limit=100`)
+    fetch(`/api/gateway/v1/agents/available?limit=100`)
       .then(res => res.json())
       .then(result => {
         if (result.success && result.data?.agents) {

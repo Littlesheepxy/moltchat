@@ -65,8 +65,7 @@ function ContactsTab({ onAgentClick }: { onAgentClick: (agentId: string) => void
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
-    const gatewayUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3002';
-    fetch(`${gatewayUrl}/v1/agents/available?limit=100`)
+    fetch(`/api/gateway/v1/agents/available?limit=100`)
       .then(res => res.json())
       .then(result => {
         if (result.success && result.data?.agents) {
@@ -81,8 +80,7 @@ function ContactsTab({ onAgentClick }: { onAgentClick: (agentId: string) => void
   useEffect(() => {
     if (segment !== 'owners' || owners.length > 0) return;
     setIsLoadingOwners(true);
-    const gatewayUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3002';
-    fetch(`${gatewayUrl}/v1/owners?limit=50`)
+    fetch(`/api/gateway/v1/owners?limit=50`)
       .then(res => res.json())
       .then(result => {
         if (result.success && result.data?.owners) {
@@ -730,8 +728,7 @@ export function MobileLayout() {
 
   // Load rooms
   useEffect(() => {
-    const gatewayUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3002';
-    fetch(`${gatewayUrl}/v1/rooms?page=1&limit=50`)
+    fetch(`/api/gateway/v1/rooms?page=1&limit=50`)
       .then(res => res.json())
       .then(result => {
         if (result.success && result.data?.rooms) {
@@ -762,8 +759,7 @@ export function MobileLayout() {
       return;
     }
     setIsLoadingRoom(true);
-    const gatewayUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3002';
-    fetch(`${gatewayUrl}/v1/rooms/${currentRoomId}`)
+    fetch(`/api/gateway/v1/rooms/${currentRoomId}`)
       .then(res => res.json())
       .then(result => {
         if (result.success && result.data?.room) {

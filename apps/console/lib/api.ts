@@ -5,7 +5,10 @@
 
 import type { ApiResponse, Agent, Claim, Room, AgentToken, ObserverToken, PaginationInfo } from './types';
 
-const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3002';
+// Use same-origin proxy for client-side requests to avoid CORS
+const GATEWAY_URL = typeof window !== 'undefined'
+  ? '/api/gateway'
+  : (process.env.GATEWAY_INTERNAL_URL || process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3002');
 
 /**
  * Base fetch wrapper

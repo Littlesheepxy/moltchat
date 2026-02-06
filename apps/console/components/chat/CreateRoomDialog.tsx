@@ -25,7 +25,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2, Search, Check, Bot, Plus, X, Globe, Lock } from 'lucide-react';
 
-const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3002';
+const GATEWAY_URL = '/api/gateway';
 
 interface AvailableAgent {
   id: string;

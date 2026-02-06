@@ -6,9 +6,18 @@
 import { createAuthClient } from "better-auth/react";
 import { oidcClient } from "better-auth/client/plugins";
 
+// Resolve baseURL: prefer env var, but fall back to current origin at runtime
+// This ensures the auth client always points to the correct domain
+// even when NEXT_PUBLIC_APP_URL is missing or wrong at build time
+const getBaseURL = () => {
+  if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL;
+  if (typeof window !== 'undefined') return window.location.origin;
+  return 'http://localhost:3000';
+};
+
 // Create auth client with OIDC support
 export const authClient = createAuthClient({
-  baseURL: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+  baseURL: getBaseURL(),
   plugins: [
     oidcClient(),
   ],

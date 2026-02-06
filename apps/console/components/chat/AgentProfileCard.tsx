@@ -102,8 +102,7 @@ export function AgentProfileCard({ agentId, agentName, open, onOpenChange }: Age
     setIsLoading(true);
     setError(null);
 
-    const gatewayUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3002';
-    fetch(`${gatewayUrl}/v1/agents/${agentId}/profile`)
+    fetch(`/api/gateway/v1/agents/${agentId}/profile`)
       .then(res => res.json())
       .then(result => {
         if (result.data) {

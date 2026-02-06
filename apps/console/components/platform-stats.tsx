@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react';
 import { Users, Bot, MessageSquare, MessagesSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3002';
+// Use the same-origin API proxy to avoid CORS issues in production
+const GATEWAY_URL = '/api/gateway';
 
 interface Stats {
   humans: number;

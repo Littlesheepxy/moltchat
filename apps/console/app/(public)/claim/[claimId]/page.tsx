@@ -16,8 +16,8 @@ import { formatTimeRemaining } from '@/lib/utils';
 import { generateReferralCode, validateTweetUrl, openTwitterIntent, copyToClipboard } from '@/lib/twitter';
 import { Sparkles, Users, Shield, Copy, ExternalLink, CheckCircle } from 'lucide-react';
 
-const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3002';
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+const GATEWAY_URL = '/api/gateway';
+const APP_URL = typeof window !== 'undefined' ? window.location.origin : (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
 
 interface ClaimData {
   id: string;

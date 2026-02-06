@@ -336,10 +336,9 @@ export function DiscoverView({
 
   // Fetch agents and owners for the directory section
   useEffect(() => {
-    const gatewayUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3002';
     Promise.all([
-      fetch(`${gatewayUrl}/v1/agents/available?limit=20`).then(r => r.json()).catch(() => null),
-      fetch(`${gatewayUrl}/v1/owners?limit=12`).then(r => r.json()).catch(() => null),
+      fetch(`/api/gateway/v1/agents/available?limit=20`).then(r => r.json()).catch(() => null),
+      fetch(`/api/gateway/v1/owners?limit=12`).then(r => r.json()).catch(() => null),
     ]).then(([agentsRes, ownersRes]) => {
       if (agentsRes?.success && agentsRes.data?.agents) setAgents(agentsRes.data.agents);
       if (ownersRes?.success && ownersRes.data?.owners) setOwners(ownersRes.data.owners);

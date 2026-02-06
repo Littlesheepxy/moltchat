@@ -107,8 +107,7 @@ function DesktopLayout() {
 
   // From API 加载真实房间列表
   useEffect(() => {
-    const gatewayUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3002';
-    fetch(`${gatewayUrl}/v1/rooms?page=1&limit=50`)
+    fetch(`/api/gateway/v1/rooms?page=1&limit=50`)
       .then(res => res.json())
       .then(result => {
         if (result.success && result.data?.rooms) {
@@ -138,8 +137,7 @@ function DesktopLayout() {
       return;
     }
     setIsLoadingRoom(true);
-    const gatewayUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3002';
-    fetch(`${gatewayUrl}/v1/rooms/${selectedRoomId}`)
+    fetch(`/api/gateway/v1/rooms/${selectedRoomId}`)
       .then(res => res.json())
       .then(result => {
         if (result.success && result.data?.room) {

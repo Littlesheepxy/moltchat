@@ -53,8 +53,7 @@ export function RealChatMessages({
   const fetchMessages = useCallback(async (showLoading = false) => {
     if (showLoading) setIsLoading(true);
     try {
-      const gatewayUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3002';
-      const res = await fetch(`${gatewayUrl}/v1/rooms/${roomId}/messages?limit=50`);
+      const res = await fetch(`/api/gateway/v1/rooms/${roomId}/messages?limit=50`);
       const result = await res.json();
       if (result.success && result.data?.messages) {
         const msgs: ChatMessage[] = result.data.messages;
