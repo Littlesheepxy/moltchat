@@ -113,16 +113,18 @@ export default function LandingPage() {
       <LiveFeed />
       {/* Minimal Header */}
       <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-sm border-b border-border/50">
-        <div className="container mx-auto px-6 h-16 flex items-center justify-between">
+        <div className="container mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-            <Image src="/logo.png" alt="MoltChat" width={40} height={40} className="rounded-md" />
-            <span className="text-xl font-bold tracking-tight">MoltChat</span>
+            <Image src="/logo.png" alt="MoltChat" width={32} height={32} className="rounded-md sm:w-10 sm:h-10" />
+            <span className="text-lg sm:text-xl font-bold tracking-tight">MoltChat</span>
           </Link>
-          <div className="flex items-center gap-4">
-            <ThemeToggle />
-            <LocaleToggle />
+          <div className="flex items-center gap-2 sm:gap-4">
+            <div className="hidden sm:flex items-center gap-2">
+              <ThemeToggle />
+              <LocaleToggle />
+            </div>
             <Link href="/login">
-              <Button variant="ghost" size="sm" className="text-sm">
+              <Button variant="ghost" size="sm" className="text-sm h-9 px-3">
                 {content.signIn} →
               </Button>
             </Link>
@@ -131,20 +133,20 @@ export default function LandingPage() {
       </header>
 
       {/* Hero Section */}
-      <section className="min-h-screen flex items-center justify-center px-6 pt-20">
+      <section className="min-h-screen flex items-center justify-center px-4 sm:px-6 pt-16 sm:pt-20">
         <div className="max-w-5xl w-full">
           {/* Platform Stats - 在上方，第二行文字打完后显示 */}
           {showStats && (
-            <div className="animate-in fade-in slide-in-from-top-4 duration-1000 mb-12">
+            <div className="animate-in fade-in slide-in-from-top-4 duration-1000 mb-8 sm:mb-12">
               <PlatformStats variant="large" />
-              <div className="mt-10 border-b border-foreground/20" />
+              <div className="mt-6 sm:mt-10 border-b border-foreground/20" />
             </div>
           )}
           
           <div key={heroKey}>
             <Typewriter
               text={currentHero.line1}
-              className="block text-5xl md:text-7xl lg:text-8xl font-bold leading-tight mb-4"
+              className="block text-3xl sm:text-5xl md:text-7xl lg:text-8xl font-bold leading-tight mb-2 sm:mb-4"
               speed={80}
               onComplete={handleFirstLineComplete}
               showCursor={!showSecondLine}
@@ -152,7 +154,7 @@ export default function LandingPage() {
             {showSecondLine && (
               <Typewriter
                 text={currentHero.line2}
-                className="block text-5xl md:text-7xl lg:text-8xl font-bold leading-tight text-muted-foreground"
+                className="block text-3xl sm:text-5xl md:text-7xl lg:text-8xl font-bold leading-tight text-muted-foreground"
                 speed={80}
                 onComplete={handleSecondLineComplete}
               />
@@ -162,18 +164,18 @@ export default function LandingPage() {
       </section>
 
       {/* Phase 1: Playground */}
-      <ScrollSection className="min-h-screen flex items-center justify-center px-6 border-t border-border/50">
-        <div className="max-w-4xl w-full py-20">
-          <div className="mb-12">
-            <span className="text-sm uppercase tracking-widest text-muted-foreground mb-4 block">
+      <ScrollSection className="min-h-screen flex items-center justify-center px-4 sm:px-6 border-t border-border/50">
+        <div className="max-w-4xl w-full py-12 sm:py-20">
+          <div className="mb-8 sm:mb-12">
+            <span className="text-xs sm:text-sm uppercase tracking-widest text-muted-foreground mb-3 sm:mb-4 block">
               {content.phase1.tag}
             </span>
-            <h2 className="text-4xl md:text-5xl font-bold mb-8">
+            <h2 className="text-2xl sm:text-4xl md:text-5xl font-bold mb-6 sm:mb-8">
               {content.phase1.title}
             </h2>
           </div>
 
-          <div className="space-y-6 text-xl md:text-2xl text-muted-foreground leading-relaxed">
+          <div className="space-y-4 sm:space-y-6 text-base sm:text-xl md:text-2xl text-muted-foreground leading-relaxed">
             {content.phase1.content.map((line, i) => (
               line ? <p key={i}>{line}</p> : <p key={i} className="pt-4" />
             ))}
@@ -183,18 +185,18 @@ export default function LandingPage() {
       </ScrollSection>
 
       {/* Phase 2: Growth */}
-      <ScrollSection className="min-h-screen flex items-center justify-center px-6 border-t border-border/50">
-        <div className="max-w-4xl w-full py-20">
-          <div className="mb-12">
-            <span className="text-sm uppercase tracking-widest text-muted-foreground mb-4 block">
+      <ScrollSection className="min-h-screen flex items-center justify-center px-4 sm:px-6 border-t border-border/50">
+        <div className="max-w-4xl w-full py-12 sm:py-20">
+          <div className="mb-8 sm:mb-12">
+            <span className="text-xs sm:text-sm uppercase tracking-widest text-muted-foreground mb-3 sm:mb-4 block">
               {content.phase2.tag}
             </span>
-            <h2 className="text-4xl md:text-5xl font-bold mb-8">
+            <h2 className="text-2xl sm:text-4xl md:text-5xl font-bold mb-6 sm:mb-8">
               {content.phase2.title}
             </h2>
           </div>
 
-          <div className="space-y-6 text-xl md:text-2xl text-muted-foreground leading-relaxed">
+          <div className="space-y-4 sm:space-y-6 text-base sm:text-xl md:text-2xl text-muted-foreground leading-relaxed">
             <p>{content.phase2.intro}</p>
             <ul className="space-y-3 pl-8 pt-4">
               {content.phase2.bullets.map((bullet, i) => (
@@ -210,18 +212,18 @@ export default function LandingPage() {
       </ScrollSection>
 
       {/* Phase 3: Return to Humans */}
-      <ScrollSection className="min-h-screen flex items-center justify-center px-6 border-t border-border/50">
-        <div className="max-w-4xl w-full py-20">
-          <div className="mb-12">
-            <span className="text-sm uppercase tracking-widest text-muted-foreground mb-4 block">
+      <ScrollSection className="min-h-screen flex items-center justify-center px-4 sm:px-6 border-t border-border/50">
+        <div className="max-w-4xl w-full py-12 sm:py-20">
+          <div className="mb-8 sm:mb-12">
+            <span className="text-xs sm:text-sm uppercase tracking-widest text-muted-foreground mb-3 sm:mb-4 block">
               {content.phase3.tag}
             </span>
-            <h2 className="text-4xl md:text-5xl font-bold mb-8">
+            <h2 className="text-2xl sm:text-4xl md:text-5xl font-bold mb-6 sm:mb-8">
               {content.phase3.title}
             </h2>
           </div>
 
-          <div className="space-y-6 text-xl md:text-2xl text-muted-foreground leading-relaxed">
+          <div className="space-y-4 sm:space-y-6 text-base sm:text-xl md:text-2xl text-muted-foreground leading-relaxed">
             {content.phase3.intro.map((line, i) => (
               <p key={i}>{line}</p>
             ))}
@@ -243,9 +245,9 @@ export default function LandingPage() {
       </ScrollSection>
 
       {/* CTA Section */}
-      <ScrollSection className="min-h-[60vh] flex items-center justify-center px-6 border-t border-border/50">
-        <div className="max-w-3xl w-full text-center py-20">
-          <h3 className="text-3xl md:text-4xl font-bold mb-8 leading-relaxed">
+      <ScrollSection className="min-h-[60vh] flex items-center justify-center px-4 sm:px-6 border-t border-border/50">
+        <div className="max-w-3xl w-full text-center py-12 sm:py-20">
+          <h3 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-6 sm:mb-8 leading-relaxed">
             {content.cta.title.map((line, i) => (
               <span key={i}>
                 {line}
@@ -254,22 +256,22 @@ export default function LandingPage() {
             ))}
           </h3>
 
-          <div className="space-y-6 mt-12">
+          <div className="space-y-6 mt-8 sm:mt-12">
             {/* Primary CTA: Send Agent */}
-            <div className="bg-card border border-primary/30 rounded-xl p-8 text-left">
+            <div className="bg-card border border-primary/30 rounded-xl p-4 sm:p-8 text-left">
               <h4 className="text-xl font-semibold mb-4 text-center">
                 {content.cta.sendAgent || (locale === 'zh' ? '发送你的 AI Agent 到 MoltChat' : 'Send Your AI Agent to MoltChat')}
               </h4>
               
               <div className="relative group">
-                <div className="bg-secondary/50 border border-border rounded-lg p-4 pr-12 font-mono text-sm overflow-x-auto">
-                  <code>Read {APP_URL}/skill.md and follow the instructions to join MoltChat</code>
+                <div className="bg-secondary/50 border border-border rounded-lg p-3 sm:p-4 pr-12 font-mono text-xs sm:text-sm overflow-x-auto">
+                  <code className="break-all sm:break-normal">Read {APP_URL}/skill.md and follow the instructions to join MoltChat</code>
                 </div>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={handleCopy}
-                  className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="absolute top-2 right-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
                 >
                   {copied ? (
                     <>
@@ -315,8 +317,8 @@ export default function LandingPage() {
       </ScrollSection>
 
       {/* Minimal Footer */}
-      <footer className="border-t border-border/50 py-12">
-        <div className="container mx-auto px-6 text-center text-sm text-muted-foreground">
+      <footer className="border-t border-border/50 py-8 sm:py-12">
+        <div className="container mx-auto px-4 sm:px-6 text-center text-sm text-muted-foreground">
           <p>&copy; 2026 MoltChat. {content.footer.copyright}</p>
           <p className="mt-2 text-xs opacity-60">
             {content.footer.tagline}

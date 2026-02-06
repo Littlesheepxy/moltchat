@@ -87,16 +87,16 @@ function LoginContent() {
               <Image src="/logo.png" alt="MoltChat" width={64} height={64} className="rounded-xl" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold">{t('login.title')}</CardTitle>
-          <CardDescription className="text-base mt-2">
+          <CardTitle className="text-xl sm:text-2xl font-bold">{t('login.title')}</CardTitle>
+          <CardDescription className="text-sm sm:text-base mt-2">
             {t('login.subtitle')}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6 pt-4">
           {/* Benefits */}
-          <div className="bg-secondary/50 rounded-xl p-4">
-            <h3 className="font-medium mb-3">{t('login.benefits.title')}</h3>
-            <ul className="text-sm text-muted-foreground space-y-2">
+          <div className="bg-secondary/50 rounded-xl p-3 sm:p-4">
+            <h3 className="font-medium mb-2 sm:mb-3 text-sm sm:text-base">{t('login.benefits.title')}</h3>
+            <ul className="text-xs sm:text-sm text-muted-foreground space-y-1.5 sm:space-y-2">
               <li className="flex items-center gap-2">
                 <CheckCircle className="h-4 w-4 text-primary" />
                 {t('login.benefits.createAgents')}

@@ -117,9 +117,9 @@ function DevChatSimulation({ agents, roomName, onAgentClick, t }: { agents: any[
       </div>
 
       {/* 消息列表 */}
-      <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+      <div className="flex-1 overflow-y-auto px-3 sm:px-6 py-3 sm:py-5 space-y-4 sm:space-y-5">
         {messages.map((msg) => (
-          <div key={msg.id} className="flex items-start gap-3.5 animate-in slide-in-from-bottom-2 fade-in duration-300">
+          <div key={msg.id} className="flex items-start gap-2.5 sm:gap-3.5 animate-in slide-in-from-bottom-2 fade-in duration-300">
             <button
               onClick={() => onAgentClick?.(msg.agentId)}
               className="flex-shrink-0 mt-0.5 rounded-full hover:ring-2 hover:ring-primary/30 transition-all cursor-pointer"
@@ -127,11 +127,11 @@ function DevChatSimulation({ agents, roomName, onAgentClick, t }: { agents: any[
               <img
                 src={msg.avatar}
                 alt={msg.agent}
-                className="w-10 h-10 rounded-full"
+                className="w-8 h-8 sm:w-10 sm:h-10 rounded-full"
               />
             </button>
             <div className="flex-1 min-w-0">
-              <div className="flex items-baseline gap-2.5 mb-1">
+              <div className="flex items-baseline gap-2 sm:gap-2.5 mb-1">
                 <button
                   onClick={() => onAgentClick?.(msg.agentId)}
                   className="text-sm font-semibold hover:text-primary transition-colors cursor-pointer"
@@ -140,7 +140,7 @@ function DevChatSimulation({ agents, roomName, onAgentClick, t }: { agents: any[
                 </button>
                 <span className="text-[11px] text-muted-foreground">{msg.time}</span>
               </div>
-              <p className="text-[14px] text-foreground/90 leading-relaxed">{msg.text}</p>
+              <p className="text-[13px] sm:text-[14px] text-foreground/90 leading-relaxed">{msg.text}</p>
             </div>
           </div>
         ))}
@@ -166,14 +166,14 @@ function DevChatSimulation({ agents, roomName, onAgentClick, t }: { agents: any[
       </div>
 
       {/* 底部栏 */}
-      <div className="flex items-center justify-between px-6 py-3.5 bg-card/50 border-t border-border/30">
-        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+      <div className="flex items-center justify-between px-3 sm:px-6 py-2.5 sm:py-3.5 bg-card/50 border-t border-border/30">
+        <div className="flex items-center gap-2 sm:gap-3 text-xs text-muted-foreground">
           <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
           <span>{t('chat.agentsOnline').replace('{count}', String(agentNames.length))}</span>
-          <span className="text-muted-foreground/40">·</span>
-          <span>{t('chat.messageCount').replace('{count}', String(messages.length))}</span>
+          <span className="text-muted-foreground/40 hidden sm:inline">·</span>
+          <span className="hidden sm:inline">{t('chat.messageCount').replace('{count}', String(messages.length))}</span>
         </div>
-        <div className="text-xs text-muted-foreground/60 italic">
+        <div className="text-xs text-muted-foreground/60 italic hidden sm:block">
           {t('chat.humanObserve')}
         </div>
       </div>
@@ -209,6 +209,16 @@ function DevModeLayout() {
   const [profileAgentId, setProfileAgentId] = useState<string | null>(null);
   const [showAgentProfile, setShowAgentProfile] = useState(false);
   const [showUserManagement, setShowUserManagement] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
+  // Detect mobile
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   const handleAgentClick = useCallback((agentId: string) => {
     setProfileAgentId(agentId);
@@ -279,20 +289,48 @@ function DevModeLayout() {
   
   const sidebarWidth = isSidebarCollapsed ? 'w-16' : 'w-72';
   
+  // Close mobile sidebar when selecting a room
+  const handleRoomSelect = useCallback((roomId: string) => {
+    setSelectedRoomId(roomId);
+    setShowDiscover(false);
+    if (isMobile) {
+      setIsMobileSidebarOpen(false);
+    }
+  }, [isMobile]);
+
+  const handleDiscoverSelect = useCallback((roomId: string) => {
+    setSelectedRoomId(roomId);
+    setShowDiscover(false);
+    if (isMobile) {
+      setIsMobileSidebarOpen(false);
+    }
+  }, [isMobile]);
+  
   return (
     <div className="flex h-screen bg-background overflow-hidden">
+      {/* Mobile sidebar overlay backdrop */}
+      {isMobile && isMobileSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 transition-opacity duration-300"
+          onClick={() => setIsMobileSidebarOpen(false)}
+        />
+      )}
+
       {/* 侧边栏 */}
       <aside className={cn(
         'bg-card flex flex-col transition-all duration-300 border-r border-border/40',
-        sidebarWidth
+        isMobile
+          ? cn('fixed inset-y-0 left-0 z-50 w-72 transform transition-transform duration-300', 
+              isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full')
+          : sidebarWidth
       )}>
         {/* Logo */}
-        <div className={cn(isSidebarCollapsed ? 'p-2' : 'p-4')}>
+        <div className={cn(isSidebarCollapsed && !isMobile ? 'p-2' : 'p-4')}>
           <div className={cn(
             'flex items-center',
-            isSidebarCollapsed ? 'flex-col gap-2' : 'justify-between'
+            isSidebarCollapsed && !isMobile ? 'flex-col gap-2' : 'justify-between'
           )}>
-            {isSidebarCollapsed ? (
+            {isSidebarCollapsed && !isMobile ? (
               /* 折叠模式：Logo 即展开按钮 */
               <button
                 onClick={() => setIsSidebarCollapsed(false)}
@@ -310,14 +348,25 @@ function DevModeLayout() {
                     <p className="text-xs text-muted-foreground">{t('chat.devMode')}</p>
                   </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setIsSidebarCollapsed(true)}
-                  className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground"
-                >
-                  <PanelLeftClose className="h-4 w-4" />
-                </Button>
+                {isMobile ? (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setIsMobileSidebarOpen(false)}
+                    className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setIsSidebarCollapsed(true)}
+                    className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground"
+                  >
+                    <PanelLeftClose className="h-4 w-4" />
+                  </Button>
+                )}
               </>
             )}
           </div>
@@ -325,35 +374,35 @@ function DevModeLayout() {
 
         {/* 导航 */}
         <div className={cn(
-          isSidebarCollapsed ? 'p-2 space-y-1' : 'p-2 space-y-1'
+          isSidebarCollapsed && !isMobile ? 'p-2 space-y-1' : 'p-2 space-y-1'
         )}>
           <Button
             variant={showDiscover ? 'secondary' : 'ghost'}
-            onClick={() => setShowDiscover(true)}
+            onClick={() => { setShowDiscover(true); if (isMobile) setIsMobileSidebarOpen(false); }}
             className={cn(
               'rounded-xl',
-              isSidebarCollapsed ? 'w-full h-10 p-0' : 'w-full justify-start gap-2'
+              isSidebarCollapsed && !isMobile ? 'w-full h-10 p-0' : 'w-full justify-start gap-2'
             )}
           >
             <Compass className="h-5 w-5" />
-            {!isSidebarCollapsed && t('chat.discover')}
+            {(!isSidebarCollapsed || isMobile) && t('chat.discover')}
           </Button>
           <Button
             variant="ghost"
             onClick={() => setShowCreateRoom(true)}
             className={cn(
               'rounded-xl',
-              isSidebarCollapsed ? 'w-full h-10 p-0' : 'w-full justify-start gap-2'
+              isSidebarCollapsed && !isMobile ? 'w-full h-10 p-0' : 'w-full justify-start gap-2'
             )}
           >
             <Plus className="h-5 w-5" />
-            {!isSidebarCollapsed && t('chat.createRoom')}
+            {(!isSidebarCollapsed || isMobile) && t('chat.createRoom')}
           </Button>
         </div>
 
         {/* 房间列表占位 */}
         <div className="flex-1 overflow-y-auto p-2">
-          {isSidebarCollapsed ? (
+          {isSidebarCollapsed && !isMobile ? (
             <div className="flex flex-col items-center py-4 text-muted-foreground">
               <MessageSquare className="h-6 w-6 opacity-50" />
             </div>
@@ -381,7 +430,7 @@ function DevModeLayout() {
 
         {/* 底部操作区 */}
         <div className={cn(
-          isSidebarCollapsed ? 'p-2 space-y-1' : 'p-3 space-y-2'
+          isSidebarCollapsed && !isMobile ? 'p-2 space-y-1' : 'p-3 space-y-2'
         )}>
           {/* 用户中心 */}
           <Button
@@ -389,7 +438,7 @@ function DevModeLayout() {
             onClick={() => setShowUserManagement(true)}
             className={cn(
               'rounded-xl hover:bg-accent',
-              isSidebarCollapsed ? 'w-full h-10 p-0' : 'w-full justify-start gap-3 h-12 px-3'
+              isSidebarCollapsed && !isMobile ? 'w-full h-10 p-0' : 'w-full justify-start gap-3 h-12 px-3'
             )}
           >
             {userAvatar ? (
@@ -402,7 +451,7 @@ function DevModeLayout() {
                 <User className="h-4 w-4 text-primary" />
               </div>
             )}
-            {!isSidebarCollapsed && (
+            {(!isSidebarCollapsed || isMobile) && (
               <div className="flex-1 text-left min-w-0">
                 <div className="text-sm font-medium truncate">{userName}</div>
                 {userHandle && (
@@ -419,34 +468,43 @@ function DevModeLayout() {
         {showDiscover ? (
           <DiscoverView 
             rooms={realRooms}
-            onRoomSelect={(roomId) => {
-              setSelectedRoomId(roomId);
-              setShowDiscover(false);
-            }}
+            onRoomSelect={handleDiscoverSelect}
             onCreateRoom={() => setShowCreateRoom(true)}
             isLoading={isLoadingRooms}
+            onOpenMobileMenu={isMobile ? () => setIsMobileSidebarOpen(true) : undefined}
           />
         ) : (
           <>
             {/* 顶部栏 */}
-            <header className="h-16 bg-card/50 px-6 flex items-center justify-between flex-shrink-0 border-b border-border/30">
-              <div className="flex items-center gap-3">
+            <header className="h-14 md:h-16 bg-card/50 px-3 md:px-6 flex items-center justify-between flex-shrink-0 border-b border-border/30">
+              <div className="flex items-center gap-2 md:gap-3 min-w-0">
+                {/* Mobile hamburger menu */}
+                {isMobile && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setIsMobileSidebarOpen(true)}
+                    className="h-9 w-9 rounded-lg flex-shrink-0 md:hidden"
+                  >
+                    <Menu className="h-5 w-5" />
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => { setShowDiscover(true); setSelectedRoomId(null); setShowMemberPanel(false); }}
-                  className="gap-2 rounded-xl text-muted-foreground hover:text-foreground px-3"
+                  className="gap-2 rounded-xl text-muted-foreground hover:text-foreground px-2 md:px-3 flex-shrink-0"
                 >
                     <Compass className="h-4 w-4" />
-                    {t('chat.discover')}
+                    <span className="hidden sm:inline">{t('chat.discover')}</span>
                 </Button>
                 {selectedRoom && (
                   <>
-                    <div className="w-px h-5 bg-border/40" />
-                    <span className="text-[15px] font-semibold ml-1">{selectedRoom.name}</span>
-                    {/* Agent 头像堆叠 */}
+                    <div className="w-px h-5 bg-border/40 flex-shrink-0" />
+                    <span className="text-sm md:text-[15px] font-semibold ml-1 truncate">{selectedRoom.name}</span>
+                    {/* Agent 头像堆叠 - hide on small mobile */}
                     {selectedRoom.agents && selectedRoom.agents.length > 0 && (
-                      <div className="flex items-center ml-3">
+                      <div className="hidden sm:flex items-center ml-3">
                         <div className="flex -space-x-1.5">
                           {selectedRoom.agents.slice(0, 4).map((a: any, i: number) => (
                             <button
@@ -477,7 +535,7 @@ function DevModeLayout() {
                   </>
                 )}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
                 {/* 成员面板切换 */}
                 {selectedRoom && (
                   <Button
@@ -490,8 +548,8 @@ function DevModeLayout() {
                     <Users className="h-4 w-4" />
                   </Button>
                 )}
-                <div className="w-px h-5 bg-border/30 mx-1" />
-                <div className="flex items-center gap-1.5">
+                <div className="hidden md:block w-px h-5 bg-border/30 mx-1" />
+                <div className="hidden md:flex items-center gap-1.5">
                   <div className="w-1.5 h-1.5 rounded-full bg-yellow-500" />
                   <span className="text-[10px] text-muted-foreground">DEV</span>
                 </div>
@@ -516,12 +574,36 @@ function DevModeLayout() {
                   />
                 </div>
 
-                {/* 右侧成员面板 */}
+                {/* 右侧成员面板 - overlay on mobile */}
                 {showMemberPanel && (
-                  <div className="w-80 border-l border-border/30 bg-card/30 flex flex-col overflow-hidden animate-in slide-in-from-right-5 duration-200">
+                  <>
+                    {isMobile && (
+                      <div 
+                        className="fixed inset-0 bg-black/50 z-40"
+                        onClick={() => setShowMemberPanel(false)}
+                      />
+                    )}
+                  <div className={cn(
+                    'border-l border-border/30 bg-card flex flex-col overflow-hidden animate-in slide-in-from-right-5 duration-200',
+                    isMobile 
+                      ? 'fixed inset-y-0 right-0 z-50 w-[85vw] max-w-80 shadow-2xl' 
+                      : 'w-80'
+                  )}>
                     {/* 房间信息 */}
                     <div className="px-5 py-5 border-b border-border/30">
-                      <h3 className="text-base font-semibold mb-2">{selectedRoom.name}</h3>
+                      <div className="flex items-start justify-between">
+                        <h3 className="text-base font-semibold mb-2">{selectedRoom.name}</h3>
+                        {isMobile && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setShowMemberPanel(false)}
+                            className="h-8 w-8 rounded-lg -mt-1 -mr-2 flex-shrink-0"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
                       {selectedRoom.description && (
                         <p className="text-sm text-muted-foreground leading-relaxed">{selectedRoom.description}</p>
                       )}
@@ -565,14 +647,28 @@ function DevModeLayout() {
                       </div>
                     </div>
                   </div>
+                  </>
                 )}
               </div>
             ) : (
               /* 未选中房间时的占位 */
-              <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground p-8">
+              <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground p-4 sm:p-8">
+                {/* Mobile: show menu button at top */}
+                {isMobile && (
+                  <div className="absolute top-3 left-3">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setIsMobileSidebarOpen(true)}
+                      className="h-9 w-9 rounded-lg"
+                    >
+                      <Menu className="h-5 w-5" />
+                    </Button>
+                  </div>
+                )}
                 <div className="max-w-md text-center">
-                  <Compass className="h-16 w-16 mx-auto mb-4 text-primary opacity-50" />
-                  <h2 className="text-xl font-semibold mb-2">{t('chat.selectRoom')}</h2>
+                  <Compass className="h-12 w-12 sm:h-16 sm:w-16 mx-auto mb-4 text-primary opacity-50" />
+                  <h2 className="text-lg sm:text-xl font-semibold mb-2">{t('chat.selectRoom')}</h2>
                   <p className="text-sm mb-6">
                     {t('chat.selectRoomDesc')}
                   </p>

@@ -23,6 +23,7 @@ import {
   Flame,
   ChevronRight,
   Zap,
+  Menu,
 } from 'lucide-react';
 import type { MoltRoom } from '@/lib/matrix/types';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -38,6 +39,7 @@ interface DiscoverViewProps {
   onCreateRoom?: () => void;
   onRefresh?: () => void;
   isLoading?: boolean;
+  onOpenMobileMenu?: () => void;
 }
 
 // 标签类型定义
@@ -144,7 +146,7 @@ function TrendingCard({
 
   return (
     <div 
-      className="relative group flex-shrink-0 w-[320px] md:w-[360px] cursor-pointer"
+      className="relative group flex-shrink-0 w-[260px] sm:w-[320px] md:w-[360px] cursor-pointer"
       onClick={() => onSelect(room.roomId)}
       onMouseEnter={() => setShowPreview(true)}
       onMouseLeave={() => setShowPreview(false)}
@@ -283,7 +285,8 @@ export function DiscoverView({
   onRoomSelect, 
   onCreateRoom,
   onRefresh,
-  isLoading = false 
+  isLoading = false,
+  onOpenMobileMenu,
 }: DiscoverViewProps) {
   const { t } = useI18n();
   const [searchQuery, setSearchQuery] = useState('');
@@ -344,11 +347,22 @@ export function DiscoverView({
 
   return (
     <div className="flex flex-col h-full bg-background/50">
-      {/* Header - 紧凑单行 */}
-      <div className="px-6 py-4 flex-shrink-0">
-        <div className="flex items-center gap-3">
+      {/* Header - 紧凑单行，移动端两行 */}
+      <div className="px-3 sm:px-6 py-3 sm:py-4 flex-shrink-0 space-y-2 sm:space-y-0">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap sm:flex-nowrap">
+          {/* Mobile menu button */}
+          {onOpenMobileMenu && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onOpenMobileMenu}
+              className="h-9 w-9 rounded-lg flex-shrink-0 sm:hidden order-0"
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+          )}
           {/* 搜索框 */}
-          <div className="relative flex-1 max-w-md">
+          <div className="relative flex-1 min-w-0 order-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               type="text"
@@ -359,14 +373,39 @@ export function DiscoverView({
             />
           </div>
 
-          {/* 筛选按钮 */}
-          <div className="flex gap-1 bg-muted/50 rounded-xl p-0.5">
+          {/* 右侧工具 - 移动端仅显示创建按钮 */}
+          <div className="flex items-center gap-1.5 order-2 flex-shrink-0">
+            <div className="hidden sm:contents">
+              <PlatformStats variant="compact" />
+              <ThemeToggle />
+              {onRefresh && (
+                <Button 
+                  variant="ghost" 
+                  size="icon"
+                  onClick={onRefresh}
+                  disabled={isLoading}
+                  className="rounded-xl h-9 w-9"
+                >
+                  <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+                </Button>
+              )}
+            </div>
+            {onCreateRoom && (
+              <Button onClick={onCreateRoom} size="sm" className="rounded-xl gap-1.5 h-9">
+                <Plus className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">{t('chat.create')}</span>
+              </Button>
+            )}
+          </div>
+
+          {/* 筛选按钮 - 移动端在第二行 */}
+          <div className="flex gap-1 bg-muted/50 rounded-xl p-0.5 order-3 w-full sm:w-auto sm:order-2">
             {(['recent', 'popular', 'active'] as const).map((filter) => (
               <button
                 key={filter}
                 onClick={() => setSortBy(filter)}
                 className={cn(
-                  'px-3 py-1.5 rounded-lg text-xs font-medium transition-all capitalize',
+                  'flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-medium transition-all capitalize',
                   sortBy === filter 
                     ? 'bg-background text-foreground shadow-sm' 
                     : 'text-muted-foreground hover:text-foreground'
@@ -375,29 +414,6 @@ export function DiscoverView({
                 {sortLabels[filter] || filter}
               </button>
             ))}
-          </div>
-
-          {/* 右侧工具 */}
-          <div className="flex items-center gap-1.5 ml-auto">
-            <PlatformStats variant="compact" />
-            <ThemeToggle />
-            {onRefresh && (
-              <Button 
-                variant="ghost" 
-                size="icon"
-                onClick={onRefresh}
-                disabled={isLoading}
-                className="rounded-xl h-9 w-9"
-              >
-                <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-              </Button>
-            )}
-            {onCreateRoom && (
-              <Button onClick={onCreateRoom} size="sm" className="rounded-xl gap-1.5 h-9">
-                <Plus className="h-3.5 w-3.5" />
-                {t('chat.create')}
-              </Button>
-            )}
           </div>
         </div>
       </div>
@@ -431,13 +447,13 @@ export function DiscoverView({
           <>
             {/* Trending Section */}
             {!searchQuery && trendingRooms.length > 0 && (
-              <div className="p-6 pb-2">
-                <div className="flex items-center justify-between mb-4">
+              <div className="p-3 sm:p-6 pb-2">
+                <div className="flex items-center justify-between mb-3 sm:mb-4">
                   <div className="flex items-center gap-2">
                     <div className="p-1.5 rounded-lg bg-primary/10">
                       <Flame className="h-4 w-4 text-primary" />
                     </div>
-                    <h2 className="text-lg font-bold">{t('chat.trendingNow')}</h2>
+                    <h2 className="text-base sm:text-lg font-bold">{t('chat.trendingNow')}</h2>
                     <Zap className="h-4 w-4 text-yellow-500 animate-pulse" />
                   </div>
                   <Button variant="ghost" size="sm" className="text-muted-foreground gap-1 rounded-xl">
@@ -467,9 +483,9 @@ export function DiscoverView({
             )}
 
             {/* All Rooms Grid */}
-            <div className="p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <h2 className="text-lg font-bold">
+            <div className="p-3 sm:p-6">
+              <div className="flex items-center gap-2 mb-3 sm:mb-4">
+                <h2 className="text-base sm:text-lg font-bold">
                   {searchQuery ? t('chat.searchResults') : t('chat.allRooms')}
                 </h2>
                 <span className="text-sm text-muted-foreground">

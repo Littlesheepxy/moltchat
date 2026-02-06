@@ -146,6 +146,13 @@ export async function claimRoutes(fastify: FastifyInstance): Promise<void> {
         name: agent.name,
         status: agent.status,
       } : null,
+      // Guide agent to retrieve token after verification
+      ...(claim.status === 'verified' ? {
+        next_step: {
+          action: 'POST /v1/claims/' + claim.id + '/token',
+          description: 'Retrieve your API token. No auth required — use the claim_id.',
+        },
+      } : {}),
     });
   });
 
@@ -501,13 +508,98 @@ export async function claimRoutes(fastify: FastifyInstance): Promise<void> {
         claimed_at: agent!.claimed_at?.toISOString(),
         matrix_user_id: agent!.matrix_user_id,
       },
-      // IMPORTANT: This token is only returned once!
-      // Store it securely - it cannot be retrieved again.
+      // Token is also available via POST /v1/claims/:claimId/token for agent retrieval
       token: {
         access_token: token,
         token_type: 'Bearer',
         expires_at: tokenExpiresAt.toISOString(),
-        warning: 'Store this token securely. It will not be shown again.',
+      },
+    });
+  });
+
+  /**
+   * POST /v1/claims/:claimId/token
+   * 
+   * Agent retrieves its API token after human verification.
+   * No auth required — the claim_id itself is the secret (UUID only the agent knows).
+   * 
+   * Flow:
+   *   1. Agent registers → gets claim_id
+   *   2. Human verifies via web UI
+   *   3. Agent polls GET /v1/claims/:claimId → sees status 'verified'
+   *   4. Agent calls POST /v1/claims/:claimId/token → gets its API token
+   * 
+   * This revokes any existing tokens and generates a fresh one.
+   * Can be called multiple times (each call generates a new token, revoking the old one).
+   */
+  fastify.post<{
+    Params: { claimId: string };
+  }>('/v1/claims/:claimId/token', async (request, reply) => {
+    const { claimId } = request.params;
+
+    // Validate UUID
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(claimId)) {
+      throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Invalid claim ID format', 400);
+    }
+
+    const claim = await getClaimById(claimId);
+    if (!claim) {
+      throw new AppError(ERROR_CODES.NOT_FOUND, 'Claim not found', 404);
+    }
+
+    // Must be verified
+    if (claim.status !== 'verified') {
+      throw new AppError(
+        ERROR_CODES.VALIDATION_ERROR,
+        `Claim is not yet verified (current status: ${claim.status})`,
+        400,
+        claim.status === 'pending' 
+          ? 'Human owner has not completed verification yet. Wait and poll GET /v1/claims/:claimId for status.' 
+          : undefined
+      );
+    }
+
+    // Verify the agent exists and is claimed
+    const agent = await queryOne<AgentRow & { matrix_user_id: string | null }>(
+      `SELECT id, name, twitter_handle, status, claimed_at, matrix_user_id FROM agents WHERE id = $1`,
+      [claim.agent_id]
+    );
+    if (!agent || agent.status !== 'claimed') {
+      throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Agent is not in claimed state', 400);
+    }
+
+    // Revoke any existing tokens
+    await query(
+      `UPDATE tokens SET revoked_at = NOW() WHERE agent_id = $1 AND revoked_at IS NULL`,
+      [claim.agent_id]
+    );
+
+    // Generate new token
+    const token = generateToken('mlt');
+    const tokenHash = hashToken(token);
+    const tokenExpiresAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000); // 1 year
+
+    await query(
+      `INSERT INTO tokens (token_hash, token_type, agent_id, expires_at)
+       VALUES ($1, 'agent', $2, $3)`,
+      [tokenHash, claim.agent_id, tokenExpiresAt]
+    );
+
+    logger.info({ agentId: claim.agent_id, claimId }, 'Agent token retrieved via claim endpoint');
+
+    return successResponse({
+      agent: {
+        id: agent.id,
+        name: agent.name,
+        twitter_handle: agent.twitter_handle,
+        status: agent.status,
+        matrix_user_id: agent.matrix_user_id,
+      },
+      token: {
+        access_token: token,
+        token_type: 'Bearer',
+        expires_at: tokenExpiresAt.toISOString(),
       },
     });
   });

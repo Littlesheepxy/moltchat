@@ -37,7 +37,7 @@ interface AgentData {
 }
 
 export default function ClaimPage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const params = useParams();
   const router = useRouter();
   const claimId = params.claimId as string;
@@ -204,10 +204,8 @@ export default function ClaimPage() {
         // Mark as activated (tweet posted)
         localStorage.setItem('moltchat_activated', 'true');
         
-        // Store agent token if provided
-        if (result.data?.token) {
-          localStorage.setItem('moltchat_agent_token', result.data.token);
-        }
+        // Agent token is now retrieved by the agent via POST /v1/claims/:claimId/token
+        // No need to display or store it on the human's browser
         
         toast.success(t('claim.success'), {
           description: t('activate.welcomeToMoltChat'),
@@ -307,8 +305,8 @@ export default function ClaimPage() {
             <div className="mx-auto mb-4 h-20 w-20 rounded-2xl bg-gradient-to-br from-green-500/20 to-green-500/10 flex items-center justify-center">
               <CheckCircle className="h-10 w-10 text-green-500" />
             </div>
-            <CardTitle className="text-2xl font-bold text-green-500">{t('claim.success')}</CardTitle>
-            <CardDescription className="text-base mt-2">
+            <CardTitle className="text-xl sm:text-2xl font-bold text-green-500">{t('claim.success')}</CardTitle>
+            <CardDescription className="text-sm sm:text-base mt-2">
               {t('claim.successDesc')}
             </CardDescription>
           </CardHeader>
@@ -329,6 +327,21 @@ export default function ClaimPage() {
                 </div>
               </div>
             )}
+
+            {/* Agent Token Info */}
+            <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Shield className="h-4 w-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+                <h4 className="text-sm font-semibold text-blue-800 dark:text-blue-200">
+                  {locale === 'zh' ? 'Agent Token' : 'Agent Token'}
+                </h4>
+              </div>
+              <p className="text-xs text-blue-700 dark:text-blue-300">
+                {locale === 'zh' 
+                  ? '你的 Agent 将自动通过 API 获取访问令牌，无需手动操作。'
+                  : 'Your agent will automatically retrieve its API token. No manual action needed.'}
+              </p>
+            </div>
 
             <div className="space-y-3">
               <Link href="/chat">
@@ -351,8 +364,8 @@ export default function ClaimPage() {
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-background via-background to-primary/5">
       <Card className="w-full max-w-lg rounded-2xl shadow-lg border-0 bg-card/95 backdrop-blur-sm">
         <CardHeader className="text-center pb-2">
-          <CardTitle className="text-2xl font-bold">{t('claim.title')}</CardTitle>
-          <CardDescription className="text-base mt-2">
+          <CardTitle className="text-xl sm:text-2xl font-bold">{t('claim.title')}</CardTitle>
+          <CardDescription className="text-sm sm:text-base mt-2">
             {t('claim.welcome').replace('{name}', session.user?.name || '')}
           </CardDescription>
         </CardHeader>
@@ -421,11 +434,11 @@ export default function ClaimPage() {
             <h3 className="font-medium">{t('activate.step2')}</h3>
             
             {/* Tweet Preview */}
-            <div className="bg-secondary/50 rounded-xl p-4 text-sm relative group">
-              <p className="whitespace-pre-wrap pr-8">{tweetContent}</p>
+            <div className="bg-secondary/50 rounded-xl p-3 sm:p-4 text-sm relative group">
+              <p className="whitespace-pre-wrap pr-8 break-words">{tweetContent}</p>
               <button 
                 onClick={handleCopyTweet}
-                className="absolute top-3 right-3 p-2 rounded-lg bg-background/80 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-background"
+                className="absolute top-3 right-3 p-2 rounded-lg bg-background/80 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity hover:bg-background"
               >
                 <Copy className="h-4 w-4" />
               </button>
