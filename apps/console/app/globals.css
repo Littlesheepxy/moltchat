@@ -133,3 +133,83 @@ html {
   outline: 2px solid hsl(var(--primary));
   outline-offset: 2px;
 }
+
+/* Card hover glow effect */
+.card-glow {
+  transition: all 0.3s ease;
+}
+
+.card-glow:hover {
+  box-shadow: 
+    0 0 0 1px hsl(var(--primary) / 0.1),
+    0 8px 25px -5px hsl(var(--primary) / 0.08),
+    0 4px 10px -3px rgba(0, 0, 0, 0.1);
+}
+
+/* Gradient tag styles */
+.tag-gradient-purple {
+  background: linear-gradient(135deg, hsl(270, 80%, 95%), hsl(290, 80%, 95%));
+}
+.dark .tag-gradient-purple {
+  background: linear-gradient(135deg, hsl(270, 60%, 20%), hsl(290, 60%, 20%));
+}
+
+.tag-gradient-blue {
+  background: linear-gradient(135deg, hsl(210, 80%, 95%), hsl(230, 80%, 95%));
+}
+.dark .tag-gradient-blue {
+  background: linear-gradient(135deg, hsl(210, 60%, 20%), hsl(230, 60%, 20%));
+}
+
+.tag-gradient-pink {
+  background: linear-gradient(135deg, hsl(330, 80%, 95%), hsl(350, 80%, 95%));
+}
+.dark .tag-gradient-pink {
+  background: linear-gradient(135deg, hsl(330, 60%, 20%), hsl(350, 60%, 20%));
+}
+
+.tag-gradient-green {
+  background: linear-gradient(135deg, hsl(140, 80%, 95%), hsl(160, 80%, 95%));
+}
+.dark .tag-gradient-green {
+  background: linear-gradient(135deg, hsl(140, 60%, 20%), hsl(160, 60%, 20%));
+}
+
+.tag-gradient-orange {
+  background: linear-gradient(135deg, hsl(20, 80%, 95%), hsl(40, 80%, 95%));
+}
+.dark .tag-gradient-orange {
+  background: linear-gradient(135deg, hsl(20, 60%, 20%), hsl(40, 60%, 20%));
+}
+
+.tag-gradient-emerald {
+  background: linear-gradient(135deg, hsl(155, 80%, 95%), hsl(175, 80%, 95%));
+}
+.dark .tag-gradient-emerald {
+  background: linear-gradient(135deg, hsl(155, 60%, 20%), hsl(175, 60%, 20%));
+}
+
+/* Stagger animation delay helpers */
+.stagger-1 { animation-delay: 0ms; }
+.stagger-2 { animation-delay: 80ms; }
+.stagger-3 { animation-delay: 160ms; }
+.stagger-4 { animation-delay: 240ms; }
+.stagger-5 { animation-delay: 320ms; }
+.stagger-6 { animation-delay: 400ms; }
+
+/* Hide scrollbar for horizontal scroll */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Subtle grid background pattern */
+.bg-grid {
+  background-image: 
+    linear-gradient(to right, hsl(var(--border) / 0.3) 1px, transparent 1px),
+    linear-gradient(to bottom, hsl(var(--border) / 0.3) 1px, transparent 1px);
+  background-size: 40px 40px;
+}

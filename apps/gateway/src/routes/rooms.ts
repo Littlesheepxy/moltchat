@@ -232,6 +232,33 @@ export async function roomRoutes(fastify: FastifyInstance): Promise<void> {
       [limit, offset]
     );
 
+    // Batch fetch top 4 agents per room for avatar display
+    const roomIds = rooms.map(r => r.id);
+    const agentMembers = roomIds.length > 0 ? await queryMany<{
+      room_id: string;
+      agent_id: string;
+      agent_name: string;
+    }>(
+      `SELECT DISTINCT ON (rm.room_id, rm.agent_id)
+              rm.room_id, rm.agent_id, a.name as agent_name
+       FROM room_members rm
+       JOIN agents a ON rm.agent_id = a.id
+       WHERE rm.room_id = ANY($1::uuid[])
+       ORDER BY rm.room_id, rm.agent_id, rm.joined_at
+       LIMIT ${roomIds.length * 4}`,
+      [roomIds]
+    ) : [];
+
+    // Group agents by room
+    const agentsByRoom = new Map<string, Array<{ id: string; name: string }>>();
+    for (const m of agentMembers) {
+      const arr = agentsByRoom.get(m.room_id) || [];
+      if (arr.length < 4) {
+        arr.push({ id: m.agent_id, name: m.agent_name });
+      }
+      agentsByRoom.set(m.room_id, arr);
+    }
+
     return successResponse({
       rooms: rooms.map((room) => ({
         id: room.id,
@@ -240,6 +267,7 @@ export async function roomRoutes(fastify: FastifyInstance): Promise<void> {
         owner_id: room.owner_id,
         status: room.status,
         agent_count: parseInt(room.agent_count, 10),
+        agents: agentsByRoom.get(room.id) || [],
         matrix_room_id: room.matrix_room_id,
         element_room_url: room.element_room_url,
         created_at: room.created_at.toISOString(),
@@ -850,8 +878,8 @@ export async function roomRoutes(fastify: FastifyInstance): Promise<void> {
 
     // Check if target agent exists
     const targetAgent = await queryOne<{ id: string; name: string; matrix_user_id: string | null }>(
-      'SELECT id, name, matrix_user_id FROM agents WHERE id = $1 AND status = $2',
-      [targetAgentId, 'active']
+      'SELECT id, name, matrix_user_id FROM agents WHERE id = $1 AND status IN ($2, $3)',
+      [targetAgentId, 'claimed', 'active']
     );
 
     if (!targetAgent) {
@@ -906,9 +934,9 @@ export async function roomRoutes(fastify: FastifyInstance): Promise<void> {
     const { search, limit = 20 } = request.query;
 
     let queryText = `
-      SELECT id, name, twitter_handle, status, personality
+      SELECT id, name, twitter_handle, status
       FROM agents 
-      WHERE status = 'active'
+      WHERE status = 'claimed'
     `;
     const params: (string | number)[] = [];
 
@@ -925,7 +953,6 @@ export async function roomRoutes(fastify: FastifyInstance): Promise<void> {
       name: string;
       twitter_handle: string | null;
       status: string;
-      personality: string | null;
     }>(queryText, params);
 
     return successResponse({
@@ -933,8 +960,113 @@ export async function roomRoutes(fastify: FastifyInstance): Promise<void> {
         id: a.id,
         name: a.name,
         twitter_handle: a.twitter_handle,
-        personality: a.personality?.substring(0, 100) || null,
       })),
+    });
+  });
+
+  /**
+   * GET /v1/agents/:agentId/profile
+   * Get agent profile with owner info (public, no auth required)
+   */
+  fastify.get<{
+    Params: { agentId: string };
+  }>('/v1/agents/:agentId/profile', async (request, reply) => {
+    const { agentId } = request.params;
+
+    // Get agent basic info
+    const agent = await queryOne<{
+      id: string;
+      name: string;
+      twitter_handle: string | null;
+      bio: string | null;
+      status: string;
+      availability: string | null;
+      created_at: string;
+      claimed_at: string | null;
+      owner_user_id: string | null;
+    }>(
+      `SELECT id, name, twitter_handle, bio, status, availability, created_at, claimed_at, owner_user_id
+       FROM agents WHERE id = $1`,
+      [agentId]
+    );
+
+    if (!agent) {
+      throw new AppError(ERROR_CODES.NOT_FOUND, 'Agent not found', 404);
+    }
+
+    // Get owner info if available
+    let owner = null;
+    if (agent.owner_user_id) {
+      const ownerUser = await queryOne<{
+        id: string;
+        name: string | null;
+        image: string | null;
+        headline: string | null;
+        company: string | null;
+        location: string | null;
+        bio: string | null;
+      }>(
+        `SELECT id, name, image, headline, company, location, bio
+         FROM users WHERE id = $1`,
+        [agent.owner_user_id]
+      );
+
+      // Get owner profile for extended info
+      const ownerProfile = await queryOne<{
+        twitter_handle: string | null;
+        display_name: string | null;
+        bio_md: string | null;
+        topics_of_interest: string[] | null;
+        industry: string | null;
+        job_title: string | null;
+      }>(
+        `SELECT twitter_handle, display_name, bio_md, topics_of_interest, industry, job_title
+         FROM owner_profiles WHERE user_id = $1`,
+        [agent.owner_user_id]
+      );
+
+      if (ownerUser) {
+        owner = {
+          name: ownerProfile?.display_name || ownerUser.name,
+          image: ownerUser.image,
+          headline: ownerUser.headline,
+          company: ownerProfile?.job_title ? `${ownerProfile.job_title}${ownerUser.company ? ' @ ' + ownerUser.company : ''}` : ownerUser.company,
+          location: ownerUser.location,
+          bio: ownerUser.bio,
+          twitter_handle: ownerProfile?.twitter_handle || agent.twitter_handle,
+          industry: ownerProfile?.industry,
+          background: ownerProfile?.bio_md,
+          topics: ownerProfile?.topics_of_interest,
+        };
+      }
+    }
+
+    // Get rooms this agent is in
+    const rooms = await queryMany<{
+      room_id: string;
+      room_name: string;
+    }>(
+      `SELECT r.id as room_id, r.name as room_name
+       FROM room_members rm
+       JOIN rooms r ON r.id = rm.room_id
+       WHERE rm.agent_id = $1
+       ORDER BY rm.joined_at DESC
+       LIMIT 5`,
+      [agentId]
+    );
+
+    return successResponse({
+      agent: {
+        id: agent.id,
+        name: agent.name,
+        bio: agent.bio,
+        status: agent.status,
+        availability: agent.availability || 'active',
+        created_at: agent.created_at,
+        claimed_at: agent.claimed_at,
+      },
+      owner,
+      rooms: rooms.map(r => ({ id: r.room_id, name: r.room_name })),
     });
   });
 }

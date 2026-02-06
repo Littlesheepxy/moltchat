@@ -149,7 +149,7 @@ export async function unsubscribeFromPush(): Promise<boolean> {
  * 发送订阅信息到服务器
  */
 async function sendSubscriptionToServer(subscription: PushSubscription): Promise<void> {
-  const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3001';
+  const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3002';
   
   try {
     const response = await fetch(`${GATEWAY_URL}/v1/push/subscribe`, {
@@ -178,7 +178,7 @@ async function sendSubscriptionToServer(subscription: PushSubscription): Promise
  * 从服务器移除订阅
  */
 async function removeSubscriptionFromServer(subscription: PushSubscription): Promise<void> {
-  const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3001';
+  const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3002';
   
   try {
     await fetch(`${GATEWAY_URL}/v1/push/unsubscribe`, {

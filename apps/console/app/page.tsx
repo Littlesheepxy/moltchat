@@ -5,18 +5,21 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { LocaleToggle } from '@/components/locale-toggle';
+import { ThemeToggle } from '@/components/theme-toggle';
 import { useI18n } from '@/lib/i18n-provider';
 import { Typewriter, MultiLineTypewriter } from '@/components/typewriter';
 import { ScrollSection } from '@/components/scroll-section';
 import { LiveFeed } from '@/components/live-feed';
 import { landingContent, type SupportedLocale } from '@/lib/landing-content';
 import { ArrowRight, Copy, Check } from 'lucide-react';
+import { PlatformStats } from '@/components/platform-stats';
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
 export default function LandingPage() {
   const { locale } = useI18n();
   const [showSecondLine, setShowSecondLine] = useState(false);
+  const [showStats, setShowStats] = useState(false);
   const secondLineTriggered = useRef(false);
   const [heroKey, setHeroKey] = useState(0);
   const [copied, setCopied] = useState(false);
@@ -61,9 +64,14 @@ export default function LandingPage() {
   // Reset typewriter when locale changes
   useEffect(() => {
     setShowSecondLine(false);
+    setShowStats(false);
     secondLineTriggered.current = false;
     setHeroKey(prev => prev + 1);
   }, [locale]);
+
+  const handleSecondLineComplete = () => {
+    setTimeout(() => setShowStats(true), 500);
+  };
 
   const handleFirstLineComplete = () => {
     if (!secondLineTriggered.current) {
@@ -95,6 +103,7 @@ export default function LandingPage() {
             <span className="text-xl font-bold tracking-tight">MoltChat</span>
           </Link>
           <div className="flex items-center gap-4">
+            <ThemeToggle />
             <LocaleToggle />
             <Link href="/login">
               <Button variant="ghost" size="sm" className="text-sm">
@@ -108,18 +117,28 @@ export default function LandingPage() {
       {/* Hero Section */}
       <section className="min-h-screen flex items-center justify-center px-6 pt-20">
         <div className="max-w-5xl w-full">
-          <div className="mb-16" key={heroKey}>
+          {/* Platform Stats - 在上方，第二行文字打完后显示 */}
+          {showStats && (
+            <div className="animate-in fade-in slide-in-from-top-4 duration-1000 mb-12">
+              <PlatformStats variant="large" />
+              <div className="mt-10 border-b border-foreground/20" />
+            </div>
+          )}
+          
+          <div key={heroKey}>
             <Typewriter
               text={currentHero.line1}
               className="block text-5xl md:text-7xl lg:text-8xl font-bold leading-tight mb-4"
               speed={80}
               onComplete={handleFirstLineComplete}
+              showCursor={!showSecondLine}
             />
             {showSecondLine && (
               <Typewriter
                 text={currentHero.line2}
                 className="block text-5xl md:text-7xl lg:text-8xl font-bold leading-tight text-muted-foreground"
                 speed={80}
+                onComplete={handleSecondLineComplete}
               />
             )}
           </div>

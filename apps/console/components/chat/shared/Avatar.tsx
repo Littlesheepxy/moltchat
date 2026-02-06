@@ -1,24 +1,28 @@
 /**
  * Avatar - 头像组件
  * 
- * 支持用户头像、Agent 头像、房间头像
+ * 支持用户头像、Agent 头像（DiceBear 自动生成）、房间头像
  */
 
 'use client';
 
 import { cn } from '@/lib/utils';
 import { Bot, User, MessageSquare } from 'lucide-react';
+import { getAgentAvatarUrl, getRoomAvatarUrl } from '@/lib/avatar';
 
 interface AvatarProps {
   name: string;
   avatarUrl?: string;
-  size?: 'sm' | 'md' | 'lg' | 'xl';
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
   isAgent?: boolean;
   isRoom?: boolean;
   className?: string;
+  /** 用于 DiceBear 生成的 seed，默认使用 name */
+  seed?: string;
 }
 
 const sizeClasses = {
+  xs: 'h-6 w-6 text-[10px]',
   sm: 'h-8 w-8 text-xs',
   md: 'h-10 w-10 text-sm',
   lg: 'h-12 w-12 text-base',
@@ -26,10 +30,19 @@ const sizeClasses = {
 };
 
 const iconSizes = {
+  xs: 'h-3 w-3',
   sm: 'h-4 w-4',
   md: 'h-5 w-5',
   lg: 'h-6 w-6',
   xl: 'h-8 w-8',
+};
+
+const badgeSizes = {
+  xs: 'h-2 w-2',
+  sm: 'h-2.5 w-2.5',
+  md: 'h-3 w-3',
+  lg: 'h-3 w-3',
+  xl: 'h-3.5 w-3.5',
 };
 
 // 根据名称生成背景颜色
@@ -78,35 +91,43 @@ export function Avatar({
   isAgent = false,
   isRoom = false,
   className,
+  seed,
 }: AvatarProps) {
   const sizeClass = sizeClasses[size];
   const iconSize = iconSizes[size];
+  const badgeSize = badgeSizes[size];
 
-  // 有头像图片
-  if (avatarUrl) {
+  // 决定使用的头像 URL
+  const resolvedAvatarUrl = avatarUrl 
+    || (isAgent ? getAgentAvatarUrl(seed || name) : undefined)
+    || (isRoom ? getRoomAvatarUrl(seed || name) : undefined);
+
+  // 有头像图片（自定义或 DiceBear 生成）
+  if (resolvedAvatarUrl) {
     return (
       <div
         className={cn(
-          'relative rounded-full overflow-hidden flex-shrink-0',
+          'relative rounded-full overflow-hidden flex-shrink-0 bg-muted',
           sizeClass,
           className
         )}
       >
         <img
-          src={avatarUrl}
+          src={resolvedAvatarUrl}
           alt={name}
           className="w-full h-full object-cover"
+          loading="lazy"
         />
         {isAgent && (
-          <div className="absolute -bottom-0.5 -right-0.5 bg-primary rounded-full p-0.5">
-            <Bot className="h-3 w-3 text-primary-foreground" />
+          <div className="absolute -bottom-0.5 -right-0.5 bg-primary rounded-full p-0.5 border border-background">
+            <Bot className={badgeSize + ' text-primary-foreground'} />
           </div>
         )}
       </div>
     );
   }
 
-  // 无头像，显示首字母或图标
+  // 无头像，显示首字母或图标（仅用于人类用户）
   const bgColor = getColorFromName(name);
 
   return (
@@ -118,19 +139,10 @@ export function Avatar({
         className
       )}
     >
-      {isRoom ? (
-        <MessageSquare className={iconSize} />
-      ) : isAgent ? (
-        <Bot className={iconSize} />
-      ) : name ? (
+      {name ? (
         getInitials(name)
       ) : (
         <User className={iconSize} />
-      )}
-      {isAgent && !isRoom && (
-        <div className="absolute -bottom-0.5 -right-0.5 bg-primary rounded-full p-0.5 border-2 border-background">
-          <Bot className="h-2.5 w-2.5 text-primary-foreground" />
-        </div>
       )}
     </div>
   );

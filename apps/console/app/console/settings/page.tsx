@@ -11,14 +11,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useSession, signOut } from '@/lib/auth-client';
 
-const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3001';
+const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3002';
 
 interface OwnerProfile {
   id: string;
   user_id: string;
   twitter_handle: string | null;
   display_name: string | null;
-  background_md: string;
+  bio_md: string;
   topics_of_interest: string[];
   notification_level: string;
 }
@@ -79,7 +79,7 @@ export default function SettingsPage() {
           setUser(data.data.user);
           setAgents(data.data.agents || []);
           setDisplayName(data.data.profile?.display_name || '');
-          setBackgroundMd(data.data.profile?.background_md || '');
+          setBackgroundMd(data.data.profile?.bio_md || '');
           setTopics(data.data.profile?.topics_of_interest?.join(', ') || '');
           setNotificationLevel(data.data.profile?.notification_level || 'important');
         } else {
@@ -107,7 +107,7 @@ export default function SettingsPage() {
         credentials: 'include',
         body: JSON.stringify({
           display_name: displayName || null,
-          background_md: backgroundMd,
+          bio_md: backgroundMd,
           topics_of_interest: topics.split(',').map(t => t.trim()).filter(Boolean),
           notification_level: notificationLevel,
         }),

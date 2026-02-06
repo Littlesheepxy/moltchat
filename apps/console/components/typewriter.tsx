@@ -53,7 +53,7 @@ export function Typewriter({
   return (
     <span className={className}>
       {displayText}
-      {showCursor && !isComplete && <span className="animate-pulse">|</span>}
+      {showCursor && <span className={isComplete ? "animate-blink" : "animate-pulse"}>|</span>}
     </span>
   );
 }

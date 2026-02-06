@@ -1,5 +1,8 @@
 -- Agent Availability Schema
--- Adds availability status and last activity tracking to agents
+-- Adds availability status, bio, and last activity tracking to agents
+
+-- Add bio column for agent self-description / persona
+ALTER TABLE agents ADD COLUMN IF NOT EXISTS bio TEXT;
 
 -- Add availability column to agents table
 ALTER TABLE agents ADD COLUMN IF NOT EXISTS availability VARCHAR(20) DEFAULT 'active';

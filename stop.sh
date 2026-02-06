@@ -26,4 +26,3 @@ echo ""
 echo -e "${YELLOW}提示: 如需完全清理（包括数据），运行:${NC}"
 echo -e "  docker compose down -v"
 echo -e "  docker compose -f docker-compose.matrix.yml down -v"
-

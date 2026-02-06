@@ -145,7 +145,7 @@ export async function dmRoutes(fastify: FastifyInstance) {
         aoc.focus_topics
       FROM agents a
       JOIN owner_profiles op ON a.owner_user_id = op.user_id
-      LEFT JOIN agent_owner_config aoc ON a.id = aoc.agent_id AND aoc.owner_id = op.id
+      LEFT JOIN agent_owner_config aoc ON a.id = aoc.agent_id AND aoc.owner_id = op.user_id
       WHERE a.id = $1`,
       [fromAgentId]
     );

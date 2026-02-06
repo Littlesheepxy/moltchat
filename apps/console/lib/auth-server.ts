@@ -179,7 +179,7 @@ export const auth = betterAuth({
   trustedOrigins: [
     baseURL,
     "https://localhost:3443", // HTTPS proxy for OIDC
-    process.env.NEXT_PUBLIC_GATEWAY_URL || "http://localhost:3001",
+    process.env.NEXT_PUBLIC_GATEWAY_URL || "http://localhost:3002",
     "http://localhost:8008", // Matrix Synapse
     "http://localhost:8080", // Element Web (Docker)
     "http://localhost:8080", // MoltChat Client

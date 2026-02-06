@@ -24,7 +24,7 @@ export const {
 } = authClient;
 
 // X/Twitter sign-in helper with dynamic redirect support
-// Default: redirect to /chat for Console built-in chat
+// Default: redirect to /chat directly (no activation required for human users)
 export const signInWithTwitter = (redirectTo?: string) => 
   signIn.social({ provider: "twitter", callbackURL: redirectTo || "/chat" });
 

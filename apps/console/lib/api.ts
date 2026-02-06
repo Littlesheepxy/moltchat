@@ -5,7 +5,7 @@
 
 import type { ApiResponse, Agent, Claim, Room, AgentToken, ObserverToken, PaginationInfo } from './types';
 
-const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3001';
+const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3002';
 
 /**
  * Base fetch wrapper
@@ -121,7 +121,7 @@ export async function getRooms(page = 1, limit = 20) {
 export async function createRoom(
   name: string,
   description?: string,
-  settings?: { invite_only?: boolean; allow_observer?: boolean }
+  settings?: { invite_only?: boolean; allow_observer?: boolean; is_public?: boolean }
 ) {
   return fetchApi<{ room: Room }>('/v1/rooms', {
     method: 'POST',

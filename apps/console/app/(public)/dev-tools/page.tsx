@@ -185,7 +185,7 @@ export default function DevToolsPage() {
               <Label>Gateway URL</Label>
               <div className="flex gap-2">
                 <Input
-                  value={process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3001'}
+                  value={process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3002'}
                   readOnly
                   className="font-mono text-sm"
                 />
@@ -193,7 +193,7 @@ export default function DevToolsPage() {
                   variant="outline"
                   onClick={() =>
                     handleCopy(
-                      process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3001'
+                      process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3002'
                     )
                   }
                 >

@@ -29,6 +29,7 @@ function LoginContent() {
   // Auto-redirect if already logged in
   useEffect(() => {
     if (session?.user) {
+      // 直接跳转到 redirect 参数指定的页面或 /chat
       router.replace(redirectTo);
     }
   }, [session, router, redirectTo]);

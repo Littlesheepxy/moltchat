@@ -17,13 +17,9 @@ import {
   Search, 
   MessageSquare, 
   Users, 
-  ChevronLeft, 
-  ChevronRight,
+  PanelLeftClose,
   Compass,
-  Settings,
-  LogOut,
-  User,
-  Home
+  User
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -34,30 +30,27 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 
 interface SidebarProps {
   onRoomSelect?: () => void;
   onNavigateToDiscover?: () => void;
+  onCreateRoom?: () => void;
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
   userName?: string;
   userHandle?: string;
+  onOpenUserManagement?: () => void;
 }
 
 export function Sidebar({ 
   onRoomSelect, 
   onNavigateToDiscover,
+  onCreateRoom,
   isCollapsed = false,
   onToggleCollapse,
   userName = 'User',
-  userHandle
+  userHandle,
+  onOpenUserManagement,
 }: SidebarProps) {
   const rooms = useMatrixStore((state) => state.rooms);
   const activeRoomId = useMatrixStore((state) => state.activeRoomId);
@@ -107,12 +100,11 @@ export function Sidebar({
   return (
     <TooltipProvider delayDuration={0}>
       <div className={cn(
-        'flex flex-col h-full bg-card border-r border-border transition-all duration-300',
+        'flex flex-col h-full bg-card border-r border-border/40 transition-all duration-300',
         sidebarWidth
       )}>
         {/* 头部 */}
         <div className={cn(
-          'border-b border-border',
           isCollapsed ? 'p-2' : 'p-4'
         )}>
           <div className={cn(
@@ -120,38 +112,24 @@ export function Sidebar({
             isCollapsed ? 'flex-col gap-2' : 'justify-between mb-4'
           )}>
             {isCollapsed ? (
-              <>
-                {/* 折叠按钮 - 折叠模式 */}
-                {onToggleCollapse && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={onToggleCollapse}
-                        className="w-10 h-10 rounded-xl"
-                      >
-                        <ChevronRight className="h-5 w-5" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="right">展开侧边栏</TooltipContent>
-                  </Tooltip>
-                )}
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Link href="/chat" className="flex items-center justify-center w-10 h-10">
-                      <Image 
-                        src="/logo.png" 
-                        alt="MoltChat" 
-                        width={32} 
-                        height={32} 
-                        className="rounded-lg"
-                      />
-                    </Link>
-                  </TooltipTrigger>
-                  <TooltipContent side="right">MoltChat</TooltipContent>
-                </Tooltip>
-              </>
+              /* 折叠模式：Logo 即展开按钮 */
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={onToggleCollapse}
+                    className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-accent transition-colors"
+                  >
+                    <Image 
+                      src="/logo.png" 
+                      alt="MoltChat" 
+                      width={32} 
+                      height={32} 
+                      className="rounded-lg"
+                    />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right">展开侧边栏</TooltipContent>
+              </Tooltip>
             ) : (
               <>
                 <Link href="/chat" className="flex items-center gap-2">
@@ -180,7 +158,7 @@ export function Sidebar({
                           onClick={onToggleCollapse}
                           className="h-8 w-8 rounded-lg"
                         >
-                          <ChevronLeft className="h-4 w-4" />
+                          <PanelLeftClose className="h-4 w-4" />
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>折叠侧边栏</TooltipContent>
@@ -206,12 +184,8 @@ export function Sidebar({
         </div>
 
         {/* 导航按钮 */}
-        <div className={cn(
-          'border-b border-border',
-          isCollapsed ? 'p-2 space-y-1' : 'p-2 flex gap-1'
-        )}>
+        <div className="p-2 space-y-1">
           {isCollapsed ? (
-            // 折叠模式 - 图标按钮
             <>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -229,72 +203,70 @@ export function Sidebar({
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
-                    variant={filter === 'rooms' ? 'secondary' : 'ghost'}
+                    variant="ghost"
                     size="icon"
-                    onClick={() => setFilter(filter === 'rooms' ? 'all' : 'rooms')}
+                    onClick={onCreateRoom}
                     className="w-full h-10 rounded-xl"
                   >
-                    <MessageSquare className="h-5 w-5" />
-                    {roomCount > 0 && (
-                      <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs w-4 h-4 rounded-full flex items-center justify-center">
-                        {roomCount}
-                      </span>
-                    )}
+                    <Plus className="h-5 w-5" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="right">房间 ({roomCount})</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant={filter === 'dm' ? 'secondary' : 'ghost'}
-                    size="icon"
-                    onClick={() => setFilter(filter === 'dm' ? 'all' : 'dm')}
-                    className="w-full h-10 rounded-xl"
-                  >
-                    <Users className="h-5 w-5" />
-                    {dmCount > 0 && (
-                      <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs w-4 h-4 rounded-full flex items-center justify-center">
-                        {dmCount}
-                      </span>
-                    )}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="right">DM ({dmCount})</TooltipContent>
+                <TooltipContent side="right">新建房间</TooltipContent>
               </Tooltip>
             </>
           ) : (
-            // 展开模式 - 文字按钮
             <>
               <Button
-                variant={filter === 'all' ? 'secondary' : 'ghost'}
-                size="sm"
-                onClick={() => setFilter('all')}
-                className="flex-1 rounded-xl"
+                variant="ghost"
+                onClick={onNavigateToDiscover}
+                className="rounded-xl w-full justify-start gap-2"
               >
-                全部
+                <Compass className="h-5 w-5" />
+                发现
               </Button>
               <Button
-                variant={filter === 'rooms' ? 'secondary' : 'ghost'}
-                size="sm"
-                onClick={() => setFilter('rooms')}
-                className="flex-1 gap-1 rounded-xl"
+                variant="ghost"
+                onClick={onCreateRoom}
+                className="rounded-xl w-full justify-start gap-2"
               >
-                <MessageSquare className="h-3 w-3" />
-                房间 ({roomCount})
-              </Button>
-              <Button
-                variant={filter === 'dm' ? 'secondary' : 'ghost'}
-                size="sm"
-                onClick={() => setFilter('dm')}
-                className="flex-1 gap-1 rounded-xl"
-              >
-                <Users className="h-3 w-3" />
-                DM ({dmCount})
+                <Plus className="h-5 w-5" />
+                新建房间
               </Button>
             </>
           )}
         </div>
+
+        {/* 筛选 - 展开模式 */}
+        {!isCollapsed && (
+          <div className="px-2 flex gap-1">
+            <Button
+              variant={filter === 'all' ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => setFilter('all')}
+              className="flex-1 rounded-xl"
+            >
+              全部
+            </Button>
+            <Button
+              variant={filter === 'rooms' ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => setFilter('rooms')}
+              className="flex-1 gap-1 rounded-xl"
+            >
+              <MessageSquare className="h-3 w-3" />
+              房间 ({roomCount})
+            </Button>
+            <Button
+              variant={filter === 'dm' ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => setFilter('dm')}
+              className="flex-1 gap-1 rounded-xl"
+            >
+              <Users className="h-3 w-3" />
+              DM ({dmCount})
+            </Button>
+          </div>
+        )}
 
         {/* 房间列表 */}
         <div className="flex-1 overflow-y-auto">
@@ -344,90 +316,29 @@ export function Sidebar({
 
         {/* 底部操作区 */}
         <div className={cn(
-          'border-t border-border',
-          isCollapsed ? 'p-2 space-y-1' : 'p-3 space-y-2'
+          isCollapsed ? 'p-2' : 'p-3'
         )}>
-          {isCollapsed ? (
-            // 折叠模式 - 图标按钮
-            <>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={onNavigateToDiscover}
-                    className="w-full h-10 rounded-xl"
-                  >
-                    <Plus className="h-5 w-5" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="right">创建房间</TooltipContent>
-              </Tooltip>
-            </>
-          ) : (
-            <Button 
-              onClick={onNavigateToDiscover}
-              className="w-full gap-2 rounded-xl"
-            >
-              <Compass className="h-4 w-4" />
-              发现
-            </Button>
-          )}
-
           {/* 用户中心 */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                className={cn(
-                  'rounded-xl hover:bg-accent',
-                  isCollapsed ? 'w-full h-10 p-0' : 'w-full justify-start gap-3 h-12 px-3'
-                )}
-              >
-                <div className={cn(
-                  'rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center',
-                  isCollapsed ? 'w-8 h-8' : 'w-8 h-8'
-                )}>
-                  <User className="h-4 w-4 text-primary" />
-                </div>
-                {!isCollapsed && (
-                  <div className="flex-1 text-left min-w-0">
-                    <div className="text-sm font-medium truncate">{userName}</div>
-                    {userHandle && (
-                      <div className="text-xs text-muted-foreground truncate">@{userHandle}</div>
-                    )}
-                  </div>
-                )}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent 
-              side={isCollapsed ? 'right' : 'top'} 
-              align={isCollapsed ? 'start' : 'center'}
-              className="w-56 rounded-xl"
-            >
-              <div className="px-3 py-2">
-                <div className="text-sm font-medium">{userName}</div>
+          <Button
+            variant="ghost"
+            onClick={() => onOpenUserManagement?.()}
+            className={cn(
+              'rounded-xl hover:bg-accent',
+              isCollapsed ? 'w-full h-10 p-0' : 'w-full justify-start gap-3 h-12 px-3'
+            )}
+          >
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
+              <User className="h-4 w-4 text-primary" />
+            </div>
+            {!isCollapsed && (
+              <div className="flex-1 text-left min-w-0">
+                <div className="text-sm font-medium truncate">{userName}</div>
                 {userHandle && (
-                  <div className="text-xs text-muted-foreground">@{userHandle}</div>
+                  <div className="text-xs text-muted-foreground truncate">@{userHandle}</div>
                 )}
               </div>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem asChild>
-                <Link href="/console/settings" className="cursor-pointer">
-                  <Settings className="h-4 w-4 mr-2" />
-                  设置
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem 
-                onClick={handleLogout}
-                className="text-destructive focus:text-destructive cursor-pointer"
-              >
-                <LogOut className="h-4 w-4 mr-2" />
-                退出登录
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+            )}
+          </Button>
         </div>
       </div>
     </TooltipProvider>

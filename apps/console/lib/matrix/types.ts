@@ -21,6 +21,8 @@ export interface MoltRoom {
   isPublic: boolean;
   isDm: boolean;
   timestamp: number;
+  /** Top agents in this room (for avatar display) */
+  agents?: Array<{ id: string; name: string }>;
 }
 
 // 消息类型

@@ -67,12 +67,22 @@ const agentUpdateOwnerProfileSchema = z.object({
   linkedin_url: z.string().url().max(500).optional(),
 });
 
-// Legacy schema (for backward compatibility)
+// Human-facing profile update schema (full structured fields)
 const updateOwnerProfileSchema = z.object({
   display_name: z.string().max(255).optional(),
-  background_md: z.string().max(10000).optional(),
+  bio_md: z.string().max(10000).optional(),
   topics_of_interest: z.array(z.string()).max(20).optional(),
   notification_level: z.enum(['all', 'important', 'minimal', 'none']).optional(),
+  twitter_handle: z.string().max(255).optional(),
+  // Structured profile fields
+  industry: z.string().max(100).optional(),
+  company: z.string().max(255).optional(),
+  job_title: z.string().max(255).optional(),
+  location: z.string().max(255).optional(),
+  years_experience: z.number().int().min(0).max(70).nullable().optional(),
+  education_level: z.enum(['High School', 'Associate', 'Bachelor', 'Master', 'PhD', 'Other']).nullable().optional(),
+  website_url: z.string().max(500).optional(),
+  linkedin_url: z.string().max(500).optional(),
 });
 
 const updateAgentConfigSchema = z.object({
@@ -83,6 +93,8 @@ const updateAgentConfigSchema = z.object({
   speaking_style: z.enum(['active', 'balanced', 'passive']).optional(),
   focus_topics: z.array(z.string()).min(3).max(20).optional(),
   avoid_topics: z.array(z.string()).max(20).optional(),
+  // Agent bio (stored on agents table, not agent_owner_config)
+  agent_bio: z.string().max(2000).optional(),
 });
 
 const sendPromptSchema = z.object({
@@ -95,13 +107,22 @@ const sendPromptSchema = z.object({
 // ============================================
 
 interface OwnerProfileRow {
-  id: string;
-  user_id: string | null;
-  twitter_handle: string | null;
+  user_id: string;
   display_name: string | null;
-  background_md: string;
+  bio: string | null;
+  avatar_url: string | null;
+  bio_md: string | null;
+  twitter_handle: string | null;
   topics_of_interest: string[];
   notification_level: string;
+  industry: string | null;
+  company: string | null;
+  job_title: string | null;
+  location: string | null;
+  years_experience: number | null;
+  education_level: string | null;
+  website_url: string | null;
+  linkedin_url: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -240,7 +261,7 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
         aoc.agent_role,
         aoc.focus_topics
       FROM owner_profiles op
-      LEFT JOIN agent_owner_config aoc ON aoc.owner_id = op.id
+      LEFT JOIN agent_owner_config aoc ON aoc.owner_id = op.user_id
       WHERE op.user_id = $1`,
       [agent.owner_user_id]
     );
@@ -316,7 +337,7 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
       );
     }
 
-    const data = parseResult.data;
+    const { agent_bio, ...configData } = parseResult.data;
 
     // Get agent's owner
     const agent = await queryOne<{ owner_user_id: string | null }>(
@@ -328,9 +349,17 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
       throw new AppError(ERROR_CODES.FORBIDDEN, 'Agent not claimed yet', 403);
     }
 
-    // Get owner_profile id
-    const ownerProfile = await queryOne<{ id: string }>(
-      `SELECT id FROM owner_profiles WHERE user_id = $1`,
+    // If agent_bio is provided, update the agents table directly
+    if (agent_bio !== undefined) {
+      await query(
+        `UPDATE agents SET bio = $1 WHERE id = $2`,
+        [agent_bio, authResult.agentId]
+      );
+    }
+
+    // Get owner_profile user_id
+    const ownerProfile = await queryOne<{ user_id: string }>(
+      `SELECT user_id FROM owner_profiles WHERE user_id = $1`,
       [agent.owner_user_id]
     );
 
@@ -338,12 +367,12 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
       throw new AppError(ERROR_CODES.NOT_FOUND, 'Owner profile not found', 404);
     }
 
-    // Upsert agent config
+    // Upsert agent config (only config fields, not agent_bio)
     const updateFields: string[] = [];
-    const values: any[] = [authResult.agentId, ownerProfile.id];
+    const values: any[] = [authResult.agentId, ownerProfile.user_id];
     let paramIndex = 3;
 
-    Object.entries(data).forEach(([key, value]) => {
+    Object.entries(configData).forEach(([key, value]) => {
       if (value !== undefined) {
         updateFields.push(`${key} = $${paramIndex}`);
         values.push(value);
@@ -351,19 +380,27 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
       }
     });
 
-    if (updateFields.length === 0) {
+    if (updateFields.length === 0 && agent_bio === undefined) {
       throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'No fields to update', 400);
     }
 
-    const sql = `
-      INSERT INTO agent_owner_config (agent_id, owner_id, ${Object.keys(data).join(', ')})
-      VALUES ($1, $2, ${Object.keys(data).map((_, i) => `$${i + 3}`).join(', ')})
-      ON CONFLICT (agent_id, owner_id)
-      DO UPDATE SET ${updateFields.join(', ')}, updated_at = NOW()
-      RETURNING *
-    `;
-
-    const updated = await queryOne<AgentConfigRow>(sql, values);
+    let updated: AgentConfigRow | null = null;
+    if (updateFields.length > 0) {
+      const sql = `
+        INSERT INTO agent_owner_config (agent_id, owner_id, ${Object.keys(configData).filter(k => (configData as any)[k] !== undefined).join(', ')})
+        VALUES ($1, $2, ${Object.keys(configData).filter(k => (configData as any)[k] !== undefined).map((_, i) => `$${i + 3}`).join(', ')})
+        ON CONFLICT (agent_id, owner_id)
+        DO UPDATE SET ${updateFields.join(', ')}, updated_at = NOW()
+        RETURNING *
+      `;
+      updated = await queryOne<AgentConfigRow>(sql, values);
+    } else {
+      // Only agent_bio was updated, fetch existing config
+      updated = await queryOne<AgentConfigRow>(
+        `SELECT * FROM agent_owner_config WHERE agent_id = $1 AND owner_id = $2`,
+        [authResult.agentId, ownerProfile.user_id]
+      );
+    }
 
     return reply.send(
       successResponse({
@@ -419,7 +456,7 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
         aoc.focus_topics
       FROM agents a
       JOIN owner_profiles op ON a.owner_user_id = op.user_id
-      LEFT JOIN agent_owner_config aoc ON a.id = aoc.agent_id AND aoc.owner_id = op.id
+      LEFT JOIN agent_owner_config aoc ON a.id = aoc.agent_id AND aoc.owner_id = op.user_id
       WHERE a.id = $1`,
       [authResult.agentId]
     );
@@ -561,7 +598,7 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
       agentConfig = await queryOne<AgentConfigRow>(
         `SELECT * FROM agent_owner_config 
          WHERE agent_id = $1 AND owner_id = $2`,
-        [authResult.agentId, owner.id]
+        [authResult.agentId, owner.user_id]
       );
     }
 
@@ -572,7 +609,7 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
        WHERE agent_id = $1 AND owner_id = $2 AND is_read = FALSE
        ORDER BY created_at DESC
        LIMIT 10`,
-      [authResult.agentId, owner.id]
+      [authResult.agentId, owner.user_id]
     ) : [];
 
     // Check if setup is needed
@@ -586,7 +623,7 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
       owner: owner ? {
         twitter_handle: owner.twitter_handle,
         display_name: owner.display_name,
-        background_md: owner.background_md,
+        bio_md: owner.bio_md,
         topics_of_interest: owner.topics_of_interest,
         notification_level: owner.notification_level,
       } : null,
@@ -678,13 +715,21 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
 
     return successResponse({
       profile: {
-        id: owner!.id,
+        id: owner!.user_id,
         user_id: owner!.user_id,
-        twitter_handle: owner!.twitter_handle,
+        twitter_handle: owner!.twitter_handle || null,
         display_name: owner!.display_name,
-        background_md: owner!.background_md,
-        topics_of_interest: owner!.topics_of_interest,
-        notification_level: owner!.notification_level,
+        bio_md: owner!.bio_md || '',
+        topics_of_interest: owner!.topics_of_interest || [],
+        notification_level: owner!.notification_level || 'important',
+        industry: owner!.industry || null,
+        company: owner!.company || null,
+        job_title: owner!.job_title || null,
+        location: owner!.location || null,
+        years_experience: owner!.years_experience ?? null,
+        education_level: owner!.education_level || null,
+        website_url: owner!.website_url || null,
+        linkedin_url: owner!.linkedin_url || null,
         created_at: owner!.created_at.toISOString(),
         updated_at: owner!.updated_at.toISOString(),
       },
@@ -726,26 +771,32 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
     const values: unknown[] = [];
     let paramIndex = 1;
 
-    if (data.display_name !== undefined) {
-      updates.push(`display_name = $${paramIndex++}`);
-      values.push(data.display_name);
-    }
-    if (data.background_md !== undefined) {
-      updates.push(`background_md = $${paramIndex++}`);
-      values.push(data.background_md);
-    }
-    if (data.topics_of_interest !== undefined) {
-      updates.push(`topics_of_interest = $${paramIndex++}`);
-      values.push(data.topics_of_interest);
-    }
-    if (data.notification_level !== undefined) {
-      updates.push(`notification_level = $${paramIndex++}`);
-      values.push(data.notification_level);
+    const fieldMap: Record<string, string> = {
+      display_name: 'display_name',
+      bio_md: 'bio_md',
+      topics_of_interest: 'topics_of_interest',
+      notification_level: 'notification_level',
+      twitter_handle: 'twitter_handle',
+      industry: 'industry',
+      company: 'company',
+      job_title: 'job_title',
+      location: 'location',
+      years_experience: 'years_experience',
+      education_level: 'education_level',
+      website_url: 'website_url',
+      linkedin_url: 'linkedin_url',
+    };
+
+    for (const [key, dbCol] of Object.entries(fieldMap)) {
+      if ((data as any)[key] !== undefined) {
+        updates.push(`${dbCol} = $${paramIndex++}`);
+        values.push((data as any)[key]);
+      }
     }
 
     values.push(session.userId);
 
-    const owner = await queryOne<OwnerProfileRow>(
+    const owner = await queryOne<any>(
       `UPDATE owner_profiles 
        SET ${updates.join(', ')}
        WHERE user_id = $${paramIndex}
@@ -759,12 +810,20 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
 
     return successResponse({
       profile: {
-        id: owner.id,
-        twitter_handle: owner.twitter_handle,
+        id: owner.user_id,
+        twitter_handle: owner.twitter_handle || null,
         display_name: owner.display_name,
-        background_md: owner.background_md,
-        topics_of_interest: owner.topics_of_interest,
-        notification_level: owner.notification_level,
+        bio_md: owner.bio_md || '',
+        topics_of_interest: owner.topics_of_interest || [],
+        notification_level: owner.notification_level || 'important',
+        industry: owner.industry || null,
+        company: owner.company || null,
+        job_title: owner.job_title || null,
+        location: owner.location || null,
+        years_experience: owner.years_experience ?? null,
+        education_level: owner.education_level || null,
+        website_url: owner.website_url || null,
+        linkedin_url: owner.linkedin_url || null,
         updated_at: owner.updated_at.toISOString(),
       },
     });
@@ -783,8 +842,8 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
     }
 
     // Verify ownership via owner_user_id
-    const agent = await queryOne<{ id: string; name: string }>(
-      `SELECT id, name FROM agents WHERE id = $1 AND owner_user_id = $2`,
+    const agent = await queryOne<{ id: string; name: string; bio: string | null }>(
+      `SELECT id, name, bio FROM agents WHERE id = $1 AND owner_user_id = $2`,
       [agentId, session.userId]
     );
 
@@ -792,20 +851,10 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
       throw new AppError(ERROR_CODES.NOT_FOUND, 'Agent not found or not owned by you', 404);
     }
 
-    // Get owner profile
-    const owner = await queryOne<{ id: string }>(
-      `SELECT id FROM owner_profiles WHERE user_id = $1`,
-      [session.userId]
-    );
-
-    if (!owner) {
-      throw new AppError(ERROR_CODES.NOT_FOUND, 'Owner profile not found', 404);
-    }
-
-    // Get or create agent config
+    // Get or create agent config (use session.userId directly as owner_id since PK is user_id)
     let config = await queryOne<AgentConfigRow>(
       `SELECT * FROM agent_owner_config WHERE agent_id = $1 AND owner_id = $2`,
-      [agentId, owner.id]
+      [agentId, session.userId]
     );
 
     if (!config) {
@@ -813,7 +862,7 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
         `INSERT INTO agent_owner_config (agent_id, owner_id)
          VALUES ($1, $2)
          RETURNING *`,
-        [agentId, owner.id]
+        [agentId, session.userId]
       );
     }
 
@@ -821,6 +870,7 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
       agent: {
         id: agent.id,
         name: agent.name,
+        bio: agent.bio,
       },
       config: {
         role: config!.agent_role,
@@ -865,19 +915,17 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
       throw new AppError(ERROR_CODES.NOT_FOUND, 'Agent not found or not owned by you', 404);
     }
 
-    // Get owner profile
-    const owner = await queryOne<{ id: string }>(
-      `SELECT id FROM owner_profiles WHERE user_id = $1`,
-      [session.userId]
-    );
-
-    if (!owner) {
-      throw new AppError(ERROR_CODES.NOT_FOUND, 'Owner profile not found', 404);
+    const { agent_bio, ...configData } = parseResult.data;
+    
+    // If agent_bio is provided, update the agents table directly
+    if (agent_bio !== undefined) {
+      await query(
+        `UPDATE agents SET bio = $1 WHERE id = $2 AND owner_user_id = $3`,
+        [agent_bio, agentId, session.userId]
+      );
     }
 
-    const data = parseResult.data;
-    
-    // Upsert config
+    // Upsert config (use session.userId directly as owner_id)
     const config = await queryOne<AgentConfigRow>(
       `INSERT INTO agent_owner_config (agent_id, owner_id, agent_role, agent_persona_md, 
          auto_join_owner_rooms, dm_policy, speaking_style, focus_topics, avoid_topics)
@@ -894,15 +942,21 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
        RETURNING *`,
       [
         agentId, 
-        owner.id, 
-        data.agent_role ?? null,
-        data.agent_persona_md ?? null,
-        data.auto_join_owner_rooms ?? null,
-        data.dm_policy ?? null,
-        data.speaking_style ?? null,
-        data.focus_topics ?? null,
-        data.avoid_topics ?? null,
+        session.userId, 
+        configData.agent_role ?? null,
+        configData.agent_persona_md ?? null,
+        configData.auto_join_owner_rooms ?? null,
+        configData.dm_policy ?? null,
+        configData.speaking_style ?? null,
+        configData.focus_topics ?? null,
+        configData.avoid_topics ?? null,
       ]
+    );
+
+    // Get updated agent bio
+    const updatedAgent = await queryOne<{ bio: string | null }>(
+      `SELECT bio FROM agents WHERE id = $1`,
+      [agentId]
     );
 
     return successResponse({
@@ -915,6 +969,7 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
         focus_topics: config!.focus_topics,
         avoid_topics: config!.avoid_topics,
       },
+      agent_bio: updatedAgent?.bio || null,
     });
   });
 
@@ -945,23 +1000,13 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
       throw new AppError(ERROR_CODES.NOT_FOUND, 'Agent not found or not owned by you', 404);
     }
 
-    // Get owner profile
-    const owner = await queryOne<{ id: string }>(
-      `SELECT id FROM owner_profiles WHERE user_id = $1`,
-      [session.userId]
-    );
-
-    if (!owner) {
-      throw new AppError(ERROR_CODES.NOT_FOUND, 'Owner profile not found', 404);
-    }
-
     const { prompt_type, content } = parseResult.data;
 
     const prompt = await queryOne<PromptRow>(
       `INSERT INTO owner_agent_prompts (agent_id, owner_id, prompt_type, content)
        VALUES ($1, $2, $3, $4)
        RETURNING *`,
-      [agentId, owner.id, prompt_type, content]
+      [agentId, session.userId, prompt_type, content]
     );
 
     return successResponse({

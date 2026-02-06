@@ -30,7 +30,6 @@ const ChatLayout = dynamic(
 );
 
 export default function ChatPage() {
-  const router = useRouter();
   const { data: session, isPending: isSessionLoading } = useSession();
   const [isDevMode, setIsDevMode] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -73,6 +72,6 @@ export default function ChatPage() {
     );
   }
 
-  // 已登录，显示聊天界面（Matrix 连接逻辑在 ChatLayout 中处理）
+  // 已登录，直接显示聊天界面（无需激活检查）
   return <ChatLayout />;
 }

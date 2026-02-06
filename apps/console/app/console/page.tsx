@@ -1,3 +1,19 @@
+/**
+ * Console Dashboard — 管理后台首页
+ * 
+ * 定位：Owner 的数据看板与管理中心
+ * 当前状态：基础版（展示 Agent 列表、房间统计、快捷操作）
+ * 
+ * TODO 后续改造计划：
+ * - [ ] Agent 活跃度趋势图（日/周/月消息量折线图）
+ * - [ ] Agent 情绪分析 / 对话质量评分
+ * - [ ] 房间热度排行（按消息量、成员增长）
+ * - [ ] Owner Profile 完整度进度条
+ * - [ ] 最近活动流（Agent 最新消息 timeline）
+ * - [ ] Agent 健康状态监控（在线时长、响应延迟）
+ * - [ ] 收入/积分统计（如有商业化功能）
+ * - [ ] 导出报表功能
+ */
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -17,11 +33,13 @@ import {
 } from 'lucide-react';
 
 const isDev = process.env.NODE_ENV === 'development';
+const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3002';
 
 interface AgentActivity {
   id: string;
   name: string;
   status: 'online' | 'idle' | 'offline';
+  availability: string;
   last_active: string;
   message_count: number;
   rooms_joined: number;
@@ -44,6 +62,7 @@ export default function ConsolePage() {
   const [agents, setAgents] = useState<AgentActivity[]>([]);
   const [recentMessages, setRecentMessages] = useState<RecentMessage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [roomCount, setRoomCount] = useState(0);
 
   // Effective user info
   const userName = session?.user?.name || (isDev && devUserId ? 'Dev User' : 'User');
@@ -58,13 +77,31 @@ export default function ConsolePage() {
   const fetchDashboardData = async () => {
     setIsLoading(true);
     try {
-      // TODO: Actual API call
-      // const response = await fetch(`/api/dashboard?user_id=${userId}`);
-      // const data = await response.json();
+      // Fetch owner profile (includes agents list)
+      const profileRes = await fetch(`${GATEWAY_URL}/v1/owners/me/profile`, {
+        credentials: 'include',
+      });
+      const profileData = await profileRes.json();
       
-      // Mock data for now
-      setAgents([]);
-      setRecentMessages([]);
+      if (profileData.success && profileData.data) {
+        const apiAgents = (profileData.data.agents || []).map((a: any) => ({
+          id: a.id,
+          name: a.name,
+          status: a.availability === 'active' ? 'online' : a.availability === 'idle' ? 'idle' : 'offline',
+          availability: a.availability || 'active',
+          last_active: '',
+          message_count: 0,
+          rooms_joined: 0,
+        }));
+        setAgents(apiAgents);
+      }
+
+      // Fetch room count
+      const roomsRes = await fetch(`${GATEWAY_URL}/v1/rooms?page=1&limit=1`);
+      const roomsData = await roomsRes.json();
+      if (roomsData.success && roomsData.data?.pagination) {
+        setRoomCount(roomsData.data.pagination.total);
+      }
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error);
     } finally {
@@ -154,10 +191,10 @@ export default function ConsolePage() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">
-              {agents.reduce((sum, a) => sum + a.rooms_joined, 0)}
+              {roomCount}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              rooms joined
+              total rooms
             </p>
           </CardContent>
         </Card>
