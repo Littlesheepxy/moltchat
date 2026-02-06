@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useI18n } from '@/lib/i18n-provider';
 import { locales, localeNames, localeFlags, type Locale } from '@/i18n/config';
+import { useSession } from '@/lib/auth-client';
 import {
   User,
   Bot,
@@ -121,6 +122,17 @@ export function UserManagementDialog({ open, onOpenChange, onLogout }: UserManag
 
   const gatewayUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3002';
 
+  // Better Auth session for fallback user info
+  const { data: session } = useSession();
+
+  // Merge: API data takes priority, session data as fallback
+  const effectiveUserInfo: UserInfo | null = userInfo || (session?.user ? {
+    id: session.user.id || '',
+    name: session.user.name || '',
+    email: session.user.email || '',
+    image: session.user.image || null,
+  } : null);
+
   // Load data when dialog opens
   useEffect(() => {
     if (!open) {
@@ -140,7 +152,7 @@ export function UserManagementDialog({ open, onOpenChange, onLogout }: UserManag
           setDataLoaded(true);
         }
       })
-      .catch(() => toast.error('加载失败'))
+      .catch(() => {}) // Silently fail — session fallback will handle display
       .finally(() => setIsLoading(false));
   }, [open, dataLoaded, gatewayUrl]);
 
@@ -161,16 +173,16 @@ export function UserManagementDialog({ open, onOpenChange, onLogout }: UserManag
           {/* 用户头像 */}
           <div className="px-4 py-5 border-b border-border/20">
             <div className="flex items-center gap-3">
-              {userInfo?.image ? (
-                <img src={userInfo.image} alt="" className="w-10 h-10 rounded-full" />
+              {effectiveUserInfo?.image ? (
+                <img src={effectiveUserInfo.image} alt="" className="w-10 h-10 rounded-full" />
               ) : (
                 <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
                   <User className="h-5 w-5 text-primary" />
                 </div>
               )}
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold truncate">{userInfo?.name || '用户'}</div>
-                <div className="text-[11px] text-muted-foreground truncate">{userInfo?.email || ''}</div>
+                <div className="text-sm font-semibold truncate">{effectiveUserInfo?.name || '用户'}</div>
+                <div className="text-[11px] text-muted-foreground truncate">{effectiveUserInfo?.email || ''}</div>
               </div>
             </div>
           </div>
@@ -223,10 +235,10 @@ export function UserManagementDialog({ open, onOpenChange, onLogout }: UserManag
             </div>
           ) : (
             <>
-              {activeTab === 'profile' && <ProfilePanel profile={profile} userInfo={userInfo} gatewayUrl={gatewayUrl} onUpdate={setProfile} />}
+              {activeTab === 'profile' && <ProfilePanel profile={profile} userInfo={effectiveUserInfo} gatewayUrl={gatewayUrl} onUpdate={setProfile} />}
               {activeTab === 'agents' && <AgentsPanel agents={agents} gatewayUrl={gatewayUrl} />}
               {activeTab === 'appearance' && <AppearancePanel />}
-              {activeTab === 'security' && <SecurityPanel userInfo={userInfo} profile={profile} onLogout={onLogout} />}
+              {activeTab === 'security' && <SecurityPanel userInfo={effectiveUserInfo} profile={profile} onLogout={onLogout} />}
             </>
           )}
         </div>
