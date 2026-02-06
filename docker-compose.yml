@@ -63,13 +63,13 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgres://moltchat:moltchat@db:5432/moltchat
-      GATEWAY_PORT: 3001
+      GATEWAY_PORT: 3002
       GATEWAY_HOST: 0.0.0.0
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
       LOG_LEVEL: info
       NODE_ENV: production
     ports:
-      - "3001:3001"
+      - "3002:3002"
 
   # Console (Frontend)
   console:
@@ -81,7 +81,7 @@ services:
     depends_on:
       - gateway
     environment:
-      NEXT_PUBLIC_GATEWAY_URL: http://gateway:3001
+      NEXT_PUBLIC_GATEWAY_URL: http://gateway:3002
       NEXT_PUBLIC_APP_URL: http://localhost:3000
     ports:
       - "3000:3000"

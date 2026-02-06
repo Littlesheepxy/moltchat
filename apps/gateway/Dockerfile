@@ -48,7 +48,7 @@ ENV NODE_ENV=production
 WORKDIR /app/apps/gateway
 
 # Expose port
-EXPOSE 3001
+EXPOSE 3002
 
 # Start
 CMD ["node", "dist/index.js"]

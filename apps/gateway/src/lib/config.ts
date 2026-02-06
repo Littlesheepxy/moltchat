@@ -15,7 +15,7 @@ console.log('[CONFIG] MATRIX_BOT_USER_ID =', process.env.MATRIX_BOT_USER_ID);
 
 const envSchema = z.object({
   // Server
-  GATEWAY_PORT: z.string().default('3001'),
+  GATEWAY_PORT: z.string().default('3002'),
   GATEWAY_HOST: z.string().default('0.0.0.0'),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
 

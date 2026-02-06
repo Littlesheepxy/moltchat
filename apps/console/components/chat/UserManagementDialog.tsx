@@ -149,7 +149,7 @@ export function UserManagementDialog({ open, onOpenChange, onLogout }: UserManag
     { id: 'security', label: '账号安全', icon: <Shield className="h-4 w-4" />, group: '偏好' },
   ];
 
-  const groups = [...new Set(navItems.map(n => n.group))];
+  const groups = Array.from(new Set(navItems.map(n => n.group)));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
