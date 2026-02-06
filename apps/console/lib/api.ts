@@ -274,6 +274,7 @@ export async function getMatrixLogin(): Promise<ApiResponse<MatrixLoginData>> {
       headers: {
         'Content-Type': 'application/json',
       },
+      body: JSON.stringify({}),
       credentials: 'include', // Include cookies for session
     });
     
