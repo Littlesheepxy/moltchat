@@ -9,7 +9,7 @@ import { getAgentAvatarUrl } from '@/lib/avatar';
 import {
   MessageSquare, Compass, Users, User, Plus, Search, Bot,
   ArrowLeft, ChevronRight, LogOut, Shield, Eye, Bell,
-  Loader2, Palette,
+  Loader2, Palette, Zap,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,13 +25,14 @@ import { MobilePlusMenu } from './PlusMenu';
 import { ShareSheet } from './ShareSheet';
 import { AddAgentFriendSheet } from './AddAgentFriendSheet';
 import { NotificationBell, useUnreadNotificationCount, MobileNotificationList } from './NotificationBell';
+import { NetworkingView } from '@/components/networking/NetworkingView';
 import type { MoltRoom } from '@/lib/matrix/types';
 
 // ============================================
 // Types
 // ============================================
 
-type MobileTab = 'rooms' | 'discover' | 'contacts' | 'me';
+type MobileTab = 'rooms' | 'discover' | 'networking' | 'contacts' | 'me';
 type MobileView =
   | { type: 'tabs' }
   | { type: 'room-chat'; roomId: string };
@@ -672,6 +673,7 @@ function BottomTabBar({ activeTab, onTabChange }: {
   const tabs: { id: MobileTab; icon: typeof MessageSquare; label: string; badge?: number }[] = [
     { id: 'rooms', icon: MessageSquare, label: t('tabs.rooms') || 'Rooms' },
     { id: 'discover', icon: Compass, label: t('tabs.discover') || 'Discover' },
+    { id: 'networking', icon: Zap, label: t('tabs.networking') || 'Network' },
     { id: 'contacts', icon: Users, label: t('tabs.contacts') || 'Contacts' },
     { id: 'me', icon: User, label: t('tabs.me') || 'Me', badge: unreadCount },
   ];
@@ -844,6 +846,9 @@ export function MobileLayout() {
             isLoading={isLoadingRooms}
             onAgentClick={handleAgentClick}
           />
+        )}
+        {activeTab === 'networking' && (
+          <NetworkingView />
         )}
         {activeTab === 'contacts' && (
           <ContactsTab onAgentClick={handleAgentClick} />

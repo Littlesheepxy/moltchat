@@ -401,3 +401,153 @@ export function clearMatrixCredentials(): void {
     localStorage.removeItem('moltchat_matrix_credentials');
   }
 }
+
+// ============================================
+// Networking — Activities & AI Explorations
+// ============================================
+
+export interface Activity {
+  id: string;
+  name: string;
+  description: string | null;
+  theme: string | null;
+  cover_image: string | null;
+  status: string;
+  max_participants: number;
+  is_anonymous: boolean;
+  starts_at: string | null;
+  ends_at: string | null;
+  created_at: string;
+  participant_count: number;
+  user_joined: boolean;
+}
+
+export interface ActivityDetail extends Activity {
+  ai_explore_rounds: number;
+  decision_deadline_hours: number;
+  chat_expiry_hours: number;
+}
+
+export interface MyParticipation {
+  roles: string[];
+  looking_for: string;
+  can_offer: string;
+  tags: string[];
+}
+
+export interface ExplorationStats {
+  total: number;
+  pending_review: number;
+  completed: number;
+}
+
+export interface ExplorationItem {
+  id: string;
+  status: string;
+  match_score: number | null;
+  match_highlights: string[];
+  summary: string | null;
+  summary_preview: string | null;
+  collaboration_potential: string | null;
+  my_decision: string;
+  other_decision: string;
+  chat_requested_by: string | null;
+  dm_request_id: string | null;
+  reveal_level: number;
+  other_party: {
+    roles: string[];
+    tags: string[];
+    looking_for: string | null;
+    industry: string | null;
+  };
+  created_at: string;
+  completed_at: string | null;
+}
+
+export interface ExplorationDetail {
+  exploration: {
+    id: string;
+    activity_id: string;
+    status: string;
+    match_score: number | null;
+    match_highlights: string[];
+    summary: string | null;
+    collaboration_potential: string | null;
+    my_decision: string;
+    other_decision: string;
+    chat_requested_by: string | null;
+    dm_request_id: string | null;
+    total_rounds: number;
+    other_party: {
+      roles: string[];
+      looking_for: string | null;
+      can_offer: string | null;
+      tags: string[];
+      industry: string | null;
+      display_name: string | null;
+    };
+  };
+  messages: {
+    id: string;
+    round: number;
+    side: string;
+    is_mine: boolean;
+    content: string;
+    created_at: string;
+  }[];
+}
+
+export async function getActivities(status?: string) {
+  const params = status ? `?status=${status}` : '';
+  return fetchApi<{ activities: Activity[] }>(`/v1/activities${params}`);
+}
+
+export async function getActivity(id: string) {
+  return fetchApi<{
+    activity: ActivityDetail;
+    my_participation: MyParticipation | null;
+    exploration_stats: ExplorationStats;
+  }>(`/v1/activities/${id}`);
+}
+
+export async function joinActivity(activityId: string, data: {
+  roles: string[];
+  looking_for: string;
+  can_offer: string;
+  tags?: string[];
+}) {
+  return fetchApi<{ participant_id: string }>(`/v1/activities/${activityId}/join`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getExplorations(activityId: string, filter: string = 'all') {
+  return fetchApi<{ explorations: ExplorationItem[] }>(
+    `/v1/activities/${activityId}/explorations?filter=${filter}`
+  );
+}
+
+export async function getExploration(explorationId: string) {
+  return fetchApi<ExplorationDetail>(`/v1/explorations/${explorationId}`);
+}
+
+export async function submitDecision(explorationId: string, decision: 'want_chat' | 'pass', reason?: string) {
+  return fetchApi<{ decision: string; mutual_match?: boolean; dm_request_id?: string; dm_session_id?: string }>(
+    `/v1/explorations/${explorationId}/decide`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ decision, reason }),
+    }
+  );
+}
+
+export async function respondToExploration(explorationId: string, action: 'accept' | 'reject', reason?: string) {
+  return fetchApi<{ action: string; dm_session_id?: string }>(
+    `/v1/explorations/${explorationId}/respond`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ action, reason }),
+    }
+  );
+}

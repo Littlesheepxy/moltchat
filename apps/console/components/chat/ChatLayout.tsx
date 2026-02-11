@@ -12,7 +12,7 @@ import { isAuthenticated, getAgent, clearAuth } from '@/lib/auth';
 import { useI18n } from '@/lib/i18n-provider';
 import { signOut, useSession } from '@/lib/auth-client';
 import { getAgentAvatarUrl } from '@/lib/avatar';
-import { Menu, Settings, Loader2, MessageSquare, Bot, Users, Plus, Compass, PanelLeftClose, Eye, UserPlus, Share2 } from 'lucide-react';
+import { Menu, Settings, Loader2, MessageSquare, Bot, Users, Plus, Compass, PanelLeftClose, Eye, UserPlus, Share2, Zap } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -29,6 +29,7 @@ import { AgentProfileCard } from './AgentProfileCard';
 import { UserManagementDialog } from './UserManagementDialog';
 import { MobileLayout } from './MobileLayout';
 import { WelcomeOnboarding, hasCompletedOnboarding } from './WelcomeOnboarding';
+import { NetworkingView } from '@/components/networking/NetworkingView';
 
 interface ChatLayoutProps {
   children?: React.ReactNode;
@@ -87,6 +88,7 @@ function DesktopLayout() {
   const userAvatar = session?.user?.image;
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [showDiscover, setShowDiscover] = useState(true);
+  const [showNetworking, setShowNetworking] = useState(false);
   const [showCreateRoom, setShowCreateRoom] = useState(false);
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const [selectedRoom, setSelectedRoom] = useState<any>(null);
@@ -220,8 +222,8 @@ function DesktopLayout() {
         {/* 导航 */}
         <div className="p-2 space-y-1">
           <Button
-            variant={showDiscover ? 'secondary' : 'ghost'}
-            onClick={() => setShowDiscover(true)}
+            variant={showDiscover && !showNetworking ? 'secondary' : 'ghost'}
+            onClick={() => { setShowDiscover(true); setShowNetworking(false); }}
             className={cn(
               'rounded-xl',
               isSidebarCollapsed ? 'w-full h-10 p-0' : 'w-full justify-start gap-2'
@@ -229,6 +231,17 @@ function DesktopLayout() {
           >
             <Compass className="h-5 w-5" />
             {!isSidebarCollapsed && t('chat.discover')}
+          </Button>
+          <Button
+            variant={showNetworking ? 'secondary' : 'ghost'}
+            onClick={() => { setShowNetworking(true); setShowDiscover(false); setSelectedRoomId(null); }}
+            className={cn(
+              'rounded-xl',
+              isSidebarCollapsed ? 'w-full h-10 p-0' : 'w-full justify-start gap-2'
+            )}
+          >
+            <Zap className="h-5 w-5" />
+            {!isSidebarCollapsed && (t('tabs.networking') || 'Network')}
           </Button>
           <Button
             variant="ghost"
@@ -335,7 +348,9 @@ function DesktopLayout() {
 
       {/* 主区域 */}
       <main className="flex-1 flex flex-col overflow-hidden">
-        {showDiscover ? (
+        {showNetworking ? (
+          <NetworkingView />
+        ) : showDiscover ? (
           <DiscoverView 
             rooms={realRooms}
             onRoomSelect={handleDiscoverSelect}

@@ -21,6 +21,7 @@ import { tagRoutes } from './routes/tags.js';
 import { ownerRoutes } from './routes/owner.js';
 import { discoverRoutes } from './routes/discover.js';
 import { statsRoutes } from './routes/stats.js';
+import { networkingRoutes } from './routes/networking.js';
 
 // Matrix
 import { getMatrixClient, stopMatrixClient } from './lib/matrix.js';
@@ -96,6 +97,7 @@ async function main() {
   await fastify.register(ownerRoutes);
   await fastify.register(discoverRoutes);
   await fastify.register(statsRoutes);
+  await fastify.register(networkingRoutes);
 
   // Run database migrations
   try {
