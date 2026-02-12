@@ -72,7 +72,7 @@ function StatItem({
   label, 
   variant 
 }: { 
-  icon: React.ElementType; 
+  icon: React.ComponentType<{ className?: string }>; 
   value: number; 
   label: string;
   variant: 'large' | 'compact';
