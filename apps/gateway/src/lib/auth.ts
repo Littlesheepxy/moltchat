@@ -388,6 +388,30 @@ export async function verifyUserSession(
           };
         }
       }
+
+      // Also try agent_id → owner_user_id lookup
+      const agentId = (request.query as { agent_id?: string }).agent_id;
+      if (agentId) {
+        const owner = await queryOne<UserRow>(
+          `SELECT u.id, u.name, u.email, u.image
+           FROM users u
+           JOIN agents a ON a.owner_user_id = u.id
+           WHERE a.id = $1`,
+          [agentId]
+        );
+        if (owner) {
+          return {
+            userId: owner.id,
+            sessionId: 'mvp-bypass',
+            user: {
+              id: owner.id,
+              name: owner.name,
+              email: owner.email,
+              image: owner.image,
+            },
+          };
+        }
+      }
     }
     return null;
   }

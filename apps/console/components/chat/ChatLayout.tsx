@@ -12,7 +12,7 @@ import { isAuthenticated, getAgent, clearAuth } from '@/lib/auth';
 import { useI18n } from '@/lib/i18n-provider';
 import { signOut, useSession } from '@/lib/auth-client';
 import { getAgentAvatarUrl } from '@/lib/avatar';
-import { Menu, Settings, Loader2, MessageSquare, Bot, Users, Plus, Compass, PanelLeftClose, Eye, UserPlus, Share2, Zap } from 'lucide-react';
+import { Menu, Settings, Loader2, MessageSquare, Bot, Users, Plus, Compass, PanelLeftClose, Eye, UserPlus, Share2, Zap, Shield } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -30,6 +30,7 @@ import { UserManagementDialog } from './UserManagementDialog';
 import { MobileLayout } from './MobileLayout';
 import { WelcomeOnboarding, hasCompletedOnboarding } from './WelcomeOnboarding';
 import { NetworkingView } from '@/components/networking/NetworkingView';
+import { ProtocolDashboard } from './ProtocolDashboard';
 
 interface ChatLayoutProps {
   children?: React.ReactNode;
@@ -89,6 +90,7 @@ function DesktopLayout() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [showDiscover, setShowDiscover] = useState(true);
   const [showNetworking, setShowNetworking] = useState(false);
+  const [showProtocol, setShowProtocol] = useState(false);
   const [showCreateRoom, setShowCreateRoom] = useState(false);
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const [selectedRoom, setSelectedRoom] = useState<any>(null);
@@ -222,8 +224,8 @@ function DesktopLayout() {
         {/* 导航 */}
         <div className="p-2 space-y-1">
           <Button
-            variant={showDiscover && !showNetworking ? 'secondary' : 'ghost'}
-            onClick={() => { setShowDiscover(true); setShowNetworking(false); }}
+            variant={showDiscover && !showNetworking && !showProtocol ? 'secondary' : 'ghost'}
+            onClick={() => { setShowDiscover(true); setShowNetworking(false); setShowProtocol(false); }}
             className={cn(
               'rounded-xl',
               isSidebarCollapsed ? 'w-full h-10 p-0' : 'w-full justify-start gap-2'
@@ -234,7 +236,7 @@ function DesktopLayout() {
           </Button>
           <Button
             variant={showNetworking ? 'secondary' : 'ghost'}
-            onClick={() => { setShowNetworking(true); setShowDiscover(false); setSelectedRoomId(null); }}
+            onClick={() => { setShowNetworking(true); setShowDiscover(false); setShowProtocol(false); setSelectedRoomId(null); }}
             className={cn(
               'rounded-xl',
               isSidebarCollapsed ? 'w-full h-10 p-0' : 'w-full justify-start gap-2'
@@ -253,6 +255,17 @@ function DesktopLayout() {
           >
             <Plus className="h-5 w-5" />
             {!isSidebarCollapsed && t('chat.createRoom')}
+          </Button>
+          <Button
+            variant={showProtocol ? 'secondary' : 'ghost'}
+            onClick={() => { setShowProtocol(true); setShowDiscover(false); setShowNetworking(false); setSelectedRoomId(null); }}
+            className={cn(
+              'rounded-xl',
+              isSidebarCollapsed ? 'w-full h-10 p-0' : 'w-full justify-start gap-2'
+            )}
+          >
+            <Shield className="h-5 w-5" />
+            {!isSidebarCollapsed && 'Protocol'}
           </Button>
         </div>
 
@@ -348,7 +361,11 @@ function DesktopLayout() {
 
       {/* 主区域 */}
       <main className="flex-1 flex flex-col overflow-hidden">
-        {showNetworking ? (
+        {showProtocol ? (
+          <div className="flex-1 overflow-y-auto">
+            <ProtocolDashboard />
+          </div>
+        ) : showNetworking ? (
           <NetworkingView />
         ) : showDiscover ? (
           <DiscoverView 

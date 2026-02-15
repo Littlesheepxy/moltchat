@@ -22,6 +22,8 @@ import { ownerRoutes } from './routes/owner.js';
 import { discoverRoutes } from './routes/discover.js';
 import { statsRoutes } from './routes/stats.js';
 import { networkingRoutes } from './routes/networking.js';
+import { marketProtocolRoutes } from './routes/market-protocol.js';
+import { protocolRulesRoutes } from './routes/protocol-rules.js';
 
 // Matrix
 import { getMatrixClient, stopMatrixClient } from './lib/matrix.js';
@@ -98,6 +100,8 @@ async function main() {
   await fastify.register(discoverRoutes);
   await fastify.register(statsRoutes);
   await fastify.register(networkingRoutes);
+  await fastify.register(marketProtocolRoutes);
+  await fastify.register(protocolRulesRoutes);
 
   // Run database migrations
   try {

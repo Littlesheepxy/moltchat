@@ -551,3 +551,155 @@ export async function respondToExploration(explorationId: string, action: 'accep
     }
   );
 }
+
+// ============================================
+// Market Protocol
+// ============================================
+
+export interface BudgetCheck {
+  allowed: boolean;
+  used: number;
+  limit: number;
+  remaining: number;
+}
+
+export interface BudgetStatus {
+  outbound: BudgetCheck;
+  inbound: BudgetCheck;
+  week_start: string;
+}
+
+export interface ReputationProfile {
+  reputation_score: number;
+  hit_rate: number;
+  fulfillment_rate: number;
+  avg_post_chat_rating: number | null;
+  in_cooldown: boolean;
+}
+
+export interface ReputationEvent {
+  id: string;
+  event_type: string;
+  points_delta: number;
+  reference_id: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface AlignmentResult {
+  alignment: {
+    score: number;
+    passed: boolean;
+    details: {
+      intent_match: number;
+      value_exchange: number;
+      industry_overlap: number;
+      tag_overlap: number;
+      behavior_history: number;
+      final_score: number;
+    };
+  };
+  threshold: number;
+  would_pass: boolean;
+}
+
+export async function getProtocolBudget() {
+  return fetchApi<BudgetStatus>('/v1/protocol/budget');
+}
+
+export async function getProtocolReputation() {
+  return fetchApi<ReputationProfile>('/v1/protocol/reputation');
+}
+
+export async function getReputationEvents(limit = 50) {
+  return fetchApi<{ events: ReputationEvent[] }>(`/v1/protocol/reputation/events?limit=${limit}`);
+}
+
+export async function previewAlignment(targetUserId: string, activityId?: string) {
+  return fetchApi<AlignmentResult>('/v1/protocol/alignment/preview', {
+    method: 'POST',
+    body: JSON.stringify({ target_user_id: targetUserId, activity_id: activityId }),
+  });
+}
+
+export async function rateDmSession(sessionId: string, rating: number, outcome: 'valuable' | 'neutral' | 'waste') {
+  return fetchApi<{ session_id: string; rating: number; outcome: string; side: string }>(
+    `/v1/dm/sessions/${sessionId}/rate`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ rating, outcome }),
+    }
+  );
+}
+
+// ============================================
+// Protocol Rules (Public)
+// ============================================
+
+export interface ProtocolRule {
+  id: string;
+  rule_key: string;
+  version: number;
+  title: string;
+  content_md: string;
+  change_summary: string | null;
+  is_current: boolean;
+  created_at: string;
+}
+
+export interface PromptTemplate {
+  id: string;
+  prompt_key: string;
+  version: number;
+  title: string;
+  template_md: string;
+  variables: string[];
+  change_summary: string | null;
+  is_current: boolean;
+  created_at: string;
+}
+
+export interface RuleFeedbackItem {
+  id: string;
+  rule_id: string;
+  user_id: string;
+  author_name?: string;
+  feedback_type: string;
+  content: string;
+  upvotes: number;
+  downvotes: number;
+  status: string;
+  created_at: string;
+}
+
+export async function getProtocolRules() {
+  return fetchApi<{ rules: ProtocolRule[] }>('/v1/protocol/rules');
+}
+
+export async function getProtocolRule(key: string) {
+  return fetchApi<{ rule: ProtocolRule; versions: { version: number; change_summary: string | null; created_at: string }[] }>(
+    `/v1/protocol/rules/${key}`
+  );
+}
+
+export async function getProtocolPrompts() {
+  return fetchApi<{ prompts: PromptTemplate[] }>('/v1/protocol/prompts');
+}
+
+export async function getRuleFeedback(ruleId: string) {
+  return fetchApi<{ feedback: RuleFeedbackItem[] }>(`/v1/protocol/rules/${ruleId}/feedback`);
+}
+
+export async function submitRuleFeedback(ruleId: string, feedbackType: string, content: string) {
+  return fetchApi<{ feedback: RuleFeedbackItem }>(`/v1/protocol/rules/${ruleId}/feedback`, {
+    method: 'POST',
+    body: JSON.stringify({ feedback_type: feedbackType, content }),
+  });
+}
+
+export async function voteOnFeedback(feedbackId: string, vote: 1 | -1) {
+  return fetchApi<{ voted: number }>(`/v1/protocol/feedback/${feedbackId}/vote`, {
+    method: 'POST',
+    body: JSON.stringify({ vote }),
+  });
+}

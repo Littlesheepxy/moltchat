@@ -10,6 +10,9 @@ import { verifyAgentToken, verifyUserSession } from '../lib/auth.js';
 import { AppError, ERROR_CODES } from '../lib/errors.js';
 import { config } from '../lib/config.js';
 import { createDMRoom, sendMessage, isMatrixEnabled, isMatrixReady } from '../lib/matrix.js';
+import { checkCooldown, recordEvent, getOrCreateLedger, updatePostChatRating } from '../lib/reputation.js';
+import { checkOutboundBudget, checkInboundBudget, consumeOutbound, consumeInbound } from '../lib/attention-budget.js';
+import { checkAlignment } from '../lib/alignment-check.js';
 
 // ============================================
 // Types
@@ -71,10 +74,18 @@ interface AgentRow {
 const VALID_INTENTS = ['clarify', 'coordinate', 'handoff', 'feedback'] as const;
 const VALID_EXPECTED_OUTPUTS = ['clarification', 'yes_no', 'short_answer', 'confirmation'] as const;
 
+const stakeSchema = z.object({
+  type: z.enum(['commitment', 'time', 'reputation']),
+  commitment_description: z.string().max(500).optional(),
+  reputation_points: z.number().int().min(1).max(50).optional(),
+});
+
 const createDMRequestSchema = z.object({
   to_agent_id: z.string().uuid(),
   intent: z.enum(VALID_INTENTS),
   context_ref: z.string().uuid().optional(),
+  activity_id: z.string().uuid().optional(),
+  stake: stakeSchema.optional(),
 });
 
 const respondDMRequestSchema = z.object({
@@ -115,7 +126,7 @@ export async function dmRoutes(fastify: FastifyInstance) {
       throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Invalid request body', 400);
     }
 
-    const { to_agent_id, intent, context_ref } = parseResult.data;
+    const { to_agent_id, intent, context_ref, activity_id, stake: stakeInput } = parseResult.data;
     const fromAgentId = authResult.agentId!;
 
     // 检查不能 DM 自己
@@ -250,7 +261,7 @@ export async function dmRoutes(fastify: FastifyInstance) {
 
     // 检查是否已有活跃的 DM session
     const existingSession = await queryOne<DMSessionRow>(
-      `SELECT id FROM dm_sessions 
+      `SELECT id FROM dm_sessions
        WHERE ((initiator_id = $1 AND target_id = $2) OR (initiator_id = $2 AND target_id = $1))
        AND status = 'active' AND expires_at > NOW()`,
       [fromAgentId, to_agent_id]
@@ -259,7 +270,140 @@ export async function dmRoutes(fastify: FastifyInstance) {
       throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'You already have an active DM session with this agent', 400);
     }
 
-    // 创建 DM 请求（24 小时过期）
+    // ============================================
+    // Market-Driven Protocol Gates
+    // ============================================
+
+    // Resolve user IDs for protocol checks
+    const fromUser = await queryOne<{ owner_user_id: string }>(
+      `SELECT owner_user_id FROM agents WHERE id = $1`, [fromAgentId]
+    );
+    const toUser = await queryOne<{ owner_user_id: string }>(
+      `SELECT owner_user_id FROM agents WHERE id = $1`, [to_agent_id]
+    );
+    const fromUserId = fromUser?.owner_user_id;
+    const toUserId = toUser?.owner_user_id;
+
+    if (fromUserId && toUserId) {
+      // Gate 1: Cooldown check — 声誉冷却期
+      const cooldown = await checkCooldown(fromUserId);
+      if (cooldown.inCooldown) {
+        throw new AppError(ERROR_CODES.FORBIDDEN, 'Your account is in reputation cooldown', 429, undefined, {
+          cooldown_until: cooldown.until,
+        });
+      }
+
+      // Gate 2: Outbound budget check — 发送额度
+      const fromLedger = await getOrCreateLedger(fromUserId);
+      const outbound = await checkOutboundBudget(fromUserId, fromLedger.reputation_score);
+      if (!outbound.allowed) {
+        throw new AppError(ERROR_CODES.FORBIDDEN, 'Weekly outbound budget exceeded', 429, undefined, {
+          budget: { used: outbound.used, limit: outbound.limit, remaining: 0 },
+        });
+      }
+
+      // Gate 3: Inbound budget check — 接收额度
+      const toLedger = await getOrCreateLedger(toUserId);
+      const inbound = await checkInboundBudget(toUserId, toLedger.reputation_score);
+      if (!inbound.allowed) {
+        throw new AppError(ERROR_CODES.FORBIDDEN, 'Target user\'s inbound budget is full this week', 429, undefined, {
+          target_inbound_full: true,
+        });
+      }
+
+      // Gate 4: Alignment check — 对齐度预演
+      const alignment = await checkAlignment(fromUserId, toUserId, activity_id);
+      if (!alignment.passed) {
+        throw new AppError(ERROR_CODES.FORBIDDEN, 'Alignment score too low for direct outreach', 422, undefined, {
+          alignment: { score: alignment.score, threshold: 0.65, details: alignment.details },
+        });
+      }
+
+      // Consume budget slots
+      await consumeOutbound(fromUserId);
+      await consumeInbound(toUserId);
+
+      // Record outreach event
+      await recordEvent(fromUserId, 'outreach_sent');
+
+      // Create DM request with alignment data
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      const dmRequest = await queryOne<DMRequestRow>(
+        `INSERT INTO dm_requests (from_agent_id, to_agent_id, intent, context_ref, expires_at, alignment_score, alignment_details)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING *`,
+        [fromAgentId, to_agent_id, intent, context_ref || null, expiresAt, alignment.score, JSON.stringify(alignment.details)]
+      );
+
+      // Create stake if provided
+      let stakeId: string | null = null;
+      if (stakeInput && dmRequest) {
+        const defaultReputationPoints = stakeInput.type === 'reputation' ? (stakeInput.reputation_points || 10) : 0;
+        const stakeRow = await queryOne<{ id: string }>(
+          `INSERT INTO outreach_stakes (dm_request_id, staker_user_id, stake_type, commitment_description, reputation_points_staked)
+           VALUES ($1, $2, $3, $4, $5)
+           RETURNING id`,
+          [dmRequest.id, fromUserId, stakeInput.type, stakeInput.commitment_description || null, defaultReputationPoints]
+        );
+        if (stakeRow) {
+          stakeId = stakeRow.id;
+          await query(
+            `UPDATE dm_requests SET stake_id = $1 WHERE id = $2`,
+            [stakeId, dmRequest.id]
+          );
+        }
+      }
+
+      // Notify target agent's owner about the DM request
+      const fromAgentInfo = await queryOne<{ name: string }>(
+        `SELECT name FROM agents WHERE id = $1`, [fromAgentId]
+      );
+      const targetAgentInfo = await queryOne<{ name: string; owner_user_id: string | null }>(
+        `SELECT name, owner_user_id FROM agents WHERE id = $1`, [to_agent_id]
+      );
+      if (targetAgentInfo?.owner_user_id) {
+        await query(
+          `INSERT INTO agent_notifications (owner_user_id, agent_id, type, title, content, metadata)
+           VALUES ($1, $2, 'dm_request', $3, $4, $5)`,
+          [
+            targetAgentInfo.owner_user_id,
+            to_agent_id,
+            `${fromAgentInfo?.name || 'An agent'} wants to DM`,
+            `Agent "${fromAgentInfo?.name}" sent a DM request to your agent "${targetAgentInfo.name}". Alignment score: ${alignment.score}.`,
+            JSON.stringify({
+              request_id: dmRequest!.id,
+              from_agent_id: fromAgentId,
+              from_agent_name: fromAgentInfo?.name,
+              to_agent_id,
+              to_agent_name: targetAgentInfo.name,
+              intent,
+              alignment_score: alignment.score,
+              stake_type: stakeInput?.type || null,
+            }),
+          ]
+        );
+      }
+
+      return reply.status(201).send({
+        success: true,
+        data: {
+          request: {
+            id: dmRequest!.id,
+            from_agent_id: dmRequest!.from_agent_id,
+            to_agent_id: dmRequest!.to_agent_id,
+            intent: dmRequest!.intent,
+            context_ref: dmRequest!.context_ref,
+            status: dmRequest!.status,
+            alignment_score: alignment.score,
+            stake_id: stakeId,
+            created_at: dmRequest!.created_at,
+            expires_at: dmRequest!.expires_at,
+          },
+        },
+      });
+    }
+
+    // Fallback: if user IDs not resolved, create request without protocol gates
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
     const dmRequest = await queryOne<DMRequestRow>(
       `INSERT INTO dm_requests (from_agent_id, to_agent_id, intent, context_ref, expires_at)
@@ -413,12 +557,23 @@ export async function dmRoutes(fastify: FastifyInstance) {
       throw new AppError(ERROR_CODES.DM_REQUEST_EXPIRED, 'DM request has expired', 400);
     }
 
+    // Resolve user IDs for reputation tracking
+    const fromAgentOwner = await queryOne<{ owner_user_id: string }>(
+      `SELECT owner_user_id FROM agents WHERE id = $1`, [dmRequest.from_agent_id]
+    );
+    const fromOwnerId = fromAgentOwner?.owner_user_id;
+
     if (action === 'reject') {
       // 拒绝请求
       await query(
         `UPDATE dm_requests SET status = 'rejected', reject_reason = $1, responded_at = NOW() WHERE id = $2`,
         [reason || null, id]
       );
+
+      // Record reputation event: outreach_rejected
+      if (fromOwnerId) {
+        await recordEvent(fromOwnerId, 'outreach_rejected', id);
+      }
 
       return reply.send({
         success: true,
@@ -436,6 +591,11 @@ export async function dmRoutes(fastify: FastifyInstance) {
       `UPDATE dm_requests SET status = 'accepted', responded_at = NOW() WHERE id = $1`,
       [id]
     );
+
+    // Record reputation event: outreach_accepted
+    if (fromOwnerId) {
+      await recordEvent(fromOwnerId, 'outreach_accepted', id);
+    }
 
     // 创建 Matrix room for DM（如果启用）
     let matrixRoomId: string | null = null;
@@ -1131,5 +1291,120 @@ export async function dmRoutes(fastify: FastifyInstance) {
     }
 
     return { success: true, data: { rejected: true } };
+  });
+
+  // ============================================
+  // POST /v1/dm/sessions/:id/rate - 聊后评分
+  // ============================================
+  fastify.post('/v1/dm/sessions/:id/rate', async (request: FastifyRequest, reply: FastifyReply) => {
+    const session = await verifyUserSession(request);
+    if (!session) {
+      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Login required', 401);
+    }
+
+    const { id } = request.params as { id: string };
+    const rateSchema = z.object({
+      rating: z.number().int().min(1).max(5),
+      outcome: z.enum(['valuable', 'neutral', 'waste']),
+    });
+
+    const parseResult = rateSchema.safeParse(request.body);
+    if (!parseResult.success) {
+      throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Invalid request: rating (1-5) and outcome required', 400);
+    }
+
+    const { rating, outcome } = parseResult.data;
+    const userId = session.userId;
+
+    // Get the session
+    const dmSession = await queryOne<DMSessionRow>(
+      `SELECT * FROM dm_sessions WHERE id = $1`,
+      [id]
+    );
+    if (!dmSession) {
+      throw new AppError(ERROR_CODES.NOT_FOUND, 'DM session not found', 404);
+    }
+
+    // Determine which side this user is (initiator or target)
+    const initiatorOwner = await queryOne<{ owner_user_id: string }>(
+      `SELECT owner_user_id FROM agents WHERE id = $1`, [dmSession.initiator_id]
+    );
+    const targetOwner = await queryOne<{ owner_user_id: string }>(
+      `SELECT owner_user_id FROM agents WHERE id = $1`, [dmSession.target_id]
+    );
+
+    const isInitiator = initiatorOwner?.owner_user_id === userId;
+    const isTarget = targetOwner?.owner_user_id === userId;
+
+    if (!isInitiator && !isTarget) {
+      throw new AppError(ERROR_CODES.FORBIDDEN, 'You are not a participant in this session', 403);
+    }
+
+    // Update the appropriate rating column
+    if (isInitiator) {
+      await query(
+        `UPDATE dm_sessions SET post_chat_rating_a = $2, post_chat_outcome = $3 WHERE id = $1`,
+        [id, rating, outcome]
+      );
+    } else {
+      await query(
+        `UPDATE dm_sessions SET post_chat_rating_b = $2, post_chat_outcome = COALESCE(post_chat_outcome, $3) WHERE id = $1`,
+        [id, rating, outcome]
+      );
+    }
+
+    // Record reputation events for the OTHER party based on the rating
+    const otherUserId = isInitiator ? targetOwner?.owner_user_id : initiatorOwner?.owner_user_id;
+
+    if (otherUserId) {
+      if (rating >= 4) {
+        await recordEvent(otherUserId, 'post_chat_positive', id, { rating, outcome, rated_by: userId });
+      } else if (rating <= 2) {
+        await recordEvent(otherUserId, 'post_chat_negative', id, { rating, outcome, rated_by: userId });
+      }
+
+      // Update avg_post_chat_rating
+      await updatePostChatRating(otherUserId);
+    }
+
+    // Resolve stake if this is the target rating the initiator
+    if (isTarget && dmSession.request_id) {
+      const dmReq = await queryOne<{ stake_id: string | null; from_agent_id: string }>(
+        `SELECT stake_id, from_agent_id FROM dm_requests WHERE id = $1`, [dmSession.request_id]
+      );
+
+      if (dmReq?.stake_id) {
+        const initiatorUserId = initiatorOwner?.owner_user_id;
+        if (rating >= 4) {
+          // Fulfill stake
+          await query(
+            `UPDATE outreach_stakes SET status = 'fulfilled', resolved_at = now() WHERE id = $1`,
+            [dmReq.stake_id]
+          );
+          if (initiatorUserId) {
+            await recordEvent(initiatorUserId, 'stake_fulfilled', dmReq.stake_id);
+          }
+        } else if (rating <= 2) {
+          // Forfeit stake
+          await query(
+            `UPDATE outreach_stakes SET status = 'forfeited', resolved_at = now() WHERE id = $1`,
+            [dmReq.stake_id]
+          );
+          if (initiatorUserId) {
+            await recordEvent(initiatorUserId, 'stake_forfeited', dmReq.stake_id);
+          }
+        }
+      }
+    }
+
+    return reply.send({
+      success: true,
+      data: {
+        session_id: id,
+        rating,
+        outcome,
+        side: isInitiator ? 'initiator' : 'target',
+      },
+    });
   });
 }

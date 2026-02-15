@@ -6,6 +6,7 @@
 import { query, queryOne, queryMany } from '../db/client.js';
 import { config } from './config.js';
 import { logger } from './logger.js';
+import { sanitizeField, wrapUserContent, sanitizeTags, SAFETY_PREAMBLE } from './sanitize-prompt.js';
 
 // ============================================
 // Types
@@ -112,24 +113,42 @@ function buildAgentSystemPrompt(
   side: 'A' | 'B',
   activityTheme: string | null
 ): string {
-  return `You are an AI networking agent representing a person in a professional matchmaking conversation.
+  // Sanitize all user-provided fields
+  const industry = sanitizeField(context.industry, 'industry');
+  const jobTitle = sanitizeField(context.job_title, 'job_title');
+  const lookingFor = sanitizeField(context.looking_for, 'looking_for');
+  const canOffer = sanitizeField(context.can_offer, 'can_offer');
+  const bio = sanitizeField(context.bio_md, 'bio_md');
+  const persona = sanitizeField(context.agent_persona, 'agent_persona');
+  const tags = sanitizeTags(context.tags);
+
+  const otherIndustry = sanitizeField(otherContext.industry, 'industry');
+  const otherLookingFor = sanitizeField(otherContext.looking_for, 'looking_for');
+  const otherTags = sanitizeTags(otherContext.tags);
+  const otherRoles = otherContext.roles.map(r => sanitizeField(r, 'tag'));
+
+  const theme = sanitizeField(activityTheme, 'theme');
+
+  return `${SAFETY_PREAMBLE}
+
+You are an AI networking agent representing a person in a professional matchmaking conversation.
 
 YOUR PERSON'S PROFILE:
-- Industry: ${context.industry || 'Not specified'}
-- Role: ${context.job_title || 'Not specified'}
-- Looking for: ${context.looking_for || 'Open to connections'}
-- Can offer: ${context.can_offer || 'Professional experience'}
-- Interests: ${context.tags.join(', ') || 'General'}
-- Bio: ${context.bio_md || 'No bio provided'}
-${context.agent_persona ? `- Agent personality: ${context.agent_persona}` : ''}
+- Industry: ${wrapUserContent('industry', industry || 'Not specified')}
+- Role: ${wrapUserContent('job_title', jobTitle || 'Not specified')}
+- Looking for: ${wrapUserContent('looking_for', lookingFor || 'Open to connections')}
+- Can offer: ${wrapUserContent('can_offer', canOffer || 'Professional experience')}
+- Interests: ${tags.join(', ') || 'General'}
+- Bio: ${wrapUserContent('bio', bio || 'No bio provided')}
+${persona ? `- Agent personality: ${wrapUserContent('persona', persona)}` : ''}
 
 THE OTHER PERSON'S VISIBLE PROFILE:
-- Industry: ${otherContext.industry || 'Not specified'}
-- Roles: ${otherContext.roles.join(', ')}
-- Looking for: ${otherContext.looking_for || 'Not specified'}
-- Interests: ${otherContext.tags.join(', ') || 'General'}
+- Industry: ${wrapUserContent('other_industry', otherIndustry || 'Not specified')}
+- Roles: ${otherRoles.join(', ')}
+- Looking for: ${wrapUserContent('other_looking_for', otherLookingFor || 'Not specified')}
+- Interests: ${otherTags.join(', ') || 'General'}
 
-${activityTheme ? `ACTIVITY THEME: ${activityTheme}` : ''}
+${theme ? `ACTIVITY THEME: ${wrapUserContent('theme', theme)}` : ''}
 
 INSTRUCTIONS:
 - Represent your person authentically based on their profile
@@ -147,21 +166,36 @@ function buildSummaryPrompt(
   contextB: ParticipantContext,
   conversationHistory: { side: string; content: string }[]
 ): string {
-  const convoText = conversationHistory.map(m =>
-    `[${m.side === 'A' ? 'Person A' : 'Person B'}]: ${m.content}`
-  ).join('\n');
+  // Sanitize profile fields
+  const aIndustry = sanitizeField(contextA.industry, 'industry');
+  const aJobTitle = sanitizeField(contextA.job_title, 'job_title');
+  const aLookingFor = sanitizeField(contextA.looking_for, 'looking_for');
+  const aCanOffer = sanitizeField(contextA.can_offer, 'can_offer');
 
-  return `Analyze this networking exploration conversation and generate a structured report.
+  const bIndustry = sanitizeField(contextB.industry, 'industry');
+  const bJobTitle = sanitizeField(contextB.job_title, 'job_title');
+  const bLookingFor = sanitizeField(contextB.looking_for, 'looking_for');
+  const bCanOffer = sanitizeField(contextB.can_offer, 'can_offer');
+
+  // Sanitize conversation content (each message is AI-generated but could echo injected content)
+  const convoText = conversationHistory.map(m => {
+    const cleaned = sanitizeField(m.content, 'bio_md'); // reuse bio_md limit (1000 chars)
+    return `[${m.side === 'A' ? 'Person A' : 'Person B'}]: ${cleaned}`;
+  }).join('\n');
+
+  return `${SAFETY_PREAMBLE}
+
+Analyze this networking exploration conversation and generate a structured report.
 
 PERSON A:
-- Industry: ${contextA.industry}, Role: ${contextA.job_title}
-- Looking for: ${contextA.looking_for}
-- Can offer: ${contextA.can_offer}
+- Industry: ${wrapUserContent('a_industry', aIndustry || 'N/A')}, Role: ${wrapUserContent('a_role', aJobTitle || 'N/A')}
+- Looking for: ${wrapUserContent('a_looking_for', aLookingFor || 'N/A')}
+- Can offer: ${wrapUserContent('a_can_offer', aCanOffer || 'N/A')}
 
 PERSON B:
-- Industry: ${contextB.industry}, Role: ${contextB.job_title}
-- Looking for: ${contextB.looking_for}
-- Can offer: ${contextB.can_offer}
+- Industry: ${wrapUserContent('b_industry', bIndustry || 'N/A')}, Role: ${wrapUserContent('b_role', bJobTitle || 'N/A')}
+- Looking for: ${wrapUserContent('b_looking_for', bLookingFor || 'N/A')}
+- Can offer: ${wrapUserContent('b_can_offer', bCanOffer || 'N/A')}
 
 CONVERSATION:
 ${convoText}

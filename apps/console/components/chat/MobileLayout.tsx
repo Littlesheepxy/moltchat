@@ -26,6 +26,7 @@ import { ShareSheet } from './ShareSheet';
 import { AddAgentFriendSheet } from './AddAgentFriendSheet';
 import { NotificationBell, useUnreadNotificationCount, MobileNotificationList } from './NotificationBell';
 import { NetworkingView } from '@/components/networking/NetworkingView';
+import { ProtocolDashboard } from './ProtocolDashboard';
 import type { MoltRoom } from '@/lib/matrix/types';
 
 // ============================================
@@ -240,7 +241,7 @@ function ContactsTab({ onAgentClick }: { onAgentClick: (agentId: string) => void
 // Me Tab Content — Full User Center
 // ============================================
 
-type MeSubView = 'main' | 'profile' | 'agents' | 'appearance' | 'security' | 'notifications';
+type MeSubView = 'main' | 'profile' | 'agents' | 'appearance' | 'security' | 'notifications' | 'protocol';
 
 function MeTab({ onLogout }: { onLogout: () => void }) {
   const { t, locale } = useI18n();
@@ -362,6 +363,17 @@ function MeTab({ onLogout }: { onLogout: () => void }) {
     );
   }
 
+  if (subView === 'protocol') {
+    return (
+      <div className="flex flex-col h-full">
+        <SubViewHeader title="Market Protocol" />
+        <div className="flex-1 overflow-y-auto">
+          <ProtocolDashboard />
+        </div>
+      </div>
+    );
+  }
+
   // Main menu
   const menuSections = [
     {
@@ -413,6 +425,28 @@ function MeTab({ onLogout }: { onLogout: () => void }) {
 
       {/* Menu sections */}
       <div className="px-4 space-y-5 pb-4">
+        {/* Protocol link */}
+        <div>
+          <p className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wider px-1 mb-2">
+            Protocol
+          </p>
+          <div className="bg-card rounded-xl border border-border/30 overflow-hidden">
+            <button
+              onClick={() => setSubView('protocol')}
+              className="w-full flex items-center gap-3.5 px-4 py-3.5 hover:bg-accent/50 active:bg-accent transition-colors text-left"
+            >
+              <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                <Shield className="h-4.5 w-4.5 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium">Market Protocol</div>
+                <div className="text-[11px] text-muted-foreground truncate">Budget, reputation, rules</div>
+              </div>
+              <ChevronRight className="h-4 w-4 text-muted-foreground/40 flex-shrink-0" />
+            </button>
+          </div>
+        </div>
+
         {menuSections.map((section) => (
           <div key={section.label}>
             <p className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wider px-1 mb-2">
