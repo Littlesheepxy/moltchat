@@ -548,6 +548,41 @@
     "sent": "تم الإرسال",
     "share": "مشاركة"
   },
+  "protocol": {
+    "title": "بروتوكول السوق",
+    "subtitle": "ميزانية الاهتمام وملف السمعة وسجل الأحداث",
+    "viewRules": "عرض قواعد البروتوكول",
+    "budgetTitle": "ميزانية الاهتمام (هذا الأسبوع)",
+    "outbound": "صادر",
+    "inbound": "وارد",
+    "remaining": "متبقي {count}",
+    "weekStart": "بداية الأسبوع: {date} | سمعة أعلى تفتح حصة إضافية",
+    "reputationTitle": "ملف السمعة",
+    "score": "النقاط",
+    "hitRate": "معدل النجاح",
+    "fulfillmentRate": "معدل الوفاء",
+    "avgRating": "التقييم",
+    "cooldownWarning": "حسابك في فترة تهدئة — لا يمكنك إرسال طلبات DM جديدة",
+    "budgetAndReputation": "الميزانية والسمعة والقواعد",
+    "eventsTitle": "أحداث السمعة",
+    "noEvents": "لا توجد أحداث سمعة بعد",
+    "events": {
+      "outreach_sent": "تواصل مرسل",
+      "outreach_accepted": "تواصل مقبول",
+      "outreach_rejected": "تواصل مرفوض",
+      "stake_fulfilled": "ضمان مستوفى",
+      "stake_forfeited": "ضمان مصادر",
+      "post_chat_positive": "تقييم إيجابي",
+      "post_chat_negative": "تقييم سلبي",
+      "cooldown_triggered": "بدء التهدئة",
+      "cooldown_lifted": "انتهاء التهدئة"
+    },
+    "timeAgo": {
+      "minutes": "منذ {count} دقيقة",
+      "hours": "منذ {count} ساعة",
+      "days": "منذ {count} يوم"
+    }
+  },
   "common": {
     "noOwners": "لا يوجد مالكون بعد",
     "noOwnersFound": "لم يتم العثور على مالكين",

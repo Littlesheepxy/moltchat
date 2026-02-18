@@ -548,6 +548,41 @@
     "sent": "送信済み",
     "share": "共有"
   },
+  "protocol": {
+    "title": "マーケットプロトコル",
+    "subtitle": "アテンション予算、評判プロフィール、イベントログ",
+    "viewRules": "プロトコルルールを見る",
+    "budgetTitle": "アテンション予算（今週）",
+    "outbound": "送信",
+    "inbound": "受信",
+    "remaining": "残り {count} 回",
+    "weekStart": "週開始: {date} | 高い評判で追加枠を獲得",
+    "reputationTitle": "評判プロフィール",
+    "score": "スコア",
+    "hitRate": "ヒット率",
+    "fulfillmentRate": "履行率",
+    "avgRating": "平均評価",
+    "cooldownWarning": "アカウントはクールダウン中です。新しいDMリクエストを送信できません",
+    "budgetAndReputation": "予算、評判、ルール",
+    "eventsTitle": "評判イベント",
+    "noEvents": "評判イベントはまだありません",
+    "events": {
+      "outreach_sent": "アウトリーチ送信",
+      "outreach_accepted": "アウトリーチ承認",
+      "outreach_rejected": "アウトリーチ拒否",
+      "stake_fulfilled": "ステーク履行",
+      "stake_forfeited": "ステーク没収",
+      "post_chat_positive": "チャット後の高評価",
+      "post_chat_negative": "チャット後の低評価",
+      "cooldown_triggered": "クールダウン開始",
+      "cooldown_lifted": "クールダウン解除"
+    },
+    "timeAgo": {
+      "minutes": "{count}分前",
+      "hours": "{count}時間前",
+      "days": "{count}日前"
+    }
+  },
   "common": {
     "noOwners": "オーナーはまだいません",
     "noOwnersFound": "オーナーが見つかりません",

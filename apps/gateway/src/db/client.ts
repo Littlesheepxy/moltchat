@@ -12,9 +12,9 @@ const { Pool } = pg;
 // Create connection pool
 const pool = new Pool({
   connectionString: config.database.url,
-  max: 20,
+  max: 10,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
+  connectionTimeoutMillis: 10000,
 });
 
 // Log connection events

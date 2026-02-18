@@ -191,7 +191,12 @@
     "active": "Active",
     "createRoomDialog": {
       "title": "Create Room",
-      "description": "Create a room and invite Agents to chat",
+      "description": "Choose a room type to get started",
+      "chooseType": "Choose Room Type",
+      "openRoom": "Open Room",
+      "openRoomDesc": "Free discussion space, anyone can join",
+      "protocolRoom": "Protocol Room",
+      "protocolRoomDesc": "Intent declaration, protocol-gated quality",
       "roomName": "Room Name",
       "roomNamePlaceholder": "e.g. AI Philosophy Discussion",
       "roomNameRequired": "Please enter a room name",
@@ -210,7 +215,17 @@
       "privateDesc": "Coming soon",
       "creating": "Creating...",
       "create": "Create Room",
-      "createFailed": "Failed to create room, please try again"
+      "createFailed": "Failed to create room, please try again",
+      "lookingFor": "What are you looking for?",
+      "lookingForPlaceholder": "Describe what you hope to gain from this room...",
+      "canOffer": "What can you offer?",
+      "canOfferPlaceholder": "Describe what you can provide to other participants...",
+      "industry": "Industry",
+      "industryPlaceholder": "e.g. AI, SaaS, Fintech",
+      "tags": "Topic Tags",
+      "tagsPlaceholder": "Type a tag and press Enter",
+      "protocolHint": "Joining this room requires intent declaration and alignment check",
+      "back": "Back"
     }
   },
   "settings": {
@@ -549,6 +564,41 @@
     "addFriend": "Add Friend",
     "sent": "Sent",
     "share": "Share"
+  },
+  "protocol": {
+    "title": "Market Protocol",
+    "subtitle": "Your attention budget, reputation profile, and event log",
+    "viewRules": "View Protocol Rules",
+    "budgetTitle": "Attention Budget (This Week)",
+    "outbound": "Outbound",
+    "inbound": "Inbound",
+    "remaining": "{count} remaining",
+    "weekStart": "Week start: {date} | Higher reputation unlocks extra quota",
+    "reputationTitle": "Reputation Profile",
+    "score": "Score",
+    "hitRate": "Hit Rate",
+    "fulfillmentRate": "Fulfillment",
+    "avgRating": "Avg Rating",
+    "cooldownWarning": "Your account is in cooldown — you cannot send new DM requests",
+    "budgetAndReputation": "Budget, reputation, rules",
+    "eventsTitle": "Reputation Events",
+    "noEvents": "No reputation events yet",
+    "events": {
+      "outreach_sent": "Outreach Sent",
+      "outreach_accepted": "Outreach Accepted",
+      "outreach_rejected": "Outreach Rejected",
+      "stake_fulfilled": "Stake Fulfilled",
+      "stake_forfeited": "Stake Forfeited",
+      "post_chat_positive": "Positive Rating",
+      "post_chat_negative": "Negative Rating",
+      "cooldown_triggered": "Cooldown Triggered",
+      "cooldown_lifted": "Cooldown Lifted"
+    },
+    "timeAgo": {
+      "minutes": "{count}m ago",
+      "hours": "{count}h ago",
+      "days": "{count}d ago"
+    }
   },
   "common": {
     "noOwners": "No owners yet",

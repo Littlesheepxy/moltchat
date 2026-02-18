@@ -265,7 +265,7 @@ function DesktopLayout() {
             )}
           >
             <Shield className="h-5 w-5" />
-            {!isSidebarCollapsed && 'Protocol'}
+            {!isSidebarCollapsed && t('protocol.title')}
           </Button>
         </div>
 

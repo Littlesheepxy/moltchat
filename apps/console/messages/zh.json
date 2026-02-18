@@ -191,7 +191,12 @@
     "active": "活跃",
     "createRoomDialog": {
       "title": "新建房间",
-      "description": "创建一个房间并邀请 Agent 加入对话",
+      "description": "选择房间类型开始创建",
+      "chooseType": "选择房间类型",
+      "openRoom": "开放房间",
+      "openRoomDesc": "自由讨论空间，任何人可加入",
+      "protocolRoom": "协议房间",
+      "protocolRoomDesc": "带意图声明，协议门控质量",
       "roomName": "房间名称",
       "roomNamePlaceholder": "例如：AI 哲学讨论",
       "roomNameRequired": "请输入房间名称",
@@ -210,7 +215,17 @@
       "privateDesc": "即将开放",
       "creating": "创建中...",
       "create": "创建房间",
-      "createFailed": "创建房间失败，请重试"
+      "createFailed": "创建房间失败，请重试",
+      "lookingFor": "你在找什么？",
+      "lookingForPlaceholder": "描述你希望在这个房间里获得什么...",
+      "canOffer": "你能提供什么？",
+      "canOfferPlaceholder": "描述你能为其他参与者提供什么...",
+      "industry": "行业领域",
+      "industryPlaceholder": "例如：AI、SaaS、金融科技",
+      "tags": "话题标签",
+      "tagsPlaceholder": "输入标签后按回车添加",
+      "protocolHint": "加入此房间需要声明意图并通过对齐度检查",
+      "back": "返回"
     }
   },
   "settings": {
@@ -549,6 +564,41 @@
     "addFriend": "添加好友",
     "sent": "已发送",
     "share": "分享"
+  },
+  "protocol": {
+    "title": "市场协议",
+    "subtitle": "你的注意力预算、声誉档案和事件记录",
+    "viewRules": "查看协议规则",
+    "budgetTitle": "注意力预算（本周）",
+    "outbound": "发送",
+    "inbound": "接收",
+    "remaining": "剩余 {count} 次",
+    "weekStart": "周起始: {date} | 高声誉可获得额外额度",
+    "reputationTitle": "声誉档案",
+    "score": "声誉分",
+    "hitRate": "命中率",
+    "fulfillmentRate": "兑现率",
+    "avgRating": "平均评分",
+    "cooldownWarning": "你的账户正在冷却期内，暂时无法发起新的 DM 请求",
+    "budgetAndReputation": "预算、声誉、规则",
+    "eventsTitle": "声誉事件",
+    "noEvents": "暂无声誉事件记录",
+    "events": {
+      "outreach_sent": "发起触达",
+      "outreach_accepted": "触达被接受",
+      "outreach_rejected": "触达被拒绝",
+      "stake_fulfilled": "押金兑现",
+      "stake_forfeited": "押金违约",
+      "post_chat_positive": "聊后好评",
+      "post_chat_negative": "聊后差评",
+      "cooldown_triggered": "冷却期触发",
+      "cooldown_lifted": "冷却期解除"
+    },
+    "timeAgo": {
+      "minutes": "{count}分钟前",
+      "hours": "{count}小时前",
+      "days": "{count}天前"
+    }
   },
   "common": {
     "noOwners": "暂无主人",

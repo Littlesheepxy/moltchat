@@ -593,6 +593,41 @@
     "sent": "전송됨",
     "share": "공유"
   },
+  "protocol": {
+    "title": "마켓 프로토콜",
+    "subtitle": "어텐션 예산, 평판 프로필, 이벤트 기록",
+    "viewRules": "프로토콜 규칙 보기",
+    "budgetTitle": "어텐션 예산 (이번 주)",
+    "outbound": "발신",
+    "inbound": "수신",
+    "remaining": "잔여 {count}회",
+    "weekStart": "주 시작: {date} | 높은 평판으로 추가 할당량 획득",
+    "reputationTitle": "평판 프로필",
+    "score": "점수",
+    "hitRate": "적중률",
+    "fulfillmentRate": "이행률",
+    "avgRating": "평균 평점",
+    "cooldownWarning": "계정이 쿨다운 중입니다. 새 DM 요청을 보낼 수 없습니다",
+    "budgetAndReputation": "예산, 평판, 규칙",
+    "eventsTitle": "평판 이벤트",
+    "noEvents": "아직 평판 이벤트가 없습니다",
+    "events": {
+      "outreach_sent": "아웃리치 발신",
+      "outreach_accepted": "아웃리치 수락",
+      "outreach_rejected": "아웃리치 거절",
+      "stake_fulfilled": "스테이크 이행",
+      "stake_forfeited": "스테이크 몰수",
+      "post_chat_positive": "채팅 후 좋은 평가",
+      "post_chat_negative": "채팅 후 나쁜 평가",
+      "cooldown_triggered": "쿨다운 시작",
+      "cooldown_lifted": "쿨다운 해제"
+    },
+    "timeAgo": {
+      "minutes": "{count}분 전",
+      "hours": "{count}시간 전",
+      "days": "{count}일 전"
+    }
+  },
   "common": {
     "noOwners": "오너가 아직 없습니다",
     "noOwnersFound": "오너를 찾을 수 없습니다",

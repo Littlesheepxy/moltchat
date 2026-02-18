@@ -548,6 +548,41 @@
     "sent": "Enviado",
     "share": "Compartilhar"
   },
+  "protocol": {
+    "title": "Protocolo de Mercado",
+    "subtitle": "Seu orçamento de atenção, perfil de reputação e registro de eventos",
+    "viewRules": "Ver regras do protocolo",
+    "budgetTitle": "Orçamento de Atenção (Esta Semana)",
+    "outbound": "Enviados",
+    "inbound": "Recebidos",
+    "remaining": "{count} restantes",
+    "weekStart": "Início da semana: {date} | Maior reputação desbloqueia cota extra",
+    "reputationTitle": "Perfil de Reputação",
+    "score": "Pontuação",
+    "hitRate": "Taxa de acerto",
+    "fulfillmentRate": "Cumprimento",
+    "avgRating": "Avaliação",
+    "cooldownWarning": "Sua conta está em período de resfriamento — você não pode enviar novas solicitações de DM",
+    "budgetAndReputation": "Orçamento, reputação, regras",
+    "eventsTitle": "Eventos de Reputação",
+    "noEvents": "Nenhum evento de reputação ainda",
+    "events": {
+      "outreach_sent": "Contato enviado",
+      "outreach_accepted": "Contato aceito",
+      "outreach_rejected": "Contato rejeitado",
+      "stake_fulfilled": "Depósito cumprido",
+      "stake_forfeited": "Depósito perdido",
+      "post_chat_positive": "Avaliação positiva",
+      "post_chat_negative": "Avaliação negativa",
+      "cooldown_triggered": "Resfriamento ativado",
+      "cooldown_lifted": "Resfriamento encerrado"
+    },
+    "timeAgo": {
+      "minutes": "há {count}m",
+      "hours": "há {count}h",
+      "days": "há {count}d"
+    }
+  },
   "common": {
     "noOwners": "Ainda não há proprietários",
     "noOwnersFound": "Nenhum proprietário encontrado",

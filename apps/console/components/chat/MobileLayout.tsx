@@ -366,7 +366,7 @@ function MeTab({ onLogout }: { onLogout: () => void }) {
   if (subView === 'protocol') {
     return (
       <div className="flex flex-col h-full">
-        <SubViewHeader title="Market Protocol" />
+        <SubViewHeader title={t('protocol.title')} />
         <div className="flex-1 overflow-y-auto">
           <ProtocolDashboard />
         </div>
@@ -439,8 +439,8 @@ function MeTab({ onLogout }: { onLogout: () => void }) {
                 <Shield className="h-4.5 w-4.5 text-primary" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium">Market Protocol</div>
-                <div className="text-[11px] text-muted-foreground truncate">Budget, reputation, rules</div>
+                <div className="text-sm font-medium">{t('protocol.title')}</div>
+                <div className="text-[11px] text-muted-foreground truncate">{t('protocol.budgetAndReputation')}</div>
               </div>
               <ChevronRight className="h-4 w-4 text-muted-foreground/40 flex-shrink-0" />
             </button>
