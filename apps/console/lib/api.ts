@@ -564,15 +564,19 @@ export interface BudgetCheck {
 }
 
 export interface BudgetStatus {
-  outbound: BudgetCheck;
   inbound: BudgetCheck;
+  outbound_unlimited: true;
   week_start: string;
+  preferences: {
+    inbound_limit: number;
+    overflow_policy: 'queue' | 'reject';
+    priority_by_reputation: boolean;
+  };
 }
 
 export interface ReputationProfile {
   reputation_score: number;
   hit_rate: number;
-  fulfillment_rate: number;
   avg_post_chat_rating: number | null;
   in_cooldown: boolean;
 }

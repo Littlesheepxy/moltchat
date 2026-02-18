@@ -1,6 +1,9 @@
 /**
  * Reputation System
- * 声誉账本：公开记录行为，优质行为降低成本，劣质行为触发冷却
+ * 声誉账本：公开记录行为，优质行为提升信誉，劣质行为触发冷却
+ *
+ * 冷启动：新用户 60 分 → 完善资料 +40 → 正常 100 分
+ * 自然约束：信誉低 → 对齐度差 → 被拒率高 → 自动冷却
  */
 
 import { query, queryOne, queryMany } from '../db/client.js';
@@ -16,8 +19,6 @@ interface ReputationLedger {
   reputation_score: number;
   total_outbound: number;
   total_accepted: number;
-  total_fulfilled: number;
-  total_forfeited: number;
   avg_post_chat_rating: number | null;
   cooldown_until: Date | null;
   created_at: Date;
@@ -35,11 +36,10 @@ interface ReputationEvent {
 }
 
 export type ReputationEventType =
+  | 'profile_completed'
   | 'outreach_sent'
   | 'outreach_accepted'
   | 'outreach_rejected'
-  | 'stake_fulfilled'
-  | 'stake_forfeited'
   | 'post_chat_positive'
   | 'post_chat_negative'
   | 'cooldown_triggered'
@@ -48,7 +48,6 @@ export type ReputationEventType =
 export interface PublicReputation {
   reputation_score: number;
   hit_rate: number;
-  fulfillment_rate: number;
   avg_post_chat_rating: number | null;
   in_cooldown: boolean;
 }
@@ -58,11 +57,10 @@ export interface PublicReputation {
 // ============================================
 
 const POINTS: Record<ReputationEventType, number> = {
+  profile_completed: 40,
   outreach_sent: 0,
   outreach_accepted: 5,
   outreach_rejected: -3,
-  stake_fulfilled: 10,
-  stake_forfeited: -15,
   post_chat_positive: 5,
   post_chat_negative: -10,
   cooldown_triggered: 0,
@@ -71,7 +69,7 @@ const POINTS: Record<ReputationEventType, number> = {
 
 const COOLDOWN_THRESHOLD = 50;
 const COOLDOWN_DAYS = 7;
-const INITIAL_SCORE = 100;
+const INITIAL_SCORE = 60;
 
 // ============================================
 // Core Functions
@@ -130,10 +128,6 @@ export async function recordEvent(
     counterUpdates.push('total_outbound = total_outbound + 1');
   } else if (eventType === 'outreach_accepted') {
     counterUpdates.push('total_accepted = total_accepted + 1');
-  } else if (eventType === 'stake_fulfilled') {
-    counterUpdates.push('total_fulfilled = total_fulfilled + 1');
-  } else if (eventType === 'stake_forfeited') {
-    counterUpdates.push('total_forfeited = total_forfeited + 1');
   }
 
   await query(
@@ -222,17 +216,11 @@ export async function getPublicProfile(userId: string): Promise<PublicReputation
     ? ledger.total_accepted / ledger.total_outbound
     : 0;
 
-  const totalStakeResolved = ledger.total_fulfilled + ledger.total_forfeited;
-  const fulfillmentRate = totalStakeResolved > 0
-    ? ledger.total_fulfilled / totalStakeResolved
-    : 1;
-
   const inCooldown = !!(ledger.cooldown_until && ledger.cooldown_until > new Date());
 
   return {
     reputation_score: ledger.reputation_score,
     hit_rate: Math.round(hitRate * 100) / 100,
-    fulfillment_rate: Math.round(fulfillmentRate * 100) / 100,
     avg_post_chat_rating: ledger.avg_post_chat_rating,
     in_cooldown: inCooldown,
   };

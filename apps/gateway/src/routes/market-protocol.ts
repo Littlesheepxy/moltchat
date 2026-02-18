@@ -7,8 +7,8 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { verifyUserSession } from '../lib/auth.js';
 import { AppError, ERROR_CODES } from '../lib/errors.js';
-import { getBudgetStatus, getWeekStart } from '../lib/attention-budget.js';
-import { getOrCreateLedger, getPublicProfile, getEvents } from '../lib/reputation.js';
+import { getBudgetStatus, getWeekStart, updateUserBudgetPreference } from '../lib/attention-budget.js';
+import { getPublicProfile, getEvents } from '../lib/reputation.js';
 import { previewAlignment } from '../lib/alignment-check.js';
 
 // ============================================
@@ -21,17 +21,21 @@ function isDevUser(userId: string): boolean {
 
 function devBudgetData() {
   return {
-    outbound: { allowed: true, used: 0, limit: 5, remaining: 5 },
-    inbound: { allowed: true, used: 0, limit: 5, remaining: 5 },
+    inbound: { allowed: true, used: 0, limit: 10, remaining: 10 },
+    outbound_unlimited: true as const,
     week_start: getWeekStart(),
+    preferences: {
+      inbound_limit: 10,
+      overflow_policy: 'queue' as const,
+      priority_by_reputation: true,
+    },
   };
 }
 
 function devReputationData() {
   return {
-    reputation_score: 100,
+    reputation_score: 60,
     hit_rate: 0,
-    fulfillment_rate: 1,
     avg_post_chat_rating: null,
     in_cooldown: false,
   };
@@ -56,12 +60,43 @@ export async function marketProtocolRoutes(fastify: FastifyInstance): Promise<vo
       return reply.send({ success: true, data: devBudgetData() });
     }
 
-    const ledger = await getOrCreateLedger(session.userId);
-    const budget = await getBudgetStatus(session.userId, ledger.reputation_score);
+    const budget = await getBudgetStatus(session.userId);
 
     return reply.send({
       success: true,
       data: budget,
+    });
+  });
+
+  // ============================================
+  // PUT /v1/protocol/budget/preferences - 更新预算偏好设置
+  // ============================================
+  fastify.put('/v1/protocol/budget/preferences', async (request: FastifyRequest, reply: FastifyReply) => {
+    const session = await verifyUserSession(request);
+    if (!session) {
+      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Login required', 401);
+    }
+
+    const schema = z.object({
+      inbound_limit: z.number().int().min(-1).max(999).optional(),  // -1 = unlimited
+      overflow_policy: z.enum(['queue', 'reject']).optional(),
+      priority_by_reputation: z.boolean().optional(),
+    });
+
+    const parseResult = schema.safeParse(request.body);
+    if (!parseResult.success) {
+      throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Invalid preferences', 400);
+    }
+
+    if (isDevUser(session.userId)) {
+      return reply.send({ success: true, data: devBudgetData().preferences });
+    }
+
+    const updated = await updateUserBudgetPreference(session.userId, parseResult.data);
+
+    return reply.send({
+      success: true,
+      data: updated,
     });
   });
 

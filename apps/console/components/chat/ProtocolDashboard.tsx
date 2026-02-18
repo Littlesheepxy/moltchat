@@ -16,15 +16,14 @@ import {
 import {
   Shield, TrendingUp, TrendingDown, Clock,
   Send, Inbox, Star, AlertTriangle, CheckCircle, XCircle,
-  BookOpen, Loader2,
+  BookOpen, Loader2, Infinity,
 } from 'lucide-react';
 
 const EVENT_ICONS: Record<string, { icon: typeof TrendingUp; color: string }> = {
+  profile_completed: { icon: CheckCircle, color: 'text-green-600' },
   outreach_sent: { icon: Send, color: 'text-blue-500' },
   outreach_accepted: { icon: CheckCircle, color: 'text-green-500' },
   outreach_rejected: { icon: XCircle, color: 'text-red-500' },
-  stake_fulfilled: { icon: CheckCircle, color: 'text-green-600' },
-  stake_forfeited: { icon: AlertTriangle, color: 'text-red-600' },
   post_chat_positive: { icon: Star, color: 'text-yellow-500' },
   post_chat_negative: { icon: TrendingDown, color: 'text-red-500' },
   cooldown_triggered: { icon: Clock, color: 'text-orange-500' },
@@ -105,43 +104,52 @@ export function ProtocolDashboard() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
-              {/* Outbound */}
+              {/* Outbound — unlimited */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm">
                   <span className="flex items-center gap-1.5">
                     <Send className="h-4 w-4 text-blue-500" />
                     {t('protocol.outbound')}
                   </span>
-                  <span className="font-mono">{budget.outbound.used}/{budget.outbound.limit}</span>
-                </div>
-                <div className="h-2 bg-muted rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-blue-500 rounded-full transition-all"
-                    style={{ width: `${(budget.outbound.used / budget.outbound.limit) * 100}%` }}
-                  />
+                  <span className="flex items-center gap-1 text-muted-foreground">
+                    <Infinity className="h-3.5 w-3.5" />
+                    {t('protocol.unlimited')}
+                  </span>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {t('protocol.remaining').replace('{count}', String(budget.outbound.remaining))}
+                  {t('protocol.outboundDesc')}
                 </p>
               </div>
 
-              {/* Inbound */}
+              {/* Inbound — user configurable */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm">
                   <span className="flex items-center gap-1.5">
                     <Inbox className="h-4 w-4 text-green-500" />
                     {t('protocol.inbound')}
                   </span>
-                  <span className="font-mono">{budget.inbound.used}/{budget.inbound.limit}</span>
+                  <span className="font-mono">
+                    {budget.inbound.limit === -1 ? (
+                      <span className="flex items-center gap-1">
+                        <Infinity className="h-3.5 w-3.5" />
+                      </span>
+                    ) : (
+                      `${budget.inbound.used}/${budget.inbound.limit}`
+                    )}
+                  </span>
                 </div>
-                <div className="h-2 bg-muted rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-green-500 rounded-full transition-all"
-                    style={{ width: `${(budget.inbound.used / budget.inbound.limit) * 100}%` }}
-                  />
-                </div>
+                {budget.inbound.limit !== -1 && (
+                  <div className="h-2 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-green-500 rounded-full transition-all"
+                      style={{ width: `${(budget.inbound.used / budget.inbound.limit) * 100}%` }}
+                    />
+                  </div>
+                )}
                 <p className="text-xs text-muted-foreground">
-                  {t('protocol.remaining').replace('{count}', String(budget.inbound.remaining))}
+                  {budget.inbound.limit === -1
+                    ? t('protocol.unlimited')
+                    : t('protocol.remaining').replace('{count}', String(budget.inbound.remaining))}
                 </p>
               </div>
             </div>
@@ -159,7 +167,7 @@ export function ProtocolDashboard() {
             <CardTitle className="text-lg">{t('protocol.reputationTitle')}</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div className="text-center">
                 <div className="text-3xl font-bold text-primary">{reputation.reputation_score}</div>
                 <div className="text-xs text-muted-foreground mt-1">{t('protocol.score')}</div>
@@ -167,10 +175,6 @@ export function ProtocolDashboard() {
               <div className="text-center">
                 <div className="text-3xl font-bold">{Math.round(reputation.hit_rate * 100)}%</div>
                 <div className="text-xs text-muted-foreground mt-1">{t('protocol.hitRate')}</div>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl font-bold">{Math.round(reputation.fulfillment_rate * 100)}%</div>
-                <div className="text-xs text-muted-foreground mt-1">{t('protocol.fulfillmentRate')}</div>
               </div>
               <div className="text-center">
                 <div className="text-3xl font-bold">

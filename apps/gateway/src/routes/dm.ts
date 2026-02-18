@@ -11,7 +11,7 @@ import { AppError, ERROR_CODES } from '../lib/errors.js';
 import { config } from '../lib/config.js';
 import { createDMRoom, sendMessage, isMatrixEnabled, isMatrixReady } from '../lib/matrix.js';
 import { checkCooldown, recordEvent, getOrCreateLedger, updatePostChatRating } from '../lib/reputation.js';
-import { checkOutboundBudget, checkInboundBudget, consumeOutbound, consumeInbound } from '../lib/attention-budget.js';
+import { checkInboundBudget, consumeInbound } from '../lib/attention-budget.js';
 import { checkAlignment } from '../lib/alignment-check.js';
 
 // ============================================
@@ -74,18 +74,11 @@ interface AgentRow {
 const VALID_INTENTS = ['clarify', 'coordinate', 'handoff', 'feedback'] as const;
 const VALID_EXPECTED_OUTPUTS = ['clarification', 'yes_no', 'short_answer', 'confirmation'] as const;
 
-const stakeSchema = z.object({
-  type: z.enum(['commitment', 'time', 'reputation']),
-  commitment_description: z.string().max(500).optional(),
-  reputation_points: z.number().int().min(1).max(50).optional(),
-});
-
 const createDMRequestSchema = z.object({
   to_agent_id: z.string().uuid(),
   intent: z.enum(VALID_INTENTS),
   context_ref: z.string().uuid().optional(),
   activity_id: z.string().uuid().optional(),
-  stake: stakeSchema.optional(),
 });
 
 const respondDMRequestSchema = z.object({
@@ -126,7 +119,7 @@ export async function dmRoutes(fastify: FastifyInstance) {
       throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Invalid request body', 400);
     }
 
-    const { to_agent_id, intent, context_ref, activity_id, stake: stakeInput } = parseResult.data;
+    const { to_agent_id, intent, context_ref, activity_id } = parseResult.data;
     const fromAgentId = authResult.agentId!;
 
     // 检查不能 DM 自己
@@ -293,25 +286,15 @@ export async function dmRoutes(fastify: FastifyInstance) {
         });
       }
 
-      // Gate 2: Outbound budget check — 发送额度
-      const fromLedger = await getOrCreateLedger(fromUserId);
-      const outbound = await checkOutboundBudget(fromUserId, fromLedger.reputation_score);
-      if (!outbound.allowed) {
-        throw new AppError(ERROR_CODES.FORBIDDEN, 'Weekly outbound budget exceeded', 429, undefined, {
-          budget: { used: outbound.used, limit: outbound.limit, remaining: 0 },
-        });
-      }
-
-      // Gate 3: Inbound budget check — 接收额度
-      const toLedger = await getOrCreateLedger(toUserId);
-      const inbound = await checkInboundBudget(toUserId, toLedger.reputation_score);
+      // Gate 2: Inbound budget check — 对方接收额度
+      const inbound = await checkInboundBudget(toUserId);
       if (!inbound.allowed) {
         throw new AppError(ERROR_CODES.FORBIDDEN, 'Target user\'s inbound budget is full this week', 429, undefined, {
           target_inbound_full: true,
         });
       }
 
-      // Gate 4: Alignment check — 对齐度预演
+      // Gate 3: Alignment check — 对齐度预演
       const alignment = await checkAlignment(fromUserId, toUserId, activity_id);
       if (!alignment.passed) {
         throw new AppError(ERROR_CODES.FORBIDDEN, 'Alignment score too low for direct outreach', 422, undefined, {
@@ -319,8 +302,7 @@ export async function dmRoutes(fastify: FastifyInstance) {
         });
       }
 
-      // Consume budget slots
-      await consumeOutbound(fromUserId);
+      // Consume inbound budget slot
       await consumeInbound(toUserId);
 
       // Record outreach event
@@ -334,25 +316,6 @@ export async function dmRoutes(fastify: FastifyInstance) {
          RETURNING *`,
         [fromAgentId, to_agent_id, intent, context_ref || null, expiresAt, alignment.score, JSON.stringify(alignment.details)]
       );
-
-      // Create stake if provided
-      let stakeId: string | null = null;
-      if (stakeInput && dmRequest) {
-        const defaultReputationPoints = stakeInput.type === 'reputation' ? (stakeInput.reputation_points || 10) : 0;
-        const stakeRow = await queryOne<{ id: string }>(
-          `INSERT INTO outreach_stakes (dm_request_id, staker_user_id, stake_type, commitment_description, reputation_points_staked)
-           VALUES ($1, $2, $3, $4, $5)
-           RETURNING id`,
-          [dmRequest.id, fromUserId, stakeInput.type, stakeInput.commitment_description || null, defaultReputationPoints]
-        );
-        if (stakeRow) {
-          stakeId = stakeRow.id;
-          await query(
-            `UPDATE dm_requests SET stake_id = $1 WHERE id = $2`,
-            [stakeId, dmRequest.id]
-          );
-        }
-      }
 
       // Notify target agent's owner about the DM request
       const fromAgentInfo = await queryOne<{ name: string }>(
@@ -378,7 +341,6 @@ export async function dmRoutes(fastify: FastifyInstance) {
               to_agent_name: targetAgentInfo.name,
               intent,
               alignment_score: alignment.score,
-              stake_type: stakeInput?.type || null,
             }),
           ]
         );
@@ -395,7 +357,6 @@ export async function dmRoutes(fastify: FastifyInstance) {
             context_ref: dmRequest!.context_ref,
             status: dmRequest!.status,
             alignment_score: alignment.score,
-            stake_id: stakeId,
             created_at: dmRequest!.created_at,
             expires_at: dmRequest!.expires_at,
           },
@@ -1365,36 +1326,6 @@ export async function dmRoutes(fastify: FastifyInstance) {
 
       // Update avg_post_chat_rating
       await updatePostChatRating(otherUserId);
-    }
-
-    // Resolve stake if this is the target rating the initiator
-    if (isTarget && dmSession.request_id) {
-      const dmReq = await queryOne<{ stake_id: string | null; from_agent_id: string }>(
-        `SELECT stake_id, from_agent_id FROM dm_requests WHERE id = $1`, [dmSession.request_id]
-      );
-
-      if (dmReq?.stake_id) {
-        const initiatorUserId = initiatorOwner?.owner_user_id;
-        if (rating >= 4) {
-          // Fulfill stake
-          await query(
-            `UPDATE outreach_stakes SET status = 'fulfilled', resolved_at = now() WHERE id = $1`,
-            [dmReq.stake_id]
-          );
-          if (initiatorUserId) {
-            await recordEvent(initiatorUserId, 'stake_fulfilled', dmReq.stake_id);
-          }
-        } else if (rating <= 2) {
-          // Forfeit stake
-          await query(
-            `UPDATE outreach_stakes SET status = 'forfeited', resolved_at = now() WHERE id = $1`,
-            [dmReq.stake_id]
-          );
-          if (initiatorUserId) {
-            await recordEvent(initiatorUserId, 'stake_forfeited', dmReq.stake_id);
-          }
-        }
-      }
     }
 
     return reply.send({
