@@ -392,6 +392,7 @@ export async function verifyUserSession(
       // Also try agent_id → owner_user_id lookup
       const agentId = (request.query as { agent_id?: string }).agent_id;
       if (agentId) {
+        // First try: agent has an owner_user_id linked
         const owner = await queryOne<UserRow>(
           `SELECT u.id, u.name, u.email, u.image
            FROM users u
@@ -408,6 +409,24 @@ export async function verifyUserSession(
               name: owner.name,
               email: owner.email,
               image: owner.image,
+            },
+          };
+        }
+
+        // Fallback for dev agents without owner: use agent id as virtual user id
+        const agent = await queryOne<{ id: string; name: string }>(
+          'SELECT id, name FROM agents WHERE id = $1',
+          [agentId]
+        );
+        if (agent) {
+          return {
+            userId: agent.id,
+            sessionId: 'mvp-bypass',
+            user: {
+              id: agent.id,
+              name: agent.name,
+              email: `${agent.id}@dev.local`,
+              image: null,
             },
           };
         }
