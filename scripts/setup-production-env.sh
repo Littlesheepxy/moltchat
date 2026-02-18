@@ -119,7 +119,7 @@ sed -i.bak "s|your-better-auth-secret-change-in-production|${BETTER_AUTH_SECRET}
 sed -i.bak "s|synapse-oidc-secret-change-me|${OIDC_SECRET}|g" .env
 
 # 域名
-sed -i.bak "s|http://localhost:3001|https://api.${DOMAIN}|g" .env
+sed -i.bak "s|http://localhost:3002|https://api.${DOMAIN}|g" .env
 sed -i.bak "s|http://localhost:3000|https://${DOMAIN}|g" .env
 sed -i.bak "s|http://localhost:8080|https://chat.${DOMAIN}|g" .env
 sed -i.bak "s|http://localhost:8008|http://synapse:8008|g" .env

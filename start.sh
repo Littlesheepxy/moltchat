@@ -7,7 +7,7 @@
 # - MoltChat Console (Next.js): 前端（Landing、聊天界面、管理后台）
 # - MoltChat Gateway (Fastify): API 服务
 # - Matrix Synapse: 聊天服务器
-# - PostgreSQL: 统一数据库（MoltChat + Synapse 共用）
+# - PostgreSQL: Docker 容器数据库（MoltChat + Synapse 共用）
 
 set -e
 
@@ -24,7 +24,7 @@ NC='\033[0m' # No Color
 MODE="${1:-dev}"
 
 echo -e "${BLUE}╔════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║     🤖 MoltChat 启动脚本 v4.0         ║${NC}"
+echo -e "${BLUE}║     🤖 MoltChat 启动脚本 v4.1         ║${NC}"
 echo -e "${BLUE}╚════════════════════════════════════════╝${NC}"
 echo ""
 
@@ -44,6 +44,15 @@ fi
 if ! command -v docker &> /dev/null; then
     echo -e "${RED}❌ Docker 未安装，请先安装 Docker${NC}"
     exit 1
+fi
+
+# 检查 brew PostgreSQL 是否占用 5432 端口（会和 Docker PG 冲突）
+if command -v brew &> /dev/null; then
+    if brew services list 2>/dev/null | grep -q "postgresql.*started"; then
+        echo -e "${YELLOW}⚠️  检测到 brew PostgreSQL 正在运行，关闭以避免端口冲突...${NC}"
+        brew services stop postgresql@17 2>/dev/null || brew services stop postgresql 2>/dev/null || true
+        sleep 1
+    fi
 fi
 
 echo -e "${GREEN}✅ 依赖检查完成${NC}"
@@ -82,16 +91,43 @@ docker compose up -d db synapse
 
 # 等待数据库就绪
 echo -e "${BLUE}等待数据库启动...${NC}"
-sleep 3
-
-# 运行数据库迁移
-echo -e "${BLUE}运行数据库迁移...${NC}"
 CONTAINER_NAME="moltchat-db"
-docker exec -i $CONTAINER_NAME psql -U moltchat -d moltchat < apps/gateway/src/db/schema-agent-availability.sql 2>/dev/null || true
-docker exec -i $CONTAINER_NAME psql -U moltchat -d moltchat < apps/gateway/src/db/schema-owner.sql 2>/dev/null || true
-docker exec -i $CONTAINER_NAME psql -U moltchat -d moltchat < apps/gateway/src/db/schema-auth.sql 2>/dev/null || true
+for i in {1..15}; do
+    if docker exec $CONTAINER_NAME pg_isready -U moltchat > /dev/null 2>&1; then
+        echo -e "${GREEN}✅ 数据库已就绪${NC}"
+        break
+    fi
+    echo -n "."
+    sleep 1
+done
+echo ""
 
-echo -e "${GREEN}✅ 数据库就绪${NC}"
+# 运行数据库迁移（基础 schema + 所有迁移文件）
+echo -e "${BLUE}运行数据库迁移...${NC}"
+
+# 基础 schema 文件
+for schema_file in \
+    apps/gateway/src/db/schema.sql \
+    apps/gateway/src/db/schema-agent-availability.sql \
+    apps/gateway/src/db/schema-owner.sql \
+    apps/gateway/src/db/schema-auth.sql \
+    apps/gateway/src/db/schema-claim.sql \
+    apps/gateway/src/db/schema-dm.sql \
+    apps/gateway/src/db/schema-rooms.sql \
+    apps/gateway/src/db/schema-room-rules.sql \
+    apps/gateway/src/db/schema-tags.sql; do
+    if [ -f "$schema_file" ]; then
+        docker exec -i $CONTAINER_NAME psql -U moltchat -d moltchat < "$schema_file" 2>/dev/null || true
+    fi
+done
+
+# 增量迁移文件（按编号排序）
+for migration_file in $(ls apps/gateway/src/db/migrations/*.sql 2>/dev/null | sort); do
+    echo -e "  ${BLUE}迁移: $(basename $migration_file)${NC}"
+    docker exec -i $CONTAINER_NAME psql -U moltchat -d moltchat < "$migration_file" 2>/dev/null || true
+done
+
+echo -e "${GREEN}✅ 数据库迁移完成${NC}"
 echo ""
 
 # 等待 Matrix 启动
@@ -125,7 +161,7 @@ if [ "$MODE" = "prod" ]; then
 else
     echo -e "${YELLOW}[5/5] 启动开发环境...${NC}"
     echo ""
-    
+
     echo -e "${GREEN}╔════════════════════════════════════════╗${NC}"
     echo -e "${GREEN}║  ✅ MoltChat 开发环境启动中...        ║${NC}"
     echo -e "${GREEN}╚════════════════════════════════════════╝${NC}"
@@ -138,19 +174,19 @@ else
     echo ""
     echo -e "${YELLOW}提示: 按 Ctrl+C 停止服务${NC}"
     echo ""
-    
+
     # 保存当前目录
     PROJECT_ROOT=$(pwd)
-    
+
     # 后台启动 Gateway
     echo -e "${BLUE}启动 Gateway...${NC}"
     (cd "$PROJECT_ROOT/apps/gateway" && pnpm dev) &
     GATEWAY_PID=$!
-    
+
     # 前台启动 Console
     echo -e "${BLUE}启动 Console...${NC}"
     cd "$PROJECT_ROOT/apps/console" && pnpm dev
-    
+
     # 当 Console 退出时，停止 Gateway
     kill $GATEWAY_PID 2>/dev/null || true
 fi

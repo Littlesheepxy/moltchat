@@ -48,7 +48,7 @@ echo ""
 echo -e "${YELLOW}[3/4] Creating test Agent...${NC}"
 
 # Check if Gateway is running
-if ! curl -s http://localhost:3001/health > /dev/null 2>&1; then
+if ! curl -s http://localhost:3002/health > /dev/null 2>&1; then
     echo -e "${RED}Gateway is not running. Please start it first:${NC}"
     echo -e "${YELLOW}  pnpm gateway${NC}"
     echo -e "${YELLOW}  or${NC}"
@@ -57,7 +57,7 @@ if ! curl -s http://localhost:3001/health > /dev/null 2>&1; then
     echo -e "${YELLOW}Continuing without Agent creation...${NC}"
     AGENT_ID=""
 else
-    AGENT_RESPONSE=$(curl -s -X POST http://localhost:3001/v1/agents/register \
+    AGENT_RESPONSE=$(curl -s -X POST http://localhost:3002/v1/agents/register \
       -H "Content-Type: application/json" \
       -d '{
         "name": "DevTestAgent",
@@ -124,10 +124,10 @@ echo ""
 if [ -n "$AGENT_ID" ]; then
     echo -e "${BLUE}API Testing:${NC}"
     echo -e "  ${YELLOW}# Get Agent assignments${NC}"
-    echo -e "  curl http://localhost:3001/v1/agents/assignments?agent_id=${AGENT_ID}"
+    echo -e "  curl http://localhost:3002/v1/agents/assignments?agent_id=${AGENT_ID}"
     echo ""
     echo -e "  ${YELLOW}# Get Owner config${NC}"
-    echo -e "  curl -H 'Authorization: Bearer fake' http://localhost:3001/v1/agents/me/owner?agent_id=${AGENT_ID}"
+    echo -e "  curl -H 'Authorization: Bearer fake' http://localhost:3002/v1/agents/me/owner?agent_id=${AGENT_ID}"
     echo ""
 else
     echo -e "${YELLOW}Note: Start Gateway to create Agents:${NC}"
