@@ -7,9 +7,35 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { verifyUserSession } from '../lib/auth.js';
 import { AppError, ERROR_CODES } from '../lib/errors.js';
-import { getBudgetStatus } from '../lib/attention-budget.js';
+import { getBudgetStatus, getWeekStart } from '../lib/attention-budget.js';
 import { getOrCreateLedger, getPublicProfile, getEvents } from '../lib/reputation.js';
 import { previewAlignment } from '../lib/alignment-check.js';
+
+// ============================================
+// Dev Mode Helpers
+// ============================================
+
+function isDevUser(userId: string): boolean {
+  return userId.startsWith('dev_');
+}
+
+function devBudgetData() {
+  return {
+    outbound: { allowed: true, used: 0, limit: 5, remaining: 5 },
+    inbound: { allowed: true, used: 0, limit: 5, remaining: 5 },
+    week_start: getWeekStart(),
+  };
+}
+
+function devReputationData() {
+  return {
+    reputation_score: 100,
+    hit_rate: 0,
+    fulfillment_rate: 1,
+    avg_post_chat_rating: null,
+    in_cooldown: false,
+  };
+}
 
 // ============================================
 // Routes
@@ -24,6 +50,10 @@ export async function marketProtocolRoutes(fastify: FastifyInstance): Promise<vo
     const session = await verifyUserSession(request);
     if (!session) {
       throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Login required', 401);
+    }
+
+    if (isDevUser(session.userId)) {
+      return reply.send({ success: true, data: devBudgetData() });
     }
 
     const ledger = await getOrCreateLedger(session.userId);
@@ -44,6 +74,10 @@ export async function marketProtocolRoutes(fastify: FastifyInstance): Promise<vo
       throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Login required', 401);
     }
 
+    if (isDevUser(session.userId)) {
+      return reply.send({ success: true, data: devReputationData() });
+    }
+
     const profile = await getPublicProfile(session.userId);
 
     return reply.send({
@@ -57,6 +91,10 @@ export async function marketProtocolRoutes(fastify: FastifyInstance): Promise<vo
   // ============================================
   fastify.get('/v1/protocol/reputation/:userId', async (request: FastifyRequest, reply: FastifyReply) => {
     const { userId } = request.params as { userId: string };
+
+    if (isDevUser(userId)) {
+      return reply.send({ success: true, data: devReputationData() });
+    }
 
     const profile = await getPublicProfile(userId);
 
@@ -73,6 +111,10 @@ export async function marketProtocolRoutes(fastify: FastifyInstance): Promise<vo
     const session = await verifyUserSession(request);
     if (!session) {
       throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Login required', 401);
+    }
+
+    if (isDevUser(session.userId)) {
+      return reply.send({ success: true, data: { events: [] } });
     }
 
     const { limit } = request.query as { limit?: string };
