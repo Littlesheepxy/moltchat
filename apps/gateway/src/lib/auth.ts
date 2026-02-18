@@ -392,7 +392,21 @@ export async function verifyUserSession(
       // Also try agent_id → owner_user_id lookup
       const agentId = (request.query as { agent_id?: string }).agent_id;
       if (agentId) {
-        // First try: agent has an owner_user_id linked
+        // Dev agents (non-UUID) — return virtual user directly, skip DB
+        if (agentId.startsWith('dev_')) {
+          return {
+            userId: agentId,
+            sessionId: 'mvp-bypass',
+            user: {
+              id: agentId,
+              name: `Dev User ${agentId.slice(4, 10)}`,
+              email: `${agentId}@dev.local`,
+              image: null,
+            },
+          };
+        }
+
+        // Real UUID agent — try owner_user_id lookup
         const owner = await queryOne<UserRow>(
           `SELECT u.id, u.name, u.email, u.image
            FROM users u
@@ -413,7 +427,7 @@ export async function verifyUserSession(
           };
         }
 
-        // Fallback for dev agents without owner: use agent id as virtual user id
+        // Fallback: use agent id as virtual user id
         const agent = await queryOne<{ id: string; name: string }>(
           'SELECT id, name FROM agents WHERE id = $1',
           [agentId]
