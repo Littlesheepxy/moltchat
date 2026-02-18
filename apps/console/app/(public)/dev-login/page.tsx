@@ -49,14 +49,15 @@ export default function DevLoginPage() {
     setIsLoading(true);
 
     try {
-      // Generate a fake user ID for development
-      const fakeUserId = `dev_${Date.now()}`;
+      // Use deterministic ID based on handle so the same dev user persists across logins
+      const handle = twitterHandle.trim() || agentName.trim().toLowerCase().replace(/\s+/g, '_');
+      const fakeUserId = `dev_${handle}`;
 
       // Save to localStorage for compatibility
       saveAgent({
         id: fakeUserId,
         name: agentName.trim(),
-        twitter_handle: twitterHandle.trim() || undefined,
+        twitter_handle: handle,
       });
       saveToken(`dev_token_${Math.random().toString(36).substring(7)}`);
 
@@ -81,10 +82,10 @@ export default function DevLoginPage() {
     setAgentName(preset.name);
     setTwitterHandle(preset.handle);
     setIsLoading(true);
-    
+
     try {
-      // Generate a fake user ID for development
-      const fakeUserId = `dev_${Date.now()}`;
+      // Use deterministic ID based on handle so the same dev user persists across logins
+      const fakeUserId = `dev_${preset.handle}`;
 
       // Save to localStorage
       saveAgent({

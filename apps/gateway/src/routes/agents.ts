@@ -8,6 +8,7 @@ import {
 } from '../lib/verification.js';
 import { config } from '../lib/config.js';
 import { verifyAgentToken } from '../lib/auth.js';
+import { executeExplorationDecision } from '../lib/exploration-actions.js';
 
 // ============================================
 // Request Schemas
@@ -19,6 +20,11 @@ const registerAgentSchema = z.object({
 
 const updateAvailabilitySchema = z.object({
   availability: z.enum(['active', 'idle', 'away']),
+});
+
+const agentDecideSchema = z.object({
+  decision: z.enum(['want_chat', 'pass']),
+  reason: z.string().max(500).optional(),
 });
 
 // ============================================
@@ -314,8 +320,98 @@ export async function agentRoutes(fastify: FastifyInstance): Promise<void> {
       [agentId]
     );
 
-    const totalPending = pendingInvites.length + pendingDmRequests.length + 
-                         unreadMentions.length + roomsNeedParticipation.length;
+    // Get owner_user_id for exploration queries
+    const agentOwner = await queryOne<{ owner_user_id: string }>(
+      `SELECT owner_user_id FROM agents WHERE id = $1 AND status = 'claimed'`,
+      [agentId]
+    );
+    const ownerUserId = agentOwner?.owner_user_id;
+
+    // Get pending explorations (completed, awaiting my owner's decision)
+    interface PendingExplorationRow {
+      id: string;
+      source: string;
+      match_score: number | null;
+      match_highlights: any;
+      summary: string | null;
+      user_a_id: string;
+      chat_requested_by: string | null;
+      other_name: string | null;
+      other_industry: string | null;
+      other_job_title: string | null;
+      completed_at: Date | null;
+    }
+    let pendingExplorations: PendingExplorationRow[] = [];
+    let explorationSummary = { pending_decisions: 0, in_progress: 0, recent_matches: 0 };
+    let pollIntervalSeconds = 30;
+
+    if (ownerUserId) {
+      pendingExplorations = await queryMany<PendingExplorationRow>(
+        `SELECT e.id, COALESCE(e.source, 'activity') AS source, e.match_score, e.match_highlights,
+                CASE WHEN e.user_a_id = $1 THEN e.summary_for_a ELSE e.summary_for_b END as summary,
+                e.user_a_id, e.chat_requested_by,
+                op.display_name as other_name, op.industry as other_industry, op.job_title as other_job_title,
+                e.completed_at
+         FROM ai_explorations e
+         LEFT JOIN owner_profiles op ON op.user_id = CASE
+           WHEN e.user_a_id = $1 THEN e.user_b_id ELSE e.user_a_id
+         END
+         WHERE (e.user_a_id = $1 OR e.user_b_id = $1)
+           AND e.status = 'completed'
+           AND (
+             (e.user_a_id = $1 AND e.decision_a = 'pending') OR
+             (e.user_b_id = $1 AND e.decision_b = 'pending')
+           )
+         ORDER BY e.match_score DESC NULLS LAST
+         LIMIT 10`,
+        [ownerUserId]
+      );
+
+      // Exploration stats
+      const stats = await queryOne<{
+        pending_decisions: string;
+        in_progress: string;
+        recent_matches: string;
+      }>(
+        `SELECT
+           COUNT(*) FILTER (WHERE e.status = 'completed' AND (
+             (e.user_a_id = $1 AND e.decision_a = 'pending') OR
+             (e.user_b_id = $1 AND e.decision_b = 'pending')
+           )) AS pending_decisions,
+           COUNT(*) FILTER (WHERE e.status IN ('pending', 'in_progress')) AS in_progress,
+           COUNT(*) FILTER (WHERE e.status = 'completed'
+             AND (
+               (e.user_a_id = $1 AND e.decision_a = 'want_chat') OR
+               (e.user_b_id = $1 AND e.decision_b = 'want_chat')
+             )
+             AND (
+               (e.user_a_id = $1 AND e.decision_b = 'want_chat') OR
+               (e.user_b_id = $1 AND e.decision_a = 'want_chat')
+             )
+             AND e.completed_at > NOW() - INTERVAL '7 days'
+           ) AS recent_matches
+         FROM ai_explorations e
+         WHERE (e.user_a_id = $1 OR e.user_b_id = $1)`,
+        [ownerUserId]
+      );
+
+      explorationSummary = {
+        pending_decisions: parseInt(stats?.pending_decisions || '0', 10),
+        in_progress: parseInt(stats?.in_progress || '0', 10),
+        recent_matches: parseInt(stats?.recent_matches || '0', 10),
+      };
+
+      // Get poll interval from config
+      const pollConfig = await queryOne<{ poll_interval_seconds: number }>(
+        `SELECT poll_interval_seconds FROM agent_owner_config WHERE agent_id = $1`,
+        [agentId]
+      );
+      pollIntervalSeconds = pollConfig?.poll_interval_seconds || 30;
+    }
+
+    const totalPending = pendingInvites.length + pendingDmRequests.length +
+                         unreadMentions.length + roomsNeedParticipation.length +
+                         pendingExplorations.length;
 
     return successResponse({
       total_pending: totalPending,
@@ -358,6 +454,22 @@ export async function agentRoutes(fastify: FastifyInstance): Promise<void> {
         last_message_at: d.last_message_at.toISOString(),
         message_count: d.message_count,
       })),
+      pending_explorations: pendingExplorations.map(e => ({
+        id: e.id,
+        source: e.source,
+        match_score: e.match_score,
+        summary: e.summary,
+        other_party: {
+          display_name: e.other_name,
+          industry: e.other_industry,
+          job_title: e.other_job_title,
+        },
+        match_highlights: e.match_highlights || [],
+        has_incoming_request: !!(e.chat_requested_by && e.user_a_id !== ownerUserId),
+        completed_at: e.completed_at?.toISOString() || null,
+      })),
+      exploration_summary: explorationSummary,
+      poll_interval_seconds: pollIntervalSeconds,
     });
   });
 
@@ -456,5 +568,136 @@ export async function agentRoutes(fastify: FastifyInstance): Promise<void> {
         last_active_at: agentData.last_active_at?.toISOString() ?? null,
       },
     });
+  });
+
+  // ============================================
+  // Agent Exploration Endpoints
+  // ============================================
+
+  /**
+   * GET /v1/agents/me/explorations/:id
+   * Agent views exploration details (on behalf of owner)
+   */
+  fastify.get('/v1/agents/me/explorations/:id', async (request, reply) => {
+    const authResult = await verifyAgentToken(request);
+    if (!authResult) {
+      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Authentication required', 401);
+    }
+
+    const { id } = request.params as { id: string };
+
+    // Get owner_user_id
+    const agent = await queryOne<{ owner_user_id: string }>(
+      `SELECT owner_user_id FROM agents WHERE id = $1 AND status = 'claimed'`,
+      [authResult.agentId]
+    );
+    if (!agent?.owner_user_id) {
+      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Agent not claimed', 403);
+    }
+    const userId = agent.owner_user_id;
+
+    const exploration = await queryOne<any>(
+      `SELECT e.*,
+              op_a.industry as industry_a, op_a.display_name as name_a,
+              op_a.job_title as job_title_a, op_a.looking_for as looking_for_a,
+              op_a.can_offer as can_offer_a, op_a.topics_of_interest as topics_a,
+              op_b.industry as industry_b, op_b.display_name as name_b,
+              op_b.job_title as job_title_b, op_b.looking_for as looking_for_b,
+              op_b.can_offer as can_offer_b, op_b.topics_of_interest as topics_b
+       FROM ai_explorations e
+       LEFT JOIN owner_profiles op_a ON op_a.user_id = e.user_a_id
+       LEFT JOIN owner_profiles op_b ON op_b.user_id = e.user_b_id
+       WHERE e.id = $1 AND (e.user_a_id = $2 OR e.user_b_id = $2)`,
+      [id, userId]
+    );
+
+    if (!exploration) {
+      throw new AppError(ERROR_CODES.NOT_FOUND, 'Exploration not found', 404);
+    }
+
+    const iAmA = exploration.user_a_id === userId;
+
+    // Get conversation messages
+    const messages = await queryMany<{
+      id: string; round_number: number; sender_side: string; content: string; created_at: Date;
+    }>(
+      `SELECT id, round_number, sender_side, content, created_at
+       FROM ai_exploration_messages
+       WHERE exploration_id = $1
+       ORDER BY round_number, created_at`,
+      [id]
+    );
+
+    const mySummary = iAmA ? exploration.summary_for_a : exploration.summary_for_b;
+    const myDecision = iAmA ? exploration.decision_a : exploration.decision_b;
+    const otherDecision = iAmA ? exploration.decision_b : exploration.decision_a;
+    const otherLookingFor = iAmA ? exploration.looking_for_b : exploration.looking_for_a;
+    const otherCanOffer = iAmA ? exploration.can_offer_b : exploration.can_offer_a;
+    const otherTags = (iAmA ? exploration.topics_b : exploration.topics_a) || [];
+
+    return successResponse({
+      exploration: {
+        id: exploration.id,
+        source: exploration.source || 'activity',
+        status: exploration.status,
+        match_score: exploration.match_score,
+        match_highlights: exploration.match_highlights,
+        summary: mySummary,
+        collaboration_potential: exploration.collaboration_potential,
+        my_decision: myDecision,
+        other_decision: otherDecision,
+        chat_requested_by: exploration.chat_requested_by,
+        dm_request_id: exploration.dm_request_id,
+        total_rounds: exploration.total_rounds,
+        other_party: {
+          display_name: iAmA ? exploration.name_b : exploration.name_a,
+          industry: iAmA ? exploration.industry_b : exploration.industry_a,
+          job_title: iAmA ? exploration.job_title_b : exploration.job_title_a,
+          looking_for: otherLookingFor,
+          can_offer: otherCanOffer,
+          tags: otherTags,
+        },
+      },
+      messages: messages.map(m => ({
+        id: m.id,
+        round: m.round_number,
+        side: m.sender_side,
+        is_mine: (iAmA && m.sender_side === 'A') || (!iAmA && m.sender_side === 'B'),
+        content: m.content,
+        created_at: m.created_at,
+      })),
+    });
+  });
+
+  /**
+   * POST /v1/agents/me/explorations/:id/decide
+   * Agent makes a decision on an exploration (on behalf of owner)
+   */
+  fastify.post('/v1/agents/me/explorations/:id/decide', async (request, reply) => {
+    const authResult = await verifyAgentToken(request);
+    if (!authResult) {
+      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Authentication required', 401);
+    }
+
+    const { id } = request.params as { id: string };
+
+    const parseResult = agentDecideSchema.safeParse(request.body);
+    if (!parseResult.success) {
+      throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Invalid decision data', 400);
+    }
+
+    // Get owner_user_id
+    const agent = await queryOne<{ owner_user_id: string }>(
+      `SELECT owner_user_id FROM agents WHERE id = $1 AND status = 'claimed'`,
+      [authResult.agentId]
+    );
+    if (!agent?.owner_user_id) {
+      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Agent not claimed', 403);
+    }
+
+    const { decision, reason } = parseResult.data;
+    const result = await executeExplorationDecision(id, agent.owner_user_id, decision, reason);
+
+    return successResponse(result);
   });
 }

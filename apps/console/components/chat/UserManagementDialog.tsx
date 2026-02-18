@@ -27,7 +27,9 @@ import {
   Monitor,
   Globe,
   ExternalLink,
+  Zap,
 } from 'lucide-react';
+import { ProtocolDashboard } from './ProtocolDashboard';
 
 // ============================================
 // Constants
@@ -44,7 +46,7 @@ const INDUSTRIES = [
 
 const EDUCATION_LEVELS = ['High School', 'Associate', 'Bachelor', 'Master', 'PhD', 'Other'];
 
-type Tab = 'profile' | 'agents' | 'appearance' | 'security';
+type Tab = 'profile' | 'agents' | 'appearance' | 'security' | 'protocol';
 
 // ============================================
 // Types
@@ -159,6 +161,7 @@ export function UserManagementDialog({ open, onOpenChange, onLogout }: UserManag
   const navItems: Array<{ id: Tab; label: string; icon: React.ReactNode; group: string }> = [
     { id: 'profile', label: '个人资料', icon: <User className="h-4 w-4" />, group: '管理' },
     { id: 'agents', label: 'Agent 管理', icon: <Bot className="h-4 w-4" />, group: '管理' },
+    { id: 'protocol', label: 'Protocol', icon: <Zap className="h-4 w-4" />, group: '管理' },
     { id: 'appearance', label: '外观与语言', icon: <Palette className="h-4 w-4" />, group: '偏好' },
     { id: 'security', label: '账号安全', icon: <Shield className="h-4 w-4" />, group: '偏好' },
   ];
@@ -237,6 +240,7 @@ export function UserManagementDialog({ open, onOpenChange, onLogout }: UserManag
             <>
               {activeTab === 'profile' && <ProfilePanel profile={profile} userInfo={effectiveUserInfo} onUpdate={setProfile} />}
               {activeTab === 'agents' && <AgentsPanel agents={agents} />}
+              {activeTab === 'protocol' && <ProtocolDashboard />}
               {activeTab === 'appearance' && <AppearancePanel />}
               {activeTab === 'security' && <SecurityPanel userInfo={effectiveUserInfo} profile={profile} onLogout={onLogout} />}
             </>

@@ -9,7 +9,7 @@ import { getAgentAvatarUrl } from '@/lib/avatar';
 import {
   MessageSquare, Compass, Users, User, Plus, Search, Bot,
   ArrowLeft, ChevronRight, LogOut, Shield, Eye, Bell,
-  Loader2, Palette, Zap,
+  Loader2, Palette, Zap, Target,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,15 +25,15 @@ import { MobilePlusMenu } from './PlusMenu';
 import { ShareSheet } from './ShareSheet';
 import { AddAgentFriendSheet } from './AddAgentFriendSheet';
 import { NotificationBell, useUnreadNotificationCount, MobileNotificationList } from './NotificationBell';
-import { NetworkingView } from '@/components/networking/NetworkingView';
 import { ProtocolDashboard } from './ProtocolDashboard';
+import { OpportunityList } from '@/components/opportunities/OpportunityList';
 import type { MoltRoom } from '@/lib/matrix/types';
 
 // ============================================
 // Types
 // ============================================
 
-type MobileTab = 'rooms' | 'discover' | 'networking' | 'contacts' | 'me';
+type MobileTab = 'opportunities' | 'discover' | 'agent' | 'me';
 type MobileView =
   | { type: 'tabs' }
   | { type: 'room-chat'; roomId: string };
@@ -705,10 +705,9 @@ function BottomTabBar({ activeTab, onTabChange }: {
   const { unreadCount } = useUnreadNotificationCount();
 
   const tabs: { id: MobileTab; icon: typeof MessageSquare; label: string; badge?: number }[] = [
-    { id: 'rooms', icon: MessageSquare, label: t('tabs.rooms') || 'Rooms' },
+    { id: 'opportunities', icon: Target, label: t('tabs.opportunities') || 'Opportunities' },
     { id: 'discover', icon: Compass, label: t('tabs.discover') || 'Discover' },
-    { id: 'networking', icon: Zap, label: t('tabs.networking') || 'Network' },
-    { id: 'contacts', icon: Users, label: t('tabs.contacts') || 'Contacts' },
+    { id: 'agent', icon: Bot, label: 'Agent' },
     { id: 'me', icon: User, label: t('tabs.me') || 'Me', badge: unreadCount },
   ];
 
@@ -862,15 +861,8 @@ export function MobileLayout() {
     <div className="flex flex-col h-[100dvh] bg-background">
       {/* Tab content */}
       <div className="flex-1 overflow-hidden">
-        {activeTab === 'rooms' && (
-          <RoomsTab
-            rooms={realRooms}
-            isLoading={isLoadingRooms}
-            onRoomSelect={handleRoomSelect}
-            onCreateRoom={() => setShowCreateRoom(true)}
-            onAddFriend={() => setShowAddFriend(true)}
-            onInviteShare={() => setShowInviteShare(true)}
-          />
+        {activeTab === 'opportunities' && (
+          <OpportunityList />
         )}
         {activeTab === 'discover' && (
           <DiscoverView
@@ -881,11 +873,22 @@ export function MobileLayout() {
             onAgentClick={handleAgentClick}
           />
         )}
-        {activeTab === 'networking' && (
-          <NetworkingView />
-        )}
-        {activeTab === 'contacts' && (
-          <ContactsTab onAgentClick={handleAgentClick} />
+        {activeTab === 'agent' && (
+          <div className="flex flex-col h-full overflow-y-auto p-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                <Bot className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h1 className="text-lg font-bold">Agent</h1>
+                <p className="text-sm text-muted-foreground">Manage and train your AI agent</p>
+              </div>
+            </div>
+            <div className="text-center py-16 text-muted-foreground">
+              <Bot className="h-12 w-12 mx-auto mb-4 opacity-30" />
+              <p className="text-sm">Agent management coming soon</p>
+            </div>
+          </div>
         )}
         {activeTab === 'me' && (
           <MeTab onLogout={handleLogout} />

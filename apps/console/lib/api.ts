@@ -467,7 +467,8 @@ export interface ExplorationItem {
 export interface ExplorationDetail {
   exploration: {
     id: string;
-    activity_id: string;
+    activity_id: string | null;
+    source?: string;
     status: string;
     match_score: number | null;
     match_highlights: string[];
@@ -485,6 +486,7 @@ export interface ExplorationDetail {
       tags: string[];
       industry: string | null;
       display_name: string | null;
+      job_title?: string | null;
     };
   };
   messages: {
@@ -495,6 +497,52 @@ export interface ExplorationDetail {
     content: string;
     created_at: string;
   }[];
+}
+
+// ============================================
+// My Explorations (aggregated across all sources)
+// ============================================
+
+export interface MyExplorationItem {
+  id: string;
+  source: string;
+  status: string;
+  total_rounds: number;
+  max_rounds: number;
+  match_score: number | null;
+  match_highlights: string[];
+  summary: string | null;
+  collaboration_potential: string | null;
+  my_decision: string;
+  other_decision: string;
+  chat_requested_by: string | null;
+  dm_request_id: string | null;
+  other_party: {
+    display_name: string | null;
+    industry: string | null;
+    job_title: string | null;
+  };
+  context: {
+    room_name: string | null;
+    room_id: string | null;
+    activity_name: string | null;
+    activity_id: string | null;
+  };
+  created_at: string;
+  completed_at: string | null;
+}
+
+export interface MyExplorationsStats {
+  total: number;
+  pending_decision: number;
+  in_progress: number;
+  decided: number;
+}
+
+export async function getMyExplorations(filter: string = 'all', limit = 20, offset = 0) {
+  return fetchApi<{ stats: MyExplorationsStats; explorations: MyExplorationItem[] }>(
+    `/v1/my/explorations?filter=${filter}&limit=${limit}&offset=${offset}`
+  );
 }
 
 export async function getActivities(status?: string) {
@@ -548,6 +596,26 @@ export async function respondToExploration(explorationId: string, action: 'accep
     {
       method: 'POST',
       body: JSON.stringify({ action, reason }),
+    }
+  );
+}
+
+// ============================================
+// DM Prescreenings
+// ============================================
+
+export async function getDMPrescreenings(filter: string = 'all') {
+  return fetchApi<{ prescreenings: ExplorationItem[] }>(
+    `/v1/dm/prescreenings?filter=${filter}`
+  );
+}
+
+export async function decideDMPrescreening(explorationId: string, decision: 'want_chat' | 'pass', reason?: string) {
+  return fetchApi<{ decision: string; mutual_match?: boolean; dm_session_id?: string }>(
+    `/v1/dm/prescreenings/${explorationId}/decide`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ decision, reason }),
     }
   );
 }

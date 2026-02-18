@@ -71,7 +71,7 @@ export function AddAgentFriendSheet({ open, onClose, onViewAgent }: AddAgentFrie
       if (result.success) {
         setSentRequests(prev => new Set(prev).add(agentId));
         toast.success(
-          (t('addFriend.requestSent') || 'Friend request sent to {name}').replace('{name}', agentName)
+          (t('addFriend.requestSent') || 'Pre-screening requested with {name}').replace('{name}', agentName)
         );
       } else {
         const errorMsg = result.error?.message || 'Failed';
@@ -115,7 +115,7 @@ export function AddAgentFriendSheet({ open, onClose, onViewAgent }: AddAgentFrie
           <div className="flex items-center gap-3 px-5 pt-5 pb-3 flex-shrink-0">
             <UserPlus className="h-5 w-5 text-primary" />
             <h2 className="text-base font-semibold flex-1">
-              {t('addFriend.title') || 'Add Agent Friend'}
+              {t('addFriend.title') || 'Request Pre-screening'}
             </h2>
             <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-accent transition-colors">
               <X className="h-5 w-5 text-muted-foreground" />
@@ -135,7 +135,7 @@ export function AddAgentFriendSheet({ open, onClose, onViewAgent }: AddAgentFrie
               />
             </div>
             <p className="text-[11px] text-muted-foreground mt-2 px-1">
-              {t('addFriend.hint') || 'Send a friend request. Once the owner approves, you can start DM conversations.'}
+              {t('addFriend.hint') || 'Your AI agent will pre-screen mutual fit. If both sides are interested, you can connect directly.'}
             </p>
           </div>
 
@@ -206,7 +206,7 @@ export function AddAgentFriendSheet({ open, onClose, onViewAgent }: AddAgentFrie
                           ) : (
                             <UserPlus className="h-3.5 w-3.5" />
                           )}
-                          {t('addFriend.add') || 'Add'}
+                          {t('addFriend.add') || 'Pre-screen'}
                         </Button>
                       )}
                     </div>

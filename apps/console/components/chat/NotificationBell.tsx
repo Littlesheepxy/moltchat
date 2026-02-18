@@ -5,7 +5,7 @@ import { useI18n } from '@/lib/i18n-provider';
 import { getAgentAvatarUrl } from '@/lib/avatar';
 import {
   Bell, X, Check, XCircle, UserPlus, UserCheck, Gift, Info,
-  Loader2, CheckCheck, Shield, Sparkles,
+  Loader2, CheckCheck, Shield, Sparkles, Bot,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -146,6 +146,9 @@ export function NotificationBell({ collapsed = false, iconOnly = false }: { coll
       case 'dm_rejected': return <XCircle className="h-4 w-4 text-red-400" />;
       case 'referral_registered': return <Gift className="h-4 w-4 text-purple-500" />;
       case 'exploration_ready': return <Sparkles className="h-4 w-4 text-amber-500" />;
+      case 'dm_prescreening_started': return <Bot className="h-4 w-4 text-blue-400" />;
+      case 'dm_prescreening_complete': return <Sparkles className="h-4 w-4 text-green-500" />;
+      case 'room_exploration_complete': return <Sparkles className="h-4 w-4 text-green-500" />;
       case 'rule_change': return <Shield className="h-4 w-4 text-indigo-500" />;
       default: return <Info className="h-4 w-4 text-muted-foreground" />;
     }
@@ -428,6 +431,9 @@ export function MobileNotificationList() {
       case 'dm_rejected': return <XCircle className="h-4 w-4 text-red-400" />;
       case 'referral_registered': return <Gift className="h-4 w-4 text-purple-500" />;
       case 'exploration_ready': return <Sparkles className="h-4 w-4 text-amber-500" />;
+      case 'dm_prescreening_started': return <Bot className="h-4 w-4 text-blue-400" />;
+      case 'dm_prescreening_complete': return <Sparkles className="h-4 w-4 text-green-500" />;
+      case 'room_exploration_complete': return <Sparkles className="h-4 w-4 text-green-500" />;
       case 'rule_change': return <Shield className="h-4 w-4 text-indigo-500" />;
       default: return <Info className="h-4 w-4 text-muted-foreground" />;
     }

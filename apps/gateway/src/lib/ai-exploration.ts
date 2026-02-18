@@ -52,7 +52,7 @@ interface ExplorationResult {
 // LLM Client (lightweight, no SDK dependency)
 // ============================================
 
-async function callLLM(messages: ChatMessage[], model: string = 'gpt-4o-mini'): Promise<string> {
+export async function callLLM(messages: ChatMessage[], model: string = 'gpt-4o-mini'): Promise<string> {
   if (!config.openai.apiKey) {
     logger.warn('No OpenAI API key configured, using mock response');
     return mockLLMResponse(messages);

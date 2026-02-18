@@ -3,7 +3,7 @@
  * 注意力预算：保护被触达方的防打扰设置
  *
  * - 出站：不限制（靠信誉分 + token 成本 + 对齐度自然约束）
- * - 入站：用户自定义上限（默认 10/周，可设无限制）
+ * - 入站：用户自定义上限（默认 30/天，可设无限制）
  */
 
 import { query, queryOne } from '../db/client.js';
@@ -44,7 +44,7 @@ export interface BudgetStatus {
 // Constants
 // ============================================
 
-const DEFAULT_INBOUND_LIMIT = 10;
+const DEFAULT_INBOUND_LIMIT = 30;
 const DEFAULT_OVERFLOW_POLICY: 'queue' | 'reject' = 'queue';
 const DEFAULT_PRIORITY_BY_REPUTATION = true;
 
@@ -53,16 +53,17 @@ const DEFAULT_PRIORITY_BY_REPUTATION = true;
 // ============================================
 
 /**
- * Get the Monday of the current week (ISO week start)
+ * Get today's date string (daily budget reset)
  */
-export function getWeekStart(): string {
+export function getDayStart(): string {
   const now = new Date();
-  const day = now.getDay();
-  const diff = day === 0 ? 6 : day - 1;
-  const monday = new Date(now);
-  monday.setDate(now.getDate() - diff);
-  monday.setHours(0, 0, 0, 0);
-  return monday.toISOString().split('T')[0]!;
+  now.setHours(0, 0, 0, 0);
+  return now.toISOString().split('T')[0]!;
+}
+
+/** @deprecated Use getDayStart() — kept for migration compatibility */
+export function getWeekStart(): string {
+  return getDayStart();
 }
 
 // ============================================
@@ -124,21 +125,21 @@ export async function updateUserBudgetPreference(
 }
 
 // ============================================
-// Weekly Budget Tracking
+// Daily Budget Tracking
 // ============================================
 
 /**
- * Get or create the weekly inbound counter
+ * Get or create the daily inbound counter
  */
-async function getOrCreateWeeklyBudget(
+async function getOrCreateDailyBudget(
   userId: string,
   inboundLimit: number
 ): Promise<AttentionBudget> {
-  const weekStart = getWeekStart();
+  const dayStart = getDayStart();
 
   const existing = await queryOne<AttentionBudget>(
     `SELECT * FROM attention_budgets WHERE user_id = $1 AND week_start = $2`,
-    [userId, weekStart]
+    [userId, dayStart]
   );
 
   if (existing) {
@@ -147,7 +148,7 @@ async function getOrCreateWeeklyBudget(
       await query(
         `UPDATE attention_budgets SET inbound_limit = $3, updated_at = now()
          WHERE user_id = $1 AND week_start = $2`,
-        [userId, weekStart, inboundLimit]
+        [userId, dayStart, inboundLimit]
       );
       existing.inbound_limit = inboundLimit;
     }
@@ -159,14 +160,14 @@ async function getOrCreateWeeklyBudget(
      VALUES ($1, $2, $3)
      ON CONFLICT (user_id, week_start) DO UPDATE SET updated_at = now()
      RETURNING *`,
-    [userId, weekStart, inboundLimit]
+    [userId, dayStart, inboundLimit]
   );
 
   return created!;
 }
 
 /**
- * Check if target user can receive more inbound requests this week
+ * Check if target user can receive more inbound requests today
  */
 export async function checkInboundBudget(userId: string): Promise<{
   allowed: boolean;
@@ -181,7 +182,7 @@ export async function checkInboundBudget(userId: string): Promise<{
     return { allowed: true, used: 0, limit: -1, remaining: -1 };
   }
 
-  const budget = await getOrCreateWeeklyBudget(userId, prefs.inbound_limit);
+  const budget = await getOrCreateDailyBudget(userId, prefs.inbound_limit);
   const remaining = budget.inbound_limit - budget.inbound_used;
 
   return {
@@ -196,12 +197,12 @@ export async function checkInboundBudget(userId: string): Promise<{
  * Consume one inbound budget slot
  */
 export async function consumeInbound(userId: string): Promise<void> {
-  const weekStart = getWeekStart();
+  const dayStart = getDayStart();
   await query(
     `UPDATE attention_budgets
      SET inbound_used = inbound_used + 1, updated_at = now()
      WHERE user_id = $1 AND week_start = $2`,
-    [userId, weekStart]
+    [userId, dayStart]
   );
 }
 
@@ -215,7 +216,7 @@ export async function getBudgetStatus(userId: string): Promise<BudgetStatus> {
   return {
     inbound,
     outbound_unlimited: true,
-    week_start: getWeekStart(),
+    week_start: getDayStart(),
     preferences: prefs,
   };
 }

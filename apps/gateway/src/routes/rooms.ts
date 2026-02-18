@@ -19,6 +19,11 @@ const createRoomSchema = z.object({
     is_public: z.boolean().optional().default(false),
   }).optional(),
   tag_ids: z.array(z.string().uuid()).max(5).optional(),  // 创建时选择标签
+  explore: z.object({
+    enabled: z.boolean().optional().default(false),
+    rounds: z.number().int().min(2).max(20).optional().default(10),
+    interval_minutes: z.number().int().min(10).max(1440).optional().default(60),
+  }).optional(),
 });
 
 const updateVisibilitySchema = z.object({
@@ -378,7 +383,7 @@ export async function roomRoutes(fastify: FastifyInstance): Promise<void> {
       );
     }
 
-    const { name, description, settings, tag_ids } = parseResult.data;
+    const { name, description, settings, tag_ids, explore } = parseResult.data;
 
     // Create Matrix room if enabled
     let matrixRoomId: string | null = null;
@@ -400,8 +405,8 @@ export async function roomRoutes(fastify: FastifyInstance): Promise<void> {
 
     // Create room with owner_type field
     const room = await queryOne<RoomRow>(
-      `INSERT INTO rooms (name, description, owner_id, owner_type, invite_only, allow_observer, is_public, public_slug, matrix_room_id, element_room_url)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      `INSERT INTO rooms (name, description, owner_id, owner_type, invite_only, allow_observer, is_public, public_slug, matrix_room_id, element_room_url, explore_enabled, explore_rounds, explore_interval_minutes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        RETURNING *`,
       [
         name,
@@ -414,6 +419,9 @@ export async function roomRoutes(fastify: FastifyInstance): Promise<void> {
         publicSlug,
         matrixRoomId,
         elementRoomUrl,
+        explore?.enabled ?? false,
+        explore?.rounds ?? 10,
+        explore?.interval_minutes ?? 60,
       ]
     );
 
@@ -477,6 +485,11 @@ export async function roomRoutes(fastify: FastifyInstance): Promise<void> {
           invite_only: room.invite_only,
           allow_observer: room.allow_observer,
           is_public: room.is_public,
+        },
+        explore: {
+          enabled: (room as any).explore_enabled,
+          rounds: (room as any).explore_rounds,
+          interval_minutes: (room as any).explore_interval_minutes,
         },
         is_public: room.is_public,
         public_slug: room.public_slug,
@@ -548,6 +561,12 @@ export async function roomRoutes(fastify: FastifyInstance): Promise<void> {
           invite_only: room.invite_only,
           allow_observer: room.allow_observer,
         },
+        explore: {
+          enabled: (room as any).explore_enabled,
+          rounds: (room as any).explore_rounds,
+          interval_minutes: (room as any).explore_interval_minutes,
+          last_explored_at: (room as any).last_explored_at,
+        },
         matrix_room_id: room.matrix_room_id,
         element_room_url: room.element_room_url,
         agent_count: agentCount,
@@ -557,6 +576,101 @@ export async function roomRoutes(fastify: FastifyInstance): Promise<void> {
           twitter_handle: m.twitter_handle,
         })),
         created_at: room.created_at.toISOString(),
+      },
+    });
+  });
+
+  /**
+   * PATCH /v1/rooms/:id/explore-settings
+   * Configure auto-explore for a room (room owner only)
+   */
+  fastify.patch<{
+    Params: { id: string };
+  }>('/v1/rooms/:id/explore-settings', async (request, reply) => {
+    const { id } = request.params;
+
+    // Try agent auth, then user session
+    const agentAuth = await verifyAgentToken(request);
+    const userAuth = agentAuth ? null : await verifyUserSession(request);
+
+    if (!agentAuth && !userAuth) {
+      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Authentication required', 401);
+    }
+
+    // Verify ownership
+    const room = await queryOne<{ owner_id: string; owner_type: string }>(
+      `SELECT owner_id, owner_type FROM rooms WHERE id = $1 AND status = 'active'`,
+      [id],
+    );
+
+    if (!room) {
+      throw new AppError(ERROR_CODES.NOT_FOUND, 'Room not found', 404);
+    }
+
+    const isOwner = agentAuth
+      ? room.owner_id === agentAuth.agentId
+      : room.owner_id === `user:${userAuth!.userId}`;
+
+    if (!isOwner) {
+      throw new AppError(ERROR_CODES.FORBIDDEN, 'Only the room owner can configure explore settings', 403);
+    }
+
+    const schema = z.object({
+      enabled: z.boolean().optional(),
+      rounds: z.number().int().min(2).max(20).optional(),
+      interval_minutes: z.number().int().min(10).max(1440).optional(),
+    });
+
+    const parseResult = schema.safeParse(request.body);
+    if (!parseResult.success) {
+      throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Invalid explore settings', 400);
+    }
+
+    const data = parseResult.data;
+    const setClauses: string[] = ['updated_at = NOW()'];
+    const params: unknown[] = [];
+    let paramIdx = 1;
+
+    if (data.enabled !== undefined) {
+      setClauses.push(`explore_enabled = $${paramIdx}`);
+      params.push(data.enabled);
+      paramIdx++;
+    }
+    if (data.rounds !== undefined) {
+      setClauses.push(`explore_rounds = $${paramIdx}`);
+      params.push(data.rounds);
+      paramIdx++;
+    }
+    if (data.interval_minutes !== undefined) {
+      setClauses.push(`explore_interval_minutes = $${paramIdx}`);
+      params.push(data.interval_minutes);
+      paramIdx++;
+    }
+
+    params.push(id);
+    await query(
+      `UPDATE rooms SET ${setClauses.join(', ')} WHERE id = $${paramIdx}`,
+      params,
+    );
+
+    // Fetch updated room
+    const updated = await queryOne<{
+      explore_enabled: boolean;
+      explore_rounds: number;
+      explore_interval_minutes: number;
+      last_explored_at: Date | null;
+    }>(
+      `SELECT explore_enabled, explore_rounds, explore_interval_minutes, last_explored_at
+       FROM rooms WHERE id = $1`,
+      [id],
+    );
+
+    return successResponse({
+      explore: {
+        enabled: updated!.explore_enabled,
+        rounds: updated!.explore_rounds,
+        interval_minutes: updated!.explore_interval_minutes,
+        last_explored_at: updated!.last_explored_at,
       },
     });
   });

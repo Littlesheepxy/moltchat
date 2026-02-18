@@ -16,6 +16,9 @@ import { ActivityCard } from './ActivityCard';
 import { IntentSetupForm } from './IntentSetupForm';
 import { ExplorationCard } from './ExplorationCard';
 import { ExplorationDetailView } from './ExplorationDetail';
+import { DMPrescreeningView } from './DMPrescreeningView';
+
+type Segment = 'activities' | 'dm_prescreening';
 
 type ViewState =
   | { type: 'activities' }
@@ -25,6 +28,9 @@ type ViewState =
 
 export function NetworkingView() {
   const { t } = useI18n();
+
+  // Segment toggle
+  const [segment, setSegment] = useState<Segment>('activities');
 
   // View navigation
   const [view, setView] = useState<ViewState>({ type: 'activities' });
@@ -309,7 +315,46 @@ export function NetworkingView() {
 
   return (
     <div className="flex-1 overflow-y-auto">
-      {renderContent()}
+      {/* Segment toggle — only show when on activities list (not inside activity detail) */}
+      {(view.type === 'activities' || segment === 'dm_prescreening') && (
+        <div className="px-4 sm:px-6 pt-4 sm:pt-6 pb-0">
+          <div className="flex gap-1 bg-muted/50 rounded-xl p-1 mb-0">
+            <button
+              onClick={() => { setSegment('activities'); setView({ type: 'activities' }); }}
+              className={cn(
+                'flex-1 text-sm font-medium py-2 px-3 rounded-lg transition-all',
+                segment === 'activities'
+                  ? 'bg-background shadow-sm text-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              {t('networking.activities') || 'Activities'}
+            </button>
+            <button
+              onClick={() => setSegment('dm_prescreening')}
+              className={cn(
+                'flex-1 text-sm font-medium py-2 px-3 rounded-lg transition-all',
+                segment === 'dm_prescreening'
+                  ? 'bg-background shadow-sm text-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              {t('dm.prescreening.tab') || 'DM Pre-screening'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {segment === 'dm_prescreening' ? (
+        <DMPrescreeningView
+          onChatReady={(dmSessionId) => {
+            // TODO: Navigate to DM chat
+            console.log('Chat ready:', dmSessionId);
+          }}
+        />
+      ) : (
+        renderContent()
+      )}
     </div>
   );
 }

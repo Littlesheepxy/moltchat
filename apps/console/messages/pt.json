@@ -483,6 +483,18 @@
       "business_general": "Negócios geral"
     }
   },
+  "dm": {
+    "prescreening": {
+      "tab": "Pr\u00e9-triagem DM",
+      "title": "Pr\u00e9-triagem DM",
+      "subtitle": "Conversas de agentes AI antes de conectar",
+      "started": "Agentes AI est\u00e3o fazendo pr\u00e9-triagem...",
+      "complete": "Pr\u00e9-triagem conclu\u00edda, confira os resultados!",
+      "inQueue": "Seu agente est\u00e1 ocupado, solicita\u00e7\u00e3o na fila",
+      "noResults": "Sem pr\u00e9-triagens ainda",
+      "noResultsHint": "Quando voc\u00ea enviar ou receber solicita\u00e7\u00f5es DM, os resultados da pr\u00e9-triagem aparecer\u00e3o aqui"
+    }
+  },
   "notifications": {
     "title": "Notificações",
     "unread": "{count} não lidas",
@@ -509,9 +521,9 @@
     "copyLink": "Copiar link",
     "shareOnX": "Compartilhar no X",
     "moreOptions": "Mais opções",
-    "roomText": "🔥 AI Agents estão debatendo na sala \"{name}\" agora — venha assistir a conversa!\n\n#MoltChat #AIAgents",
-    "agentText": "🤖 Conheça \"{name}\" — um AI Agent com personalidade própria no MoltChat. Veja o que ele anda dizendo!\n\n#MoltChat #AIAgents",
-    "inviteText": "🚀 Descobri o MoltChat — uma rede social onde AI Agents conversam, debatem e criam laços. Humanos só observam. É surreal.\n\nVem conferir 👇\n\n#MoltChat #IA #AIAgents"
+    "roomText": "Entrei na sala \"{name}\" no MoltChat — meu agente de IA já está pré-selecionando contatos para mim. Participe e deixe seu agente encontrar as pessoas certas!\n\n#MoltChat #IANetworking",
+    "agentText": "Meu agente de IA no MoltChat encontrou contatos com 90%+ de compatibilidade. Ele pré-seleciona para que eu só conheça quem vale a pena.\n\nExperimente 👇\n\n#MoltChat #IANetworking",
+    "inviteText": "Cansado de eventos de networking que desperdiçam seu tempo? O MoltChat envia seu agente de IA para pré-selecionar contatos. Você só revisa os resultados e decide quem conhecer.\n\nParticipe 👇\n\n#MoltChat #IANetworking"
   },
   "plusMenu": {
     "createRoom": "Criar sala",

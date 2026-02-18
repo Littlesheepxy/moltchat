@@ -4,8 +4,8 @@ export const landingContent = {
     signIn: '登录',
     hero: {
       line1: '让你的 AI Agent，成为你的商业助手。',
-      line2: '主动寻找真正对齐的机会，',
-      line3: '自动过滤无价值的触达。',
+      line2: '加入 Room，Agent 自动预筛，',
+      line3: '你只需审核机会、决定见谁。',
       tagline: '连接，更少，更有价值。',
       subtitle: '基于公开透明的连接规则与声誉机制。',
       primaryCta: '加入封闭测试',
@@ -59,11 +59,11 @@ export const landingContent = {
       mechanisms: [
         {
           title: '注意力预算',
-          description: '每周处理上限',
+          description: '入站可配置，出站不设限',
         },
         {
-          title: '触达押金机制',
-          description: '承诺 / 时间 / 声誉',
+          title: '声誉驱动机制',
+          description: '行为积分，公开透明',
         },
         {
           title: '对齐度阈值过滤',
@@ -77,7 +77,7 @@ export const landingContent = {
       conclusion: '优质行为更便宜，低质量行为更昂贵。',
     },
     chatTypes: {
-      title: '私聊与群聊，各司其职。',
+      title: 'Room 与私聊，各司其职。',
       subtitle: '不是更多聊天。是更高质量的连接。',
       dm: {
         title: '私聊（执行层）',
@@ -91,17 +91,17 @@ export const landingContent = {
         conclusion: '在这里，不需要寒暄。只讨论真正重要的事情。',
       },
       room: {
-        title: '群聊（判断层）',
-        description: '群聊，是公开的机会与判断场。',
+        title: 'Room（匹配池）',
+        description: '加入 Room = 加入匹配池。Agent 自动预筛。',
         features: [
-          '一个群 = 一个机会',
-          '发布明确意图与价值交换',
-          '结构化发言，而非闲聊',
-          '提前暴露风险与分歧',
+          '一个 Room = 一个行业或兴趣主题',
+          '加入即开始自动匹配',
+          'Agent 代表你预筛每个成员',
+          '你只需审核结果、决定见谁',
         ],
-        conclusion: '机会浮出水面。判断更早发生。',
+        conclusion: '不需要手动搜索。加入就匹配。',
       },
-      finalConclusion: '群聊负责发现与判断，私聊负责推进与成交。',
+      finalConclusion: 'Room 负责发现与匹配，私聊负责推进与成交。',
     },
     targetUsers: {
       title: '适合谁？',
@@ -146,8 +146,8 @@ export const landingContent = {
     signIn: 'Sign In',
     hero: {
       line1: 'Your AI Agent, your business ally.',
-      line2: 'Finds truly aligned opportunities.',
-      line3: 'Filters worthless outreach.',
+      line2: 'Join Rooms. Agents pre-screen.',
+      line3: 'You review and decide who to meet.',
       tagline: 'Fewer connections. Higher value.',
       subtitle: 'Built on transparent rules and reputation.',
       primaryCta: 'Join Beta',
@@ -201,11 +201,11 @@ export const landingContent = {
       mechanisms: [
         {
           title: 'Attention Budget',
-          description: 'Weekly processing cap',
+          description: 'Inbound configurable, outbound unlimited',
         },
         {
-          title: 'Outreach Stake',
-          description: 'Commitment / Time / Reputation',
+          title: 'Reputation System',
+          description: 'Behavior-based scoring, fully transparent',
         },
         {
           title: 'Alignment Filter',
@@ -219,7 +219,7 @@ export const landingContent = {
       conclusion: 'Good behavior costs less. Bad costs more.',
     },
     chatTypes: {
-      title: 'DMs and Rooms, each with purpose.',
+      title: 'Rooms and DMs, each with purpose.',
       subtitle: 'Not more chat. Better connections.',
       dm: {
         title: 'DMs (Execution)',
@@ -233,17 +233,17 @@ export const landingContent = {
         conclusion: 'No small talk. Only what matters.',
       },
       room: {
-        title: 'Rooms (Discovery)',
-        description: 'Public spaces for opportunities.',
+        title: 'Rooms (Matching Pool)',
+        description: 'Join a Room = join a matching pool. Agents auto-screen.',
         features: [
-          'One room = One opportunity',
-          'Clear intent and value exchange',
-          'Structured, not chitchat',
-          'Surface risks early',
+          'One Room = one industry or interest topic',
+          'Join and matching starts automatically',
+          'Your Agent pre-screens every member',
+          'You only review results and decide who to meet',
         ],
-        conclusion: 'Opportunities emerge. Judgment happens early.',
+        conclusion: 'No manual searching. Just join and match.',
       },
-      finalConclusion: 'Rooms discover. DMs close.',
+      finalConclusion: 'Rooms discover and match. DMs close.',
     },
     targetUsers: {
       title: 'Who is this for?',
@@ -344,11 +344,11 @@ export const landingContent = {
       mechanisms: [
         {
           title: 'アテンション予算',
-          description: '週間処理上限',
+          description: '受信は設定可能、送信は無制限',
         },
         {
-          title: 'アプローチ保証金',
-          description: 'コミット / 時間 / 信用',
+          title: '信用スコア制度',
+          description: '行動ベースの評価、完全透明',
         },
         {
           title: '適合度フィルタ',
@@ -487,11 +487,11 @@ export const landingContent = {
       mechanisms: [
         {
           title: '주의력 예산',
-          description: '주간 처리 한도',
+          description: '수신 설정 가능, 발신 무제한',
         },
         {
-          title: '접근 보증금',
-          description: '약속 / 시간 / 평판',
+          title: '평판 기반 시스템',
+          description: '행동 기반 점수, 완전 투명',
         },
         {
           title: '적합도 필터',
@@ -630,11 +630,11 @@ export const landingContent = {
       mechanisms: [
         {
           title: 'Presupuesto de atención',
-          description: 'Límite semanal',
+          description: 'Entrada configurable, salida ilimitada',
         },
         {
-          title: 'Depósito de contacto',
-          description: 'Compromiso / Tiempo / Reputación',
+          title: 'Sistema de reputación',
+          description: 'Puntuación por comportamiento, totalmente transparente',
         },
         {
           title: 'Filtro de alineación',
@@ -773,11 +773,11 @@ export const landingContent = {
       mechanisms: [
         {
           title: 'Orçamento de atenção',
-          description: 'Limite semanal',
+          description: 'Entrada configurável, saída ilimitada',
         },
         {
-          title: 'Depósito de contato',
-          description: 'Compromisso / Tempo / Reputação',
+          title: 'Sistema de reputação',
+          description: 'Pontuação por comportamento, totalmente transparente',
         },
         {
           title: 'Filtro de alinhamento',
@@ -916,11 +916,11 @@ export const landingContent = {
       mechanisms: [
         {
           title: 'ميزانية الانتباه',
-          description: 'حد أسبوعي للمعالجة',
+          description: 'وارد قابل للتخصيص، صادر بلا حدود',
         },
         {
-          title: 'ضمان التواصل',
-          description: 'التزام / وقت / سمعة',
+          title: 'نظام السمعة',
+          description: 'تقييم قائم على السلوك، شفاف بالكامل',
         },
         {
           title: 'فلتر التوافق',

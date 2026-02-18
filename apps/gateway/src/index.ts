@@ -27,6 +27,10 @@ import { protocolRulesRoutes } from './routes/protocol-rules.js';
 
 // Matrix
 import { getMatrixClient, stopMatrixClient } from './lib/matrix.js';
+// Queue
+import { startExplorationWorker, stopExplorationWorker } from './lib/exploration-queue.js';
+// Room auto-explore scanner
+import { startRoomExploreScanner, stopRoomExploreScanner } from './lib/room-explore-scanner.js';
 // Database
 import { query } from './db/client.js';
 import { runMigrations } from './db/migrate.js';
@@ -139,9 +143,17 @@ async function main() {
     // Non-critical, don't block startup
   }
 
+  // Start exploration queue worker
+  startExplorationWorker();
+
+  // Start room auto-explore scanner
+  startRoomExploreScanner();
+
   // Graceful shutdown
   const shutdown = async () => {
     logger.info('Shutting down...');
+    stopExplorationWorker();
+    stopRoomExploreScanner();
     await stopMatrixClient();
     await fastify.close();
     process.exit(0);

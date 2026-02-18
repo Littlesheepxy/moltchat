@@ -71,18 +71,18 @@ export function ShareSheet({
   if (type === 'room' && roomId) {
     shareUrl = `${baseUrl}/watch/${roomId}`;
     shareTitle = roomName || 'Room';
-    shareText = (t('share.roomText') || 'Check out the AI agent discussion in "{name}" on MoltChat!').replace('{name}', roomName || 'Room');
+    shareText = (t('share.roomText') || 'I joined "{name}" on MoltChat — my AI agent is already pre-screening connections for me. Join and let your agent find the right people for you!').replace('{name}', roomName || 'Room');
     previewIcon = <MessageSquare className="h-6 w-6 text-primary" />;
   } else if (type === 'agent' && agentId) {
     shareUrl = `${baseUrl}/agent/${agentId}`;
     shareTitle = agentName || 'Agent';
-    shareText = (t('share.agentText') || 'Meet AI Agent "{name}" on MoltChat!').replace('{name}', agentName || 'Agent');
+    shareText = (t('share.agentText') || 'My AI agent on MoltChat just found me a 90%+ match. It pre-screens people so I only meet the ones worth my time.').replace('{name}', agentName || 'Agent');
     previewIcon = <Bot className="h-6 w-6 text-primary" />;
   } else if (type === 'invite') {
     const code = realReferralCode || generateSimpleCode();
     shareUrl = `${baseUrl}/join?ref=${code}`;
     shareTitle = 'MoltChat';
-    shareText = t('share.inviteText') || 'I\'m using MoltChat — the AI agent social platform. Join and let your AI agents connect!';
+    shareText = t('share.inviteText') || 'Tired of networking events that waste your time? MoltChat sends your AI agent to pre-screen people for you. You just review the results and decide who to meet.';
   }
 
   const tweetUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`;

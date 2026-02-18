@@ -9,6 +9,7 @@ import { query, queryOne, queryMany } from '../db/client.js';
 import { verifyUserSession, type SessionAuthResult } from '../lib/auth.js';
 import { AppError, ERROR_CODES } from '../lib/errors.js';
 import { runPendingExplorations } from '../lib/ai-exploration.js';
+import { executeExplorationDecision } from '../lib/exploration-actions.js';
 
 // ============================================
 // Constants
@@ -689,7 +690,11 @@ export async function networkingRoutes(fastify: FastifyInstance) {
               ap_a.roles as roles_a, ap_a.looking_for as looking_for_a, ap_a.can_offer as can_offer_a, ap_a.tags as tags_a,
               ap_b.roles as roles_b, ap_b.looking_for as looking_for_b, ap_b.can_offer as can_offer_b, ap_b.tags as tags_b,
               op_a.industry as industry_a, op_a.display_name as name_a,
-              op_b.industry as industry_b, op_b.display_name as name_b
+              op_a.job_title as job_title_a, op_a.looking_for as owner_looking_for_a,
+              op_a.can_offer as owner_can_offer_a, op_a.topics_of_interest as topics_a,
+              op_b.industry as industry_b, op_b.display_name as name_b,
+              op_b.job_title as job_title_b, op_b.looking_for as owner_looking_for_b,
+              op_b.can_offer as owner_can_offer_b, op_b.topics_of_interest as topics_b
        FROM ai_explorations e
        LEFT JOIN activity_participants ap_a ON ap_a.activity_id = e.activity_id AND ap_a.user_id = e.user_a_id
        LEFT JOIN activity_participants ap_b ON ap_b.activity_id = e.activity_id AND ap_b.user_id = e.user_b_id
@@ -733,10 +738,24 @@ export async function networkingRoutes(fastify: FastifyInstance) {
     const myDecision = iAmA ? exploration.decision_a : exploration.decision_b;
     const otherDecision = iAmA ? exploration.decision_b : exploration.decision_a;
 
-    // 检查活动是否匿名
-    const activity = await queryOne<{ is_anonymous: boolean }>(
-      `SELECT is_anonymous FROM activities WHERE id = $1`, [exploration.activity_id]
-    );
+    // 检查活动是否匿名（DM explorations have no activity）
+    const isDM = exploration.source === 'dm' || !exploration.activity_id;
+    let isAnonymous = false;
+    if (!isDM && exploration.activity_id) {
+      const activity = await queryOne<{ is_anonymous: boolean }>(
+        `SELECT is_anonymous FROM activities WHERE id = $1`, [exploration.activity_id]
+      );
+      isAnonymous = activity?.is_anonymous ?? false;
+    }
+
+    // For DM explorations, fall back to owner_profiles data when activity_participants data is NULL
+    const otherRoles = (iAmA ? exploration.roles_b : exploration.roles_a) || [];
+    const otherLookingFor = (iAmA ? exploration.looking_for_b : exploration.looking_for_a)
+      || (iAmA ? exploration.owner_looking_for_b : exploration.owner_looking_for_a);
+    const otherCanOffer = (iAmA ? exploration.can_offer_b : exploration.can_offer_a)
+      || (iAmA ? exploration.owner_can_offer_b : exploration.owner_can_offer_a);
+    const otherTags = (iAmA ? exploration.tags_b : exploration.tags_a)
+      || (iAmA ? exploration.topics_b : exploration.topics_a) || [];
 
     return reply.send({
       success: true,
@@ -744,6 +763,7 @@ export async function networkingRoutes(fastify: FastifyInstance) {
         exploration: {
           id: exploration.id,
           activity_id: exploration.activity_id,
+          source: exploration.source || 'activity',
           status: exploration.status,
           match_score: exploration.match_score,
           match_highlights: exploration.match_highlights,
@@ -755,12 +775,13 @@ export async function networkingRoutes(fastify: FastifyInstance) {
           dm_request_id: exploration.dm_request_id,
           total_rounds: exploration.total_rounds,
           other_party: {
-            roles: iAmA ? exploration.roles_b : exploration.roles_a,
-            looking_for: iAmA ? exploration.looking_for_b : exploration.looking_for_a,
-            can_offer: iAmA ? exploration.can_offer_b : exploration.can_offer_a,
-            tags: iAmA ? exploration.tags_b : exploration.tags_a,
+            roles: otherRoles,
+            looking_for: otherLookingFor,
+            can_offer: otherCanOffer,
+            tags: otherTags,
             industry: iAmA ? exploration.industry_b : exploration.industry_a,
-            display_name: activity?.is_anonymous ? null : (iAmA ? exploration.name_b : exploration.name_a),
+            display_name: isAnonymous ? null : (iAmA ? exploration.name_b : exploration.name_a),
+            job_title: isAnonymous ? null : (iAmA ? exploration.job_title_b : exploration.job_title_a),
           },
         },
         messages: messages.map(m => ({
@@ -788,158 +809,9 @@ export async function networkingRoutes(fastify: FastifyInstance) {
     }
 
     const { decision, reason } = parseResult.data;
+    const result = await executeExplorationDecision(id, session.userId, decision, reason);
 
-    const exploration = await queryOne<{
-      id: string; user_a_id: string; user_b_id: string; activity_id: string;
-      decision_a: string; decision_b: string; chat_requested_by: string | null;
-      dm_request_id: string | null;
-    }>(
-      `SELECT id, user_a_id, user_b_id, activity_id, decision_a, decision_b, chat_requested_by, dm_request_id
-       FROM ai_explorations WHERE id = $1 AND (user_a_id = $2 OR user_b_id = $2)`,
-      [id, session.userId]
-    );
-
-    if (!exploration) {
-      throw new AppError(ERROR_CODES.NOT_FOUND, 'Exploration not found', 404);
-    }
-
-    const iAmA = exploration.user_a_id === session.userId;
-    const myCurrentDecision = iAmA ? exploration.decision_a : exploration.decision_b;
-
-    // 不能重复决策（除非是被请求方响应）
-    if (myCurrentDecision !== 'pending') {
-      throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Decision already made', 409);
-    }
-
-    if (decision === 'pass') {
-      // 纯标注，不影响对方
-      const decisionCol = iAmA ? 'decision_a' : 'decision_b';
-      const reasonCol = iAmA ? 'decision_a_reason' : 'decision_b_reason';
-      const atCol = iAmA ? 'decision_a_at' : 'decision_b_at';
-
-      await query(
-        `UPDATE ai_explorations SET ${decisionCol} = 'pass', ${reasonCol} = $1, ${atCol} = NOW() WHERE id = $2`,
-        [reason || null, id]
-      );
-
-      return reply.send({ success: true, data: { decision: 'pass' } });
-    }
-
-    // decision === 'want_chat'
-    // 检查对方是否已经先发起了请求
-    const otherDecision = iAmA ? exploration.decision_b : exploration.decision_a;
-
-    if (exploration.chat_requested_by && otherDecision === 'want_chat') {
-      // 对方已经想聊了！这是"接受"请求的情况
-      // 更新我的决策为 accept
-      const decisionCol = iAmA ? 'decision_a' : 'decision_b';
-      const atCol = iAmA ? 'decision_a_at' : 'decision_b_at';
-
-      await query(
-        `UPDATE ai_explorations SET ${decisionCol} = 'want_chat', ${atCol} = NOW() WHERE id = $1`,
-        [id]
-      );
-
-      // 自动创建 DM session（如果有 dm_request_id，则 approve 它）
-      if (exploration.dm_request_id) {
-        await query(
-          `UPDATE dm_requests SET status = 'accepted', responded_at = NOW() WHERE id = $1`,
-          [exploration.dm_request_id]
-        );
-
-        // 获取活动配置
-        const activity = await queryOne<{ chat_expiry_hours: number }>(
-          `SELECT chat_expiry_hours FROM activities WHERE id = $1`, [exploration.activity_id]
-        );
-        const expiryHours = activity?.chat_expiry_hours || 72;
-
-        const dmReq = await queryOne<{ from_agent_id: string; to_agent_id: string }>(
-          `SELECT from_agent_id, to_agent_id FROM dm_requests WHERE id = $1`, [exploration.dm_request_id]
-        );
-
-        if (dmReq) {
-          const dmSession = await queryOne<{ id: string }>(
-            `INSERT INTO dm_sessions (request_id, initiator_id, target_id, intent, exploration_id, max_messages, expires_at)
-             VALUES ($1, $2, $3, 'networking', $4, 100, NOW() + INTERVAL '${expiryHours} hours')
-             RETURNING id`,
-            [exploration.dm_request_id, dmReq.from_agent_id, dmReq.to_agent_id, id]
-          );
-
-          // 通知双方
-          const notifyUsers = [exploration.user_a_id, exploration.user_b_id];
-          for (const uid of notifyUsers) {
-            await query(
-              `INSERT INTO agent_notifications (owner_user_id, type, title, content, metadata)
-               VALUES ($1, 'exploration_ready', $2, $3, $4)`,
-              [
-                uid,
-                'Mutual match! Chat is ready',
-                'You both want to chat! A DM session has been created.',
-                JSON.stringify({ exploration_id: id, dm_session_id: dmSession?.id }),
-              ]
-            );
-          }
-
-          return reply.send({
-            success: true,
-            data: { decision: 'want_chat', mutual_match: true, dm_session_id: dmSession?.id },
-          });
-        }
-      }
-
-      return reply.send({ success: true, data: { decision: 'want_chat', mutual_match: true } });
-    }
-
-    // 我是第一个点"想聊"的人 → 发起 DM 请求
-    const mySide = iAmA ? 'A' : 'B';
-    const decisionCol = iAmA ? 'decision_a' : 'decision_b';
-    const atCol = iAmA ? 'decision_a_at' : 'decision_b_at';
-
-    // 找到双方的 agent
-    const myAgent = await queryOne<{ id: string }>(
-      `SELECT id FROM agents WHERE owner_user_id = $1 AND status = 'claimed' LIMIT 1`,
-      [session.userId]
-    );
-    const otherUserId = iAmA ? exploration.user_b_id : exploration.user_a_id;
-    const otherAgent = await queryOne<{ id: string }>(
-      `SELECT id FROM agents WHERE owner_user_id = $1 AND status = 'claimed' LIMIT 1`,
-      [otherUserId]
-    );
-
-    if (!myAgent || !otherAgent) {
-      throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Both parties need a claimed agent', 400);
-    }
-
-    // 创建 dm_request (networking intent)
-    const dmRequest = await queryOne<{ id: string }>(
-      `INSERT INTO dm_requests (from_agent_id, to_agent_id, intent, exploration_id, expires_at)
-       VALUES ($1, $2, 'networking', $3, NOW() + INTERVAL '7 days')
-       RETURNING id`,
-      [myAgent.id, otherAgent.id, id]
-    );
-
-    // 更新探索记录
-    await query(
-      `UPDATE ai_explorations SET ${decisionCol} = 'want_chat', ${atCol} = NOW(), chat_requested_by = $1, dm_request_id = $2 WHERE id = $3`,
-      [mySide, dmRequest!.id, id]
-    );
-
-    // 通知对方
-    await query(
-      `INSERT INTO agent_notifications (owner_user_id, type, title, content, metadata)
-       VALUES ($1, 'chat_request_from_exploration', $2, $3, $4)`,
-      [
-        otherUserId,
-        'Someone wants to chat with you!',
-        'A networking match wants to connect. Review the AI exploration to decide.',
-        JSON.stringify({ exploration_id: id, dm_request_id: dmRequest!.id }),
-      ]
-    );
-
-    return reply.send({
-      success: true,
-      data: { decision: 'want_chat', mutual_match: false, dm_request_id: dmRequest!.id },
-    });
+    return reply.send({ success: true, data: result });
   });
 
   // ============================================
@@ -962,10 +834,10 @@ export async function networkingRoutes(fastify: FastifyInstance) {
     const { action, reason } = parseResult.data;
 
     const exploration = await queryOne<{
-      id: string; user_a_id: string; user_b_id: string; activity_id: string;
-      chat_requested_by: string | null; dm_request_id: string | null;
+      id: string; user_a_id: string; user_b_id: string; activity_id: string | null;
+      source: string; chat_requested_by: string | null; dm_request_id: string | null;
     }>(
-      `SELECT id, user_a_id, user_b_id, activity_id, chat_requested_by, dm_request_id
+      `SELECT id, user_a_id, user_b_id, activity_id, source, chat_requested_by, dm_request_id
        FROM ai_explorations WHERE id = $1 AND (user_a_id = $2 OR user_b_id = $2)`,
       [id, session.userId]
     );
@@ -1017,21 +889,25 @@ export async function networkingRoutes(fastify: FastifyInstance) {
         [exploration.dm_request_id]
       );
 
-      const activity = await queryOne<{ chat_expiry_hours: number }>(
-        `SELECT chat_expiry_hours FROM activities WHERE id = $1`, [exploration.activity_id]
-      );
-      const expiryHours = activity?.chat_expiry_hours || 72;
+      const activity = exploration.activity_id
+        ? await queryOne<{ chat_expiry_hours: number }>(
+            `SELECT chat_expiry_hours FROM activities WHERE id = $1`, [exploration.activity_id]
+          )
+        : null;
+      const expiryHours = activity?.chat_expiry_hours || (exploration.source === 'dm' ? 168 : 72);
 
       const dmReq = await queryOne<{ from_agent_id: string; to_agent_id: string }>(
         `SELECT from_agent_id, to_agent_id FROM dm_requests WHERE id = $1`, [exploration.dm_request_id]
       );
 
+      const sessionIntent = exploration.source === 'dm' ? 'dm' : 'networking';
+
       if (dmReq) {
         const dmSession = await queryOne<{ id: string }>(
           `INSERT INTO dm_sessions (request_id, initiator_id, target_id, intent, exploration_id, max_messages, expires_at)
-           VALUES ($1, $2, $3, 'networking', $4, 100, NOW() + INTERVAL '${expiryHours} hours')
+           VALUES ($1, $2, $3, $4, $5, 100, NOW() + INTERVAL '${expiryHours} hours')
            RETURNING id`,
-          [exploration.dm_request_id, dmReq.from_agent_id, dmReq.to_agent_id, id]
+          [exploration.dm_request_id, dmReq.from_agent_id, dmReq.to_agent_id, sessionIntent, id]
         );
 
         // 通知双方
@@ -1052,6 +928,265 @@ export async function networkingRoutes(fastify: FastifyInstance) {
     }
 
     return reply.send({ success: true, data: { action: 'accept' } });
+  });
+
+  // ============================================
+  // GET /v1/my/explorations — 聚合所有探索（跨 Room + DM + Activity）
+  // ============================================
+  fastify.get('/v1/my/explorations', async (request: FastifyRequest, reply: FastifyReply) => {
+    const session = await requireSession(request);
+    const { filter = 'all', limit = '20', offset = '0' } = request.query as {
+      filter?: string;
+      limit?: string;
+      offset?: string;
+    };
+
+    // Build status/decision filter
+    let statusFilter = '';
+    if (filter === 'pending') {
+      // Completed explorations that I haven't decided on yet
+      statusFilter = `AND e.status = 'completed' AND (
+        (e.user_a_id = $1 AND e.decision_a = 'pending') OR
+        (e.user_b_id = $1 AND e.decision_b = 'pending')
+      )`;
+    } else if (filter === 'in_progress') {
+      statusFilter = `AND e.status IN ('pending', 'in_progress')`;
+    } else if (filter === 'completed') {
+      statusFilter = `AND e.status = 'completed'`;
+    } else if (filter === 'decided') {
+      statusFilter = `AND e.status = 'completed' AND (
+        (e.user_a_id = $1 AND e.decision_a != 'pending') OR
+        (e.user_b_id = $1 AND e.decision_b != 'pending')
+      )`;
+    }
+
+    const explorations = await queryMany<{
+      id: string;
+      source: string;
+      activity_id: string | null;
+      room_id: string | null;
+      user_a_id: string;
+      user_b_id: string;
+      status: string;
+      total_rounds: number;
+      max_rounds: number;
+      match_score: number | null;
+      match_highlights: any;
+      summary_for_a: string | null;
+      summary_for_b: string | null;
+      collaboration_potential: string | null;
+      decision_a: string;
+      decision_b: string;
+      chat_requested_by: string | null;
+      dm_request_id: string | null;
+      created_at: Date;
+      completed_at: Date | null;
+      other_display_name: string | null;
+      other_industry: string | null;
+      other_job_title: string | null;
+      room_name: string | null;
+      activity_name: string | null;
+    }>(
+      `SELECT
+         e.id, COALESCE(e.source, 'activity') AS source,
+         e.activity_id, e.room_id,
+         e.user_a_id, e.user_b_id, e.status,
+         e.total_rounds, e.max_rounds, e.match_score,
+         e.match_highlights, e.summary_for_a, e.summary_for_b,
+         e.collaboration_potential,
+         e.decision_a, e.decision_b,
+         e.chat_requested_by, e.dm_request_id,
+         e.created_at, e.completed_at,
+         op.display_name AS other_display_name,
+         op.industry AS other_industry,
+         op.job_title AS other_job_title,
+         r.name AS room_name,
+         act.name AS activity_name
+       FROM ai_explorations e
+       LEFT JOIN owner_profiles op ON op.user_id = CASE
+         WHEN e.user_a_id = $1 THEN e.user_b_id
+         ELSE e.user_a_id
+       END
+       LEFT JOIN rooms r ON r.id = e.room_id
+       LEFT JOIN activities act ON act.id = e.activity_id
+       WHERE (e.user_a_id = $1 OR e.user_b_id = $1)
+         ${statusFilter}
+       ORDER BY
+         CASE WHEN e.status IN ('pending', 'in_progress') THEN 0 ELSE 1 END,
+         e.completed_at DESC NULLS LAST,
+         e.created_at DESC
+       LIMIT $2 OFFSET $3`,
+      [session.userId, parseInt(limit, 10), parseInt(offset, 10)],
+    );
+
+    // Count stats
+    const stats = await queryOne<{
+      total: string;
+      pending_decision: string;
+      in_progress: string;
+      decided: string;
+    }>(
+      `SELECT
+         COUNT(*) AS total,
+         COUNT(*) FILTER (WHERE e.status = 'completed' AND (
+           (e.user_a_id = $1 AND e.decision_a = 'pending') OR
+           (e.user_b_id = $1 AND e.decision_b = 'pending')
+         )) AS pending_decision,
+         COUNT(*) FILTER (WHERE e.status IN ('pending', 'in_progress')) AS in_progress,
+         COUNT(*) FILTER (WHERE e.status = 'completed' AND (
+           (e.user_a_id = $1 AND e.decision_a != 'pending') OR
+           (e.user_b_id = $1 AND e.decision_b != 'pending')
+         )) AS decided
+       FROM ai_explorations e
+       WHERE (e.user_a_id = $1 OR e.user_b_id = $1)`,
+      [session.userId],
+    );
+
+    return reply.send({
+      success: true,
+      data: {
+        stats: {
+          total: parseInt(stats?.total || '0', 10),
+          pending_decision: parseInt(stats?.pending_decision || '0', 10),
+          in_progress: parseInt(stats?.in_progress || '0', 10),
+          decided: parseInt(stats?.decided || '0', 10),
+        },
+        explorations: explorations.map((e) => {
+          const isSideA = e.user_a_id === session.userId;
+          return {
+            id: e.id,
+            source: e.source,
+            status: e.status,
+            total_rounds: e.total_rounds,
+            max_rounds: e.max_rounds,
+            match_score: e.match_score,
+            match_highlights: e.match_highlights,
+            summary: isSideA ? e.summary_for_a : e.summary_for_b,
+            collaboration_potential: e.collaboration_potential,
+            my_decision: isSideA ? e.decision_a : e.decision_b,
+            other_decision: isSideA ? e.decision_b : e.decision_a,
+            chat_requested_by: e.chat_requested_by,
+            dm_request_id: e.dm_request_id,
+            other_party: {
+              display_name: e.other_display_name,
+              industry: e.other_industry,
+              job_title: e.other_job_title,
+            },
+            context: {
+              room_name: e.room_name,
+              room_id: e.room_id,
+              activity_name: e.activity_name,
+              activity_id: e.activity_id,
+            },
+            created_at: e.created_at.toISOString(),
+            completed_at: e.completed_at?.toISOString() || null,
+          };
+        }),
+      },
+    });
+  });
+
+  // ============================================
+  // Room Explorations
+  // ============================================
+
+  /**
+   * GET /v1/rooms/:roomId/explorations
+   * List explorations from a specific room for the current user
+   */
+  fastify.get<{
+    Params: { roomId: string };
+  }>('/v1/rooms/:roomId/explorations', async (request, reply) => {
+    const session = await verifyUserSession(request);
+    if (!session) {
+      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Login required', 401);
+    }
+
+    const { roomId } = request.params;
+    const { filter = 'all' } = request.query as { filter?: string };
+
+    // Build status filter
+    let statusFilter = '';
+    if (filter === 'pending') {
+      statusFilter = `AND e.status IN ('pending', 'in_progress')`;
+    } else if (filter === 'completed') {
+      statusFilter = `AND e.status = 'completed'`;
+    }
+
+    const explorations = await queryMany<{
+      id: string;
+      user_a_id: string;
+      user_b_id: string;
+      status: string;
+      total_rounds: number;
+      max_rounds: number;
+      match_score: number | null;
+      summary_for_a: string | null;
+      summary_for_b: string | null;
+      match_highlights: any;
+      collaboration_potential: string | null;
+      decision_a: string;
+      decision_b: string;
+      created_at: Date;
+      completed_at: Date | null;
+      other_display_name: string | null;
+      other_industry: string | null;
+      other_job_title: string | null;
+      other_company: string | null;
+    }>(
+      `SELECT
+         e.id, e.user_a_id, e.user_b_id, e.status,
+         e.total_rounds, e.max_rounds, e.match_score,
+         e.summary_for_a, e.summary_for_b,
+         e.match_highlights, e.collaboration_potential,
+         e.decision_a, e.decision_b,
+         e.created_at, e.completed_at,
+         op.display_name AS other_display_name,
+         op.industry AS other_industry,
+         op.job_title AS other_job_title,
+         op.company AS other_company
+       FROM ai_explorations e
+       LEFT JOIN owner_profiles op ON op.user_id = CASE
+         WHEN e.user_a_id = $1 THEN e.user_b_id
+         ELSE e.user_a_id
+       END
+       WHERE e.room_id = $2
+         AND e.source = 'room'
+         AND (e.user_a_id = $1 OR e.user_b_id = $1)
+         ${statusFilter}
+       ORDER BY e.created_at DESC
+       LIMIT 50`,
+      [session.userId, roomId],
+    );
+
+    return reply.send({
+      success: true,
+      data: {
+        explorations: explorations.map((e) => {
+          const isSideA = e.user_a_id === session.userId;
+          return {
+            id: e.id,
+            status: e.status,
+            total_rounds: e.total_rounds,
+            max_rounds: e.max_rounds,
+            match_score: e.match_score,
+            summary: isSideA ? e.summary_for_a : e.summary_for_b,
+            match_highlights: e.match_highlights,
+            collaboration_potential: e.collaboration_potential,
+            my_decision: isSideA ? e.decision_a : e.decision_b,
+            other_decision: isSideA ? e.decision_b : e.decision_a,
+            other_party: {
+              display_name: e.other_display_name,
+              industry: e.other_industry,
+              job_title: e.other_job_title,
+              company: e.other_company,
+            },
+            created_at: e.created_at.toISOString(),
+            completed_at: e.completed_at?.toISOString() || null,
+          };
+        }),
+      },
+    });
   });
 }
 
