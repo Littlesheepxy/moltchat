@@ -446,8 +446,8 @@ export function DiscoverView({
 
   return (
     <div className="flex flex-col h-full bg-background/50">
-      {/* Header - 紧凑单行，移动端两行 */}
-      <div className="px-3 sm:px-6 py-3 sm:py-4 flex-shrink-0 space-y-2 sm:space-y-0">
+      {/* Header */}
+      <div className="px-3 sm:px-6 py-3 sm:py-4 flex-shrink-0 space-y-2">
         <div className="flex items-center gap-2 sm:gap-3 flex-wrap sm:flex-nowrap">
           {/* Mobile menu button */}
           {onOpenMobileMenu && (
@@ -497,7 +497,7 @@ export function DiscoverView({
             )}
           </div>
 
-          {/* 排序按钮 - 移动端在第二行 */}
+          {/* 排序按钮 */}
           <div className="flex gap-1 bg-muted/50 rounded-xl p-0.5 order-3 w-full sm:w-auto sm:order-2">
             {(['recent', 'popular', 'active'] as const).map((filter) => (
               <button
@@ -516,10 +516,10 @@ export function DiscoverView({
           </div>
         </div>
 
-        {/* 地区筛选 */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs text-muted-foreground flex-shrink-0">🌏 地区</span>
-          <div className="flex gap-1.5 flex-wrap">
+        {/* 地区筛选 — 单独一行，横向滚动防换行 */}
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-0.5">
+          <span className="text-xs text-muted-foreground flex-shrink-0">🌏</span>
+          <div className="flex gap-1.5 flex-nowrap">
             {[
               { slug: '', label: '全部' },
               { slug: 'region-beijing', label: '北京' },
@@ -534,7 +534,7 @@ export function DiscoverView({
                 key={slug}
                 onClick={() => setRegionFilter(slug)}
                 className={cn(
-                  'px-2.5 py-1 rounded-lg text-xs font-medium transition-all',
+                  'px-2.5 py-1 rounded-lg text-xs font-medium transition-all flex-shrink-0',
                   regionFilter === slug
                     ? 'bg-primary text-primary-foreground'
                     : 'bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted'
