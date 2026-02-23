@@ -73,6 +73,7 @@ const updateParticipantSchema = joinActivitySchema.partial();
 const decideSchema = z.object({
   decision: z.enum(['want_chat', 'pass']),
   reason: z.string().max(500).optional(),
+  is_public: z.boolean().optional(),
 });
 
 // ============================================
@@ -808,8 +809,17 @@ export async function networkingRoutes(fastify: FastifyInstance) {
       throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Invalid decision data', 400);
     }
 
-    const { decision, reason } = parseResult.data;
+    const { decision, reason, is_public } = parseResult.data;
     const result = await executeExplorationDecision(id, session.userId, decision, reason);
+
+    // 如果用户选择公开此对战
+    if (is_public === true) {
+      await query(
+        `UPDATE ai_explorations SET is_public = TRUE WHERE id = $1
+         AND (user_a_id = $2 OR user_b_id = $2)`,
+        [id, session.userId]
+      );
+    }
 
     return reply.send({ success: true, data: result });
   });
@@ -1187,6 +1197,97 @@ export async function networkingRoutes(fastify: FastifyInstance) {
         }),
       },
     });
+  });
+
+  // ============================================
+  // GET /v1/explorations/:id/public — 公开观战（无需 auth）
+  // ============================================
+  fastify.get('/v1/explorations/:id/public', async (request: FastifyRequest, reply: FastifyReply) => {
+    const { id } = request.params as { id: string };
+
+    const exploration = await queryOne<{
+      id: string;
+      status: string;
+      is_public: boolean;
+      match_score: number | null;
+      match_highlights: unknown;
+      collaboration_potential: string | null;
+      total_rounds: number;
+      max_rounds: number;
+      decision_a: string;
+      decision_b: string;
+      completed_at: string | null;
+      created_at: string;
+      agent_a_name: string | null;
+      agent_b_name: string | null;
+      owner_a_name: string | null;
+      owner_b_name: string | null;
+    }>(
+      `SELECT ae.id, ae.status, ae.is_public, ae.match_score, ae.match_highlights,
+              ae.collaboration_potential, ae.total_rounds, ae.max_rounds,
+              ae.decision_a, ae.decision_b, ae.completed_at, ae.created_at,
+              a_agent.name AS agent_a_name,
+              b_agent.name AS agent_b_name,
+              a_owner.display_name AS owner_a_name,
+              b_owner.display_name AS owner_b_name
+       FROM ai_explorations ae
+       LEFT JOIN agents a_agent ON a_agent.id = ae.agent_a_id
+       LEFT JOIN agents b_agent ON b_agent.id = ae.agent_b_id
+       LEFT JOIN owner_profiles a_owner ON a_owner.user_id = ae.user_a_id
+       LEFT JOIN owner_profiles b_owner ON b_owner.user_id = ae.user_b_id
+       WHERE ae.id = $1`,
+      [id]
+    );
+
+    if (!exploration) {
+      throw new AppError(ERROR_CODES.NOT_FOUND, 'Exploration not found', 404);
+    }
+
+    if (!exploration.is_public) {
+      throw new AppError(ERROR_CODES.FORBIDDEN, 'This exploration is not public', 403);
+    }
+
+    const messages = await queryMany<{
+      id: string;
+      round: number;
+      side: string;
+      content: string;
+      created_at: string;
+    }>(
+      `SELECT id, round, side, content, created_at
+       FROM exploration_messages
+       WHERE exploration_id = $1
+       ORDER BY round ASC, side ASC`,
+      [id]
+    );
+
+    return reply.send({ exploration, messages });
+  });
+
+  // ============================================
+  // PATCH /v1/explorations/:id/public — 设置公开/私密（需 auth，本人）
+  // ============================================
+  fastify.patch('/v1/explorations/:id/public', async (request: FastifyRequest, reply: FastifyReply) => {
+    const session = await requireSession(request);
+    const { id } = request.params as { id: string };
+    const { is_public } = request.body as { is_public: boolean };
+
+    const exploration = await queryOne<{ id: string }>(
+      `SELECT id FROM ai_explorations
+       WHERE id = $1 AND (user_a_id = $2 OR user_b_id = $2) AND status = 'completed'`,
+      [id, session.userId]
+    );
+
+    if (!exploration) {
+      throw new AppError(ERROR_CODES.NOT_FOUND, 'Exploration not found or not completed', 404);
+    }
+
+    await query(
+      `UPDATE ai_explorations SET is_public = $1 WHERE id = $2`,
+      [is_public, id]
+    );
+
+    return reply.send({ success: true, is_public });
   });
 }
 

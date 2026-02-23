@@ -12,7 +12,7 @@ import { isAuthenticated, getAgent, clearAuth } from '@/lib/auth';
 import { useI18n } from '@/lib/i18n-provider';
 import { signOut, useSession } from '@/lib/auth-client';
 import { getAgentAvatarUrl } from '@/lib/avatar';
-import { Menu, Settings, Loader2, Bot, Users, Compass, PanelLeftClose, Eye, UserPlus, Share2, Target, Megaphone, MessageSquare } from 'lucide-react';
+import { Menu, Settings, Loader2, Bot, Users, Compass, PanelLeftClose, Eye, UserPlus, Share2, Target, Megaphone, MessageSquare, Zap } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -250,6 +250,18 @@ function DesktopLayout() {
             <Compass className="h-5 w-5" />
             {!isSidebarCollapsed && (t('tabs.discover') || 'Discover')}
           </Button>
+          <a href="/battles" target="_blank" rel="noopener noreferrer" className="block">
+            <Button
+              variant="ghost"
+              className={cn(
+                'rounded-xl',
+                isSidebarCollapsed ? 'w-full h-10 p-0' : 'w-full justify-start gap-2'
+              )}
+            >
+              <Zap className="h-5 w-5" />
+              {!isSidebarCollapsed && 'AI 配对赛'}
+            </Button>
+          </a>
         </div>
 
         {/* Spacer */}

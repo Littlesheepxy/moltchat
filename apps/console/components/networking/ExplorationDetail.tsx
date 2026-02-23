@@ -9,13 +9,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Sparkles, MessageSquare, ChevronDown, ChevronUp, ArrowLeft,
-  Send, X, Check, Loader2, Star, Lightbulb, Users,
+  Send, X, Check, Loader2, Star, Lightbulb, Users, Share2, Globe, Lock,
 } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
+import { toast } from 'sonner';
 import {
-  getExploration, submitDecision, respondToExploration,
+  getExploration, submitDecision, respondToExploration, setExplorationPublic,
   type ExplorationDetail as ExplorationDetailType,
 } from '@/lib/api';
 
@@ -33,12 +34,16 @@ export function ExplorationDetailView({ explorationId, onBack, onChatReady }: Ex
   const [showPassDialog, setShowPassDialog] = useState(false);
   const [passReason, setPassReason] = useState('');
   const [deciding, setDeciding] = useState(false);
+  const [isPublic, setIsPublic] = useState(false);
+  const [togglingPublic, setTogglingPublic] = useState(false);
 
   const loadExploration = useCallback(async () => {
     setLoading(true);
     const result = await getExploration(explorationId);
     if (result.success && result.data) {
       setData(result.data);
+      // @ts-ignore — is_public may not be in type yet
+      setIsPublic(result.data.exploration?.is_public ?? false);
     }
     setLoading(false);
   }, [explorationId]);
@@ -281,6 +286,46 @@ export function ExplorationDetailView({ explorationId, onBack, onChatReady }: Ex
             </CardContent>
           )}
         </Card>
+      )}
+
+      {/* Public Toggle + Share (only when completed) */}
+      {exploration.status === 'completed' && (
+        <div className="flex items-center justify-between px-1 pb-2">
+          <button
+            onClick={async () => {
+              setTogglingPublic(true);
+              const next = !isPublic;
+              const result = await setExplorationPublic(explorationId, next);
+              if (result.success) {
+                setIsPublic(next);
+                toast.success(next ? '对战已公开，可分享给任何人' : '对战已设为私密');
+              }
+              setTogglingPublic(false);
+            }}
+            disabled={togglingPublic}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            {isPublic ? <Globe className="h-3.5 w-3.5 text-green-500" /> : <Lock className="h-3.5 w-3.5" />}
+            {isPublic ? '已公开' : '设为公开'}
+          </button>
+          {isPublic && (
+            <button
+              onClick={() => {
+                const url = `${window.location.origin}/watch/battle/${explorationId}`;
+                if (navigator.share) {
+                  navigator.share({ title: 'AI 对战 - MoltChat', url });
+                } else {
+                  navigator.clipboard.writeText(url);
+                  toast.success('链接已复制');
+                }
+              }}
+              className="flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 transition-colors"
+            >
+              <Share2 className="h-3.5 w-3.5" />
+              分享对战
+            </button>
+          )}
+        </div>
       )}
 
       {/* Decision Panel (sticky bottom) */}

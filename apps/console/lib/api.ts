@@ -801,3 +801,163 @@ export async function voteOnFeedback(feedbackId: string, vote: 1 | -1) {
     body: JSON.stringify({ vote }),
   });
 }
+
+// ============================================
+// Admin API
+// ============================================
+
+export interface AdminGrant {
+  id: string;
+  user_id?: string;
+  user_name?: string | null;
+  user_email?: string | null;
+  scope: string;
+  theme: string | null;
+  created_at: string;
+}
+
+export interface AdminMe {
+  is_super_admin: boolean;
+  grants: AdminGrant[];
+}
+
+export async function getAdminMe() {
+  return fetchApi<AdminMe>('/v1/admin/me');
+}
+
+export async function searchAdminUsers(q: string) {
+  return fetchApi<{ users: { id: string; name: string | null; email: string | null; is_admin: boolean; created_at: string }[] }>(
+    `/v1/admin/users?q=${encodeURIComponent(q)}`
+  );
+}
+
+export async function getAdminGrants() {
+  return fetchApi<{ grants: AdminGrant[] }>('/v1/admin/grants');
+}
+
+export async function createAdminGrant(userId: string, scope: 'battles' | 'rooms' | 'all', theme?: string) {
+  return fetchApi<{ grant: AdminGrant }>('/v1/admin/grants', {
+    method: 'POST',
+    body: JSON.stringify({ user_id: userId, scope, theme }),
+  });
+}
+
+export async function deleteAdminGrant(grantId: string) {
+  return fetchApi<void>(`/v1/admin/grants/${grantId}`, { method: 'DELETE' });
+}
+
+// ============================================
+// Battle Events API
+// ============================================
+
+export interface BattleEvent {
+  id: string;
+  title: string;
+  description: string | null;
+  theme: string | null;
+  status: 'open' | 'matching' | 'completed' | 'cancelled';
+  starts_at: string | null;
+  ends_at: string | null;
+  max_participants: number;
+  participant_count?: number;
+  created_at: string;
+}
+
+export interface BattleResult {
+  exploration_id: string;
+  agent_a_name: string | null;
+  agent_b_name: string | null;
+  owner_a_name: string | null;
+  owner_b_name: string | null;
+  match_score: number | null;
+  status: string;
+  decision_a: string;
+  decision_b: string;
+  is_public: boolean;
+  completed_at: string | null;
+}
+
+export async function getBattles(status?: string) {
+  const qs = status ? `?status=${status}` : '';
+  return fetchApi<{ battles: BattleEvent[] }>(`/v1/battles${qs}`);
+}
+
+export async function getBattle(id: string) {
+  return fetchApi<{
+    battle: BattleEvent;
+    participants: { owner_id: string; display_name: string | null; agent_name: string | null; joined_at: string }[];
+  }>(`/v1/battles/${id}`);
+}
+
+export async function getBattleResults(id: string) {
+  return fetchApi<{ results: BattleResult[] }>(`/v1/battles/${id}/results`);
+}
+
+export async function createBattle(data: {
+  title: string;
+  description?: string;
+  theme?: string;
+  starts_at?: string;
+  ends_at?: string;
+  max_participants?: number;
+}) {
+  return fetchApi<{ battle: BattleEvent }>('/v1/battles', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function joinBattle(id: string) {
+  return fetchApi<{ success: boolean }>(`/v1/battles/${id}/join`, { method: 'POST' });
+}
+
+export async function leaveBattle(id: string) {
+  return fetchApi<void>(`/v1/battles/${id}/join`, { method: 'DELETE' });
+}
+
+export async function triggerBattleMatch(id: string) {
+  return fetchApi<{ created: number; total_participants: number }>(`/v1/battles/${id}/match`, {
+    method: 'POST',
+  });
+}
+
+export async function completeBattle(id: string) {
+  return fetchApi<{ success: boolean }>(`/v1/battles/${id}/complete`, { method: 'POST' });
+}
+
+// ============================================
+// Public Exploration API
+// ============================================
+
+export interface PublicExploration {
+  id: string;
+  status: string;
+  is_public: boolean;
+  match_score: number | null;
+  match_highlights: string[];
+  collaboration_potential: string | null;
+  total_rounds: number;
+  max_rounds: number;
+  decision_a: string;
+  decision_b: string;
+  completed_at: string | null;
+  created_at: string;
+  agent_a_name: string | null;
+  agent_b_name: string | null;
+  owner_a_name: string | null;
+  owner_b_name: string | null;
+}
+
+export async function getPublicExploration(id: string) {
+  return fetchApi<{
+    exploration: PublicExploration;
+    messages: ExplorationMessage[];
+  }>(`/v1/explorations/${id}/public`);
+}
+
+export async function setExplorationPublic(id: string, isPublic: boolean) {
+  return fetchApi<{ success: boolean; is_public: boolean }>(`/v1/explorations/${id}/public`, {
+    method: 'PATCH',
+    body: JSON.stringify({ is_public: isPublic }),
+  });
+}
