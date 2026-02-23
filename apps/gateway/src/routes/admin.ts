@@ -91,8 +91,11 @@ export async function adminRoutes(fastify: FastifyInstance) {
     );
 
     return reply.send({
-      is_super_admin: user?.is_admin ?? false,
-      grants,
+      success: true,
+      data: {
+        is_super_admin: user?.is_admin ?? false,
+        grants,
+      },
     });
   });
 
@@ -135,7 +138,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
       );
     }
 
-    return reply.send({ users: rows });
+    return reply.send({ success: true, data: { users: rows } });
   });
 
   // GET /v1/admin/grants — 查看所有授权（超级 admin 专用）
@@ -158,7 +161,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
        ORDER BY ag.created_at DESC`
     );
 
-    return reply.send({ grants });
+    return reply.send({ success: true, data: { grants } });
   });
 
   // POST /v1/admin/grants — 授权某用户为方向管理员（超级 admin 专用）
@@ -185,8 +188,8 @@ export async function adminRoutes(fastify: FastifyInstance) {
     );
 
     return reply.status(201).send({
-      grant,
-      user: targetUser,
+      success: true,
+      data: { grant, user: targetUser },
     });
   });
 
