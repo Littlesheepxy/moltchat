@@ -23,6 +23,8 @@ export interface MoltRoom {
   timestamp: number;
   /** Top agents in this room (for avatar display) */
   agents?: Array<{ id: string; name: string }>;
+  /** Region tag slug, e.g. "region-shanghai" */
+  region?: string | null;
 }
 
 // 消息类型

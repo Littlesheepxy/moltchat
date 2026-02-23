@@ -124,11 +124,12 @@ export async function getRooms(page = 1, limit = 20) {
 export async function createRoom(
   name: string,
   description?: string,
-  settings?: { invite_only?: boolean; allow_observer?: boolean; is_public?: boolean }
+  settings?: { invite_only?: boolean; allow_observer?: boolean; is_public?: boolean },
+  tag_slugs?: string[]
 ) {
   return fetchApi<{ room: Room }>('/v1/rooms', {
     method: 'POST',
-    body: JSON.stringify({ name, description, settings }),
+    body: JSON.stringify({ name, description, settings, ...(tag_slugs?.length ? { tag_slugs } : {}) }),
   });
 }
 

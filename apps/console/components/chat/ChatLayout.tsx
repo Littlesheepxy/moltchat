@@ -12,7 +12,7 @@ import { isAuthenticated, getAgent, clearAuth } from '@/lib/auth';
 import { useI18n } from '@/lib/i18n-provider';
 import { signOut, useSession } from '@/lib/auth-client';
 import { getAgentAvatarUrl } from '@/lib/avatar';
-import { Menu, Settings, Loader2, Bot, Users, Compass, PanelLeftClose, Eye, UserPlus, Share2, Target } from 'lucide-react';
+import { Menu, Settings, Loader2, Bot, Users, Compass, PanelLeftClose, Eye, UserPlus, Share2, Target, Megaphone, MessageSquare } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -30,6 +30,7 @@ import { UserManagementDialog } from './UserManagementDialog';
 import { MobileLayout } from './MobileLayout';
 import { WelcomeOnboarding, hasCompletedOnboarding } from './WelcomeOnboarding';
 import { OpportunityList } from '@/components/opportunities/OpportunityList';
+import { RoomPostsView } from './RoomPostsView';
 
 interface ChatLayoutProps {
   children?: React.ReactNode;
@@ -95,6 +96,7 @@ function DesktopLayout() {
   const [realRooms, setRealRooms] = useState<MoltRoom[]>([]);
   const [isLoadingRooms, setIsLoadingRooms] = useState(true);
   const [showMemberPanel, setShowMemberPanel] = useState(false);
+  const [roomTab, setRoomTab] = useState<'posts' | 'chat'>('posts');
   const [profileAgentId, setProfileAgentId] = useState<string | null>(null);
   const [showAgentProfile, setShowAgentProfile] = useState(false);
   const [showUserManagement, setShowUserManagement] = useState(false);
@@ -123,6 +125,7 @@ function DesktopLayout() {
             isDm: false,
             timestamp: new Date(r.created_at).getTime(),
             agents: r.agents || [],
+            region: r.region ?? null,
           }));
           setRealRooms(rooms);
         }
@@ -137,6 +140,7 @@ function DesktopLayout() {
       setSelectedRoom(null);
       return;
     }
+    setRoomTab('posts'); // 每次进新 Room 默认显示广播墙
     setIsLoadingRoom(true);
     fetch(`/api/gateway/v1/rooms/${selectedRoomId}`)
       .then(res => res.json())
@@ -381,6 +385,36 @@ function DesktopLayout() {
               </div>
             </header>
 
+            {/* Room Tab Bar */}
+            {selectedRoom && (
+              <div className="flex items-center gap-1 px-4 border-b border-border/30 bg-card/30 flex-shrink-0">
+                <button
+                  onClick={() => setRoomTab('posts')}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium border-b-2 transition-colors',
+                    roomTab === 'posts'
+                      ? 'border-primary text-primary'
+                      : 'border-transparent text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  <Megaphone className="h-3.5 w-3.5" />
+                  需求广播墙
+                </button>
+                <button
+                  onClick={() => setRoomTab('chat')}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium border-b-2 transition-colors',
+                    roomTab === 'chat'
+                      ? 'border-primary text-primary'
+                      : 'border-transparent text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  <MessageSquare className="h-3.5 w-3.5" />
+                  聊天记录
+                </button>
+              </div>
+            )}
+
             {/* Room content */}
             {isLoadingRoom ? (
               <div className="flex-1 flex items-center justify-center">
@@ -389,12 +423,19 @@ function DesktopLayout() {
             ) : selectedRoom ? (
               <div className="flex-1 flex overflow-hidden">
                 <div className="flex-1 flex flex-col min-w-0">
+                  {roomTab === 'posts' ? (
+                    <RoomPostsView
+                      roomId={selectedRoomId!}
+                      roomName={selectedRoom.name}
+                    />
+                  ) : (
                   <RealChatMessages
                     roomId={selectedRoomId!}
                     agents={selectedRoom.agents || []}
                     roomName={selectedRoom.name}
                     onAgentClick={handleAgentClick}
                   />
+                  )}
                 </div>
                 {showMemberPanel && (
                   <div className="w-80 border-l border-border/30 bg-card flex flex-col overflow-hidden animate-in slide-in-from-right-5 duration-200">

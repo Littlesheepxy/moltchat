@@ -63,6 +63,7 @@ export function CreateRoomDialog({ open, onOpenChange, onCreated }: CreateRoomDi
   const [lookingFor, setLookingFor] = useState('');
   const [canOffer, setCanOffer] = useState('');
   const [industry, setIndustry] = useState('');
+  const [region, setRegion] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
 
@@ -116,6 +117,7 @@ export function CreateRoomDialog({ open, onOpenChange, onCreated }: CreateRoomDi
       setLookingFor('');
       setCanOffer('');
       setIndustry('');
+      setRegion('');
       setTags([]);
       setTagInput('');
       setSearchQuery('');
@@ -188,8 +190,13 @@ export function CreateRoomDialog({ open, onOpenChange, onCreated }: CreateRoomDi
         if (lookingFor.trim()) metadata.looking_for = lookingFor.trim();
         if (canOffer.trim()) metadata.can_offer = canOffer.trim();
         if (industry.trim()) metadata.industry = industry.trim();
+        if (region) metadata.region = region;
         if (tags.length > 0) metadata.tags = tags;
       }
+
+      // Build tag slugs: region + any other system tags
+      const tagSlugs: string[] = [];
+      if (region) tagSlugs.push(region);
 
       // Create room
       const result = await createRoom(
@@ -200,7 +207,8 @@ export function CreateRoomDialog({ open, onOpenChange, onCreated }: CreateRoomDi
           allow_observer: true,
           is_public: true,
           ...(Object.keys(metadata).length > 0 ? { metadata } : {}),
-        }
+        },
+        tagSlugs.length > 0 ? tagSlugs : undefined
       );
 
       if (!result.success || !result.data) {
@@ -382,6 +390,62 @@ export function CreateRoomDialog({ open, onOpenChange, onCreated }: CreateRoomDi
                       className="rounded-xl h-10"
                       maxLength={100}
                     />
+                  </div>
+
+                  {/* Region */}
+                  <div className="space-y-2">
+                    <Label htmlFor="region" className="text-sm font-medium flex items-center gap-1.5">
+                      🌏 地区
+                    </Label>
+                    <select
+                      id="region"
+                      value={region}
+                      onChange={(e) => setRegion(e.target.value)}
+                      className="w-full h-10 px-3 border border-input rounded-xl bg-background text-sm"
+                    >
+                      <option value="">不限地区（全球）</option>
+                      <optgroup label="中国大陆">
+                        <option value="region-beijing">北京</option>
+                        <option value="region-shanghai">上海</option>
+                        <option value="region-shenzhen">深圳</option>
+                        <option value="region-guangzhou">广州</option>
+                        <option value="region-hangzhou">杭州</option>
+                        <option value="region-chengdu">成都</option>
+                        <option value="region-wuhan">武汉</option>
+                        <option value="region-nanjing">南京</option>
+                        <option value="region-xian">西安</option>
+                        <option value="region-china-other">其他中国城市</option>
+                      </optgroup>
+                      <optgroup label="港澳台">
+                        <option value="region-hongkong">香港</option>
+                        <option value="region-taiwan">台湾</option>
+                        <option value="region-macau">澳门</option>
+                      </optgroup>
+                      <optgroup label="亚太">
+                        <option value="region-singapore">新加坡</option>
+                        <option value="region-japan">日本</option>
+                        <option value="region-korea">韩国</option>
+                        <option value="region-sea">东南亚</option>
+                        <option value="region-australia">澳大利亚</option>
+                      </optgroup>
+                      <optgroup label="北美">
+                        <option value="region-sf-bay">旧金山湾区</option>
+                        <option value="region-newyork">纽约</option>
+                        <option value="region-la">洛杉矶</option>
+                        <option value="region-seattle">西雅图</option>
+                        <option value="region-na-other">其他北美</option>
+                      </optgroup>
+                      <optgroup label="欧洲">
+                        <option value="region-london">伦敦</option>
+                        <option value="region-berlin">柏林</option>
+                        <option value="region-eu-other">其他欧洲</option>
+                      </optgroup>
+                      <optgroup label="其他">
+                        <option value="region-middleeast">中东</option>
+                        <option value="region-global">全球 / Global</option>
+                        <option value="region-other">其他地区</option>
+                      </optgroup>
+                    </select>
                   </div>
 
                   {/* Tags */}

@@ -29,6 +29,7 @@ export interface RoomContext {
   room_looking_for: string | null;
   room_can_offer: string | null;
   room_tags: string[];
+  room_region: string | null;
 }
 
 // ============================================
@@ -57,6 +58,7 @@ export function buildRoomAgentPrompt(
   const roomLookingFor = sanitizeField(room.room_looking_for, 'looking_for');
   const roomCanOffer = sanitizeField(room.room_can_offer, 'can_offer');
   const roomTags = sanitizeTags(room.room_tags);
+  const roomRegion = room.room_region ? sanitizeField(room.room_region, 'display_name') : null;
 
   return `${SAFETY_PREAMBLE}
 
@@ -74,6 +76,7 @@ ${myPersona ? `- Communication style: ${wrapUserContent('my_persona', myPersona)
 
 == GROUP CONTEXT ==
 - Name: ${wrapUserContent('room_name', roomName)}
+${roomRegion ? `- Region: ${wrapUserContent('room_region', roomRegion)}` : ''}
 ${roomDesc ? `- Topic: ${wrapUserContent('room_desc', roomDesc)}` : ''}
 ${roomLookingFor ? `- Looking for: ${wrapUserContent('room_looking_for', roomLookingFor)}` : ''}
 ${roomCanOffer ? `- Offering: ${wrapUserContent('room_can_offer', roomCanOffer)}` : ''}
