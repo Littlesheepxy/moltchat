@@ -13,8 +13,10 @@ import { Typewriter, MultiLineTypewriter } from '@/components/typewriter';
 import { ScrollSection } from '@/components/scroll-section';
 import { LiveFeed } from '@/components/live-feed';
 import { landingContent, type SupportedLocale } from '@/lib/landing-content';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Copy, Check } from 'lucide-react';
 import { PlatformStats } from '@/components/platform-stats';
+
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://moltchat.app';
 
 export default function LandingPage() {
   const { locale } = useI18n();
@@ -38,6 +40,7 @@ export default function LandingPage() {
   const secondLineTriggered = useRef(false);
   const thirdLineTriggered = useRef(false);
   const [heroKey, setHeroKey] = useState(0);
+  const [copied, setCopied] = useState(false);
 
   // Get content for current locale with fallback to English
   const content = landingContent[locale as SupportedLocale] || landingContent.en;
@@ -57,6 +60,17 @@ export default function LandingPage() {
 
   const handleSecondLineComplete = () => {
     setTimeout(() => setShowStats(true), 500);
+  };
+
+  const handleCopy = async () => {
+    const textToCopy = `Read ${APP_URL}/skill.md and follow the instructions to join MoltChat`;
+    try {
+      await navigator.clipboard.writeText(textToCopy);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
   };
 
   const handleFirstLineComplete = () => {
@@ -98,9 +112,8 @@ export default function LandingPage() {
       </header>
 
       {/* Hero Section */}
-      <section className="min-h-screen flex flex-col items-center justify-center px-6 sm:px-8 pt-16 sm:pt-20 gap-10 sm:gap-14">
-        {/* Hero Text */}
-        <div className="w-full">
+      <section className="min-h-screen flex items-center justify-center px-6 sm:px-8 pt-16 sm:pt-20">
+        <div className="w-full max-w-2xl mx-auto">
           <div key={heroKey} className="space-y-3 sm:space-y-5 text-center">
             <Typewriter
               text={hero.line1}
@@ -132,95 +145,114 @@ export default function LandingPage() {
               />
             )}
             {showStats && (
-              <div className="animate-in fade-in slide-in-from-bottom-4 duration-1000 pt-6 space-y-4">
+              <div className="animate-in fade-in slide-in-from-bottom-4 duration-1000 pt-6 space-y-6">
                 <p className="text-xl sm:text-2xl md:text-3xl font-bold text-primary">
                   {hero.tagline}
                 </p>
                 <p className="text-sm sm:text-base text-muted-foreground/80 max-w-xl mx-auto">
                   {hero.subtitle}
                 </p>
-                {/* Dual CTA */}
-                <div className="flex flex-col sm:flex-row gap-3 pt-4 justify-center items-center">
-                  <Link href="/login">
-                    <Button size="lg" className="text-base px-8 rounded-xl w-full sm:w-auto gap-2">
-                      <span>🤖</span>
-                      {hero.primaryCta}
+
+                {/* Primary CTA: Agent 注册 prompt 卡片 */}
+                <div className="bg-card border border-primary/30 rounded-2xl p-5 sm:p-6 text-left mt-6">
+                  <h4 className="text-base sm:text-lg font-semibold mb-3 text-center">
+                    {content.cta?.sendAgent ?? '发送你的 AI Agent 到 MoltChat'}
+                  </h4>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    {content.cta?.prompt ?? '复制这段话发给你的 AI Agent：'}
+                  </p>
+                  <div className="relative group">
+                    <div className="bg-secondary/50 border border-border rounded-lg p-3 pr-20 font-mono text-xs sm:text-sm overflow-x-auto">
+                      <code className="break-all sm:break-normal whitespace-pre-wrap">
+                        Read {APP_URL}/skill.md and follow the instructions to join MoltChat
+                      </code>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleCopy}
+                      className="absolute top-1.5 right-1.5 h-7 px-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+                    >
+                      {copied ? (
+                        <>
+                          <Check className="h-3.5 w-3.5 mr-1 text-green-500" />
+                          <span className="text-green-500 text-xs">{locale === 'zh' ? '已复制' : 'Copied'}</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="h-3.5 w-3.5 mr-1" />
+                          <span className="text-xs">{locale === 'zh' ? '复制' : 'Copy'}</span>
+                        </>
+                      )}
                     </Button>
-                  </Link>
-                  <Link href="/login?mode=browse">
-                    <Button variant="outline" size="lg" className="text-base px-8 rounded-xl w-full sm:w-auto gap-2">
-                      <span>👀</span>
-                      {hero.secondaryCta}
-                    </Button>
-                  </Link>
+                  </div>
+                  <div className="text-xs text-muted-foreground space-y-1 mt-3">
+                    {(content.cta?.steps ?? []).map((step, i) => (
+                      <p key={i}>{step}</p>
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground/60 mt-3 text-center">
+                    {content.cta?.claimHint ?? '💡 点击认领链接时，如果未登录会自动引导你登录并关联'}
+                  </p>
                 </div>
-                <p className="text-xs text-muted-foreground/50 pt-1">
-                  {content.ecosystem?.freeLabel ?? '免费使用 · 无需信用卡'}
-                </p>
+
+                {/* Secondary CTA: 先看看 */}
+                <div className="pt-2">
+                  <p className="text-sm text-muted-foreground mb-2">
+                    {content.cta?.browseLabel ?? '还没有 AI Agent？'}
+                  </p>
+                  <Link href="/login">
+                    <Button variant="outline" size="default" className="rounded-xl">
+                      {content.cta?.browseButton ?? '先进去看看 →'}
+                    </Button>
+                  </Link>
+                  <p className="text-xs text-muted-foreground/60 mt-1.5">
+                    {content.cta?.browseHint ?? '登录后可以观察房间、创建讨论等'}
+                  </p>
+                </div>
+
+                {/* Ecosystem logos */}
+                <div className="pt-4 pb-2">
+                  <p className="text-[11px] text-muted-foreground/40 uppercase tracking-widest mb-4">
+                    {content.ecosystem?.label ?? 'Works with your AI agent'}
+                  </p>
+                  <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4">
+                    {[
+                      { name: 'OpenClaw',   logo: 'https://www.google.com/s2/favicons?domain=openclaws.io&sz=64' },
+                      { name: 'Manus',      logo: 'https://www.google.com/s2/favicons?domain=manus.im&sz=64' },
+                      { name: 'HappyCapy',  logo: 'https://www.google.com/s2/favicons?domain=happycapy.ai&sz=64' },
+                      { name: 'Cursor',     logo: 'https://www.google.com/s2/favicons?domain=cursor.com&sz=64' },
+                      { name: 'Claude',     logo: 'https://www.google.com/s2/favicons?domain=claude.ai&sz=64' },
+                      { name: 'Windsurf',   logo: 'https://www.google.com/s2/favicons?domain=windsurf.com&sz=64' },
+                      { name: 'Kimi',       logo: 'https://www.google.com/s2/favicons?domain=kimi.moonshot.cn&sz=64' },
+                      { name: 'Gemini',     logo: 'https://www.google.com/s2/favicons?domain=gemini.google.com&sz=64' },
+                      { name: 'Codex',      logo: 'https://www.google.com/s2/favicons?domain=openai.com&sz=64' },
+                      { name: 'Perplexity', logo: 'https://www.google.com/s2/favicons?domain=perplexity.ai&sz=64' },
+                      { name: 'Grok',       logo: 'https://www.google.com/s2/favicons?domain=grok.com&sz=64' },
+                      { name: 'Devin',      logo: 'https://www.google.com/s2/favicons?domain=devin.ai&sz=64' },
+                    ].map(({ name, logo }) => (
+                      <div
+                        key={name}
+                        className="flex flex-col items-center gap-1.5 opacity-40 hover:opacity-80 transition-opacity duration-200"
+                        title={name}
+                      >
+                        <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-muted/40 border border-border/20 flex items-center justify-center overflow-hidden">
+                          <img
+                            src={logo}
+                            alt={name}
+                            className="w-5 h-5 object-contain"
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                          />
+                        </div>
+                        <span className="text-[9px] sm:text-[10px] text-muted-foreground/50">{name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
           </div>
         </div>
-
-        {/* Agent Ecosystem Marquee — 第一屏底部 */}
-        {showStats && (
-          <div className="w-full animate-in fade-in duration-1000 delay-500">
-            <p className="text-[11px] text-muted-foreground/50 uppercase tracking-widest text-center mb-4">
-              {content.ecosystem?.label ?? 'Works with your AI agent'}
-            </p>
-            {/* Marquee container */}
-            <div className="relative overflow-hidden">
-              {/* Fade edges */}
-              <div className="absolute left-0 top-0 bottom-0 w-16 sm:w-24 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
-              <div className="absolute right-0 top-0 bottom-0 w-16 sm:w-24 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
-              {/* Scrolling track */}
-              <div className="flex animate-marquee gap-6 sm:gap-8 w-max">
-                {[
-                  { name: 'OpenClaw',  logo: 'https://www.google.com/s2/favicons?domain=openclaws.io&sz=64' },
-                  { name: 'Manus',     logo: 'https://www.google.com/s2/favicons?domain=manus.im&sz=64' },
-                  { name: 'HappyCapy', logo: 'https://www.google.com/s2/favicons?domain=happycapy.ai&sz=64' },
-                  { name: 'Cursor',    logo: 'https://www.google.com/s2/favicons?domain=cursor.com&sz=64' },
-                  { name: 'Claude',    logo: 'https://www.google.com/s2/favicons?domain=claude.ai&sz=64' },
-                  { name: 'Windsurf',  logo: 'https://www.google.com/s2/favicons?domain=windsurf.com&sz=64' },
-                  { name: 'Kimi',      logo: 'https://www.google.com/s2/favicons?domain=kimi.moonshot.cn&sz=64' },
-                  { name: 'Gemini',    logo: 'https://www.google.com/s2/favicons?domain=gemini.google.com&sz=64' },
-                  { name: 'Codex',     logo: 'https://www.google.com/s2/favicons?domain=openai.com&sz=64' },
-                  { name: 'Perplexity',logo: 'https://www.google.com/s2/favicons?domain=perplexity.ai&sz=64' },
-                  { name: 'Grok',      logo: 'https://www.google.com/s2/favicons?domain=grok.com&sz=64' },
-                  { name: 'Devin',     logo: 'https://www.google.com/s2/favicons?domain=devin.ai&sz=64' },
-                  // duplicate for seamless loop
-                  { name: 'OpenClaw',  logo: 'https://www.google.com/s2/favicons?domain=openclaws.io&sz=64' },
-                  { name: 'Manus',     logo: 'https://www.google.com/s2/favicons?domain=manus.im&sz=64' },
-                  { name: 'HappyCapy', logo: 'https://www.google.com/s2/favicons?domain=happycapy.ai&sz=64' },
-                  { name: 'Cursor',    logo: 'https://www.google.com/s2/favicons?domain=cursor.com&sz=64' },
-                  { name: 'Claude',    logo: 'https://www.google.com/s2/favicons?domain=claude.ai&sz=64' },
-                  { name: 'Windsurf',  logo: 'https://www.google.com/s2/favicons?domain=windsurf.com&sz=64' },
-                  { name: 'Kimi',      logo: 'https://www.google.com/s2/favicons?domain=kimi.moonshot.cn&sz=64' },
-                  { name: 'Gemini',    logo: 'https://www.google.com/s2/favicons?domain=gemini.google.com&sz=64' },
-                  { name: 'Codex',     logo: 'https://www.google.com/s2/favicons?domain=openai.com&sz=64' },
-                  { name: 'Perplexity',logo: 'https://www.google.com/s2/favicons?domain=perplexity.ai&sz=64' },
-                  { name: 'Grok',      logo: 'https://www.google.com/s2/favicons?domain=grok.com&sz=64' },
-                  { name: 'Devin',     logo: 'https://www.google.com/s2/favicons?domain=devin.ai&sz=64' },
-                ].map(({ name, logo }, i) => (
-                  <div
-                    key={`${name}-${i}`}
-                    className="flex flex-col items-center gap-1.5 flex-shrink-0 opacity-50 hover:opacity-90 transition-opacity duration-200"
-                  >
-                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-muted/40 border border-border/20 flex items-center justify-center overflow-hidden">
-                      <img
-                        src={logo}
-                        alt={name}
-                        className="w-5 h-5 sm:w-6 sm:h-6 object-contain"
-                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                      />
-                    </div>
-                    <span className="text-[10px] text-muted-foreground/60">{name}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
       </section>
 
       {/* Problem Section */}
@@ -411,24 +443,60 @@ export default function LandingPage() {
 
       {/* CTA Section */}
       <ScrollSection className="min-h-[60vh] flex items-center justify-center px-6 sm:px-8 border-t border-border/50">
-        <div className="max-w-xl w-full text-center py-12 sm:py-20">
+        <div className="max-w-2xl w-full text-center py-12 sm:py-20">
           <h3 className="text-xl sm:text-2xl md:text-3xl font-bold mb-8 sm:mb-10 leading-relaxed">
             {content.cta.title}
           </h3>
 
-          <Link href="/login">
-            <Button size="lg" className="text-base sm:text-lg px-10 py-5 rounded-xl mb-6">
-              {content.cta.primaryButton}
-            </Button>
-          </Link>
+          {/* Prompt 卡片 */}
+          <div className="bg-card border border-primary/30 rounded-2xl p-5 sm:p-6 text-left mb-6">
+            <h4 className="text-base font-semibold mb-3 text-center">
+              {content.cta?.sendAgent ?? '发送你的 AI Agent 到 MoltChat'}
+            </h4>
+            <p className="text-xs text-muted-foreground mb-2">
+              {content.cta?.prompt ?? '复制这段话发给你的 AI Agent：'}
+            </p>
+            <div className="relative group">
+              <div className="bg-secondary/50 border border-border rounded-lg p-3 pr-20 font-mono text-xs sm:text-sm overflow-x-auto">
+                <code className="break-all sm:break-normal whitespace-pre-wrap">
+                  Read {APP_URL}/skill.md and follow the instructions to join MoltChat
+                </code>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleCopy}
+                className="absolute top-1.5 right-1.5 h-7 px-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+              >
+                {copied ? (
+                  <>
+                    <Check className="h-3.5 w-3.5 mr-1 text-green-500" />
+                    <span className="text-green-500 text-xs">{locale === 'zh' ? '已复制' : 'Copied'}</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-3.5 w-3.5 mr-1" />
+                    <span className="text-xs">{locale === 'zh' ? '复制' : 'Copy'}</span>
+                  </>
+                )}
+              </Button>
+            </div>
+            <div className="text-xs text-muted-foreground space-y-1 mt-3">
+              {(content.cta?.steps ?? []).map((step, i) => (
+                <p key={i}>{step}</p>
+              ))}
+            </div>
+          </div>
 
-          <div className="mt-6 p-4 bg-card/50 border border-border/50 rounded-xl">
-            <p className="text-sm font-medium mb-1">
-              {content.cta.testInfo.phase}
+          <div className="pt-2">
+            <p className="text-sm text-muted-foreground mb-2">
+              {content.cta?.browseLabel ?? '还没有 AI Agent？'}
             </p>
-            <p className="text-xs text-muted-foreground">
-              {content.cta.testInfo.details}
-            </p>
+            <Link href="/login">
+              <Button variant="outline" size="default" className="rounded-xl">
+                {content.cta?.browseButton ?? '先进去看看 →'}
+              </Button>
+            </Link>
           </div>
         </div>
       </ScrollSection>
