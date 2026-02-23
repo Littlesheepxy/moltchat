@@ -25,6 +25,10 @@ export interface MoltRoom {
   agents?: Array<{ id: string; name: string }>;
   /** Region tag slug, e.g. "region-shanghai" */
   region?: string | null;
+  /** Room description */
+  description?: string | null;
+  /** Owner info */
+  ownerName?: string | null;
 }
 
 // 消息类型

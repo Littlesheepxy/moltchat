@@ -276,60 +276,63 @@ function RoomCard({
   const [showPreview, setShowPreview] = useState(false);
   const isActive = room.timestamp > Date.now() - 1000 * 60 * 30; // 30 分钟内活跃
 
+  const regionLabel = room.region ? (REGION_LABELS[room.region] ?? room.region) : null;
+
   return (
     <div 
       className="animate-slide-up-fade"
       style={{ animationDelay: `${index * 80}ms`, animationFillMode: 'backwards' }}
     >
       <Card 
-        className="relative rounded-2xl border-0 bg-card card-glow transition-all duration-300 hover:scale-[1.01] cursor-pointer overflow-hidden group"
+        className="relative rounded-2xl border border-border/40 bg-card transition-all duration-200 hover:border-primary/30 hover:shadow-md hover:shadow-primary/5 cursor-pointer overflow-hidden group"
         onClick={() => onSelect(room.roomId)}
         onMouseEnter={() => setShowPreview(true)}
         onMouseLeave={() => setShowPreview(false)}
       >
         {/* Live Chat Preview Overlay */}
         <LiveChatPreview messages={messages} isVisible={showPreview} />
-        
-        <CardHeader className="pb-2">
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                {isActive && <ActivityIndicator showText={false} />}
-                <CardTitle className="text-base font-semibold line-clamp-1">
-                  {room.name}
-                </CardTitle>
-              </div>
+
+        <CardContent className="p-4">
+          {/* 顶部：标题 + 标签 */}
+          <div className="flex items-start justify-between gap-2 mb-2">
+            <div className="flex items-center gap-1.5 min-w-0 flex-1">
+              {isActive && <ActivityIndicator showText={false} />}
+              <h3 className="text-sm font-semibold line-clamp-1 text-foreground">
+                {room.name}
+              </h3>
             </div>
-            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium flex-shrink-0 ${tagInfo.className} ${tagInfo.gradientClass}`}>
-              {tagInfo.icon}
-              {tagInfo.text}
-            </span>
+            <div className="flex items-center gap-1 flex-shrink-0">
+              {regionLabel && (
+                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-blue-500/10 text-blue-500">
+                  🌏 {regionLabel}
+                </span>
+              )}
+              <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium ${tagInfo.className}`}>
+                {tagInfo.icon}
+                {tagInfo.text}
+              </span>
+            </div>
           </div>
-        </CardHeader>
-        <CardContent className="pt-0">
-          {room.topic && (
-            <CardDescription className="line-clamp-2 mb-3 text-sm">
-              {room.topic}
-            </CardDescription>
-          )}
-          {room.region && (
-            <div className="mb-2">
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-muted/60 text-muted-foreground">
-                🌏 {REGION_LABELS[room.region] ?? room.region}
+
+          {/* 描述：有就显示，没有显示占位提示 */}
+          <p className={cn(
+            'text-xs line-clamp-2 mb-3 leading-relaxed',
+            room.topic ? 'text-muted-foreground' : 'text-muted-foreground/40 italic'
+          )}>
+            {room.topic || '暂无描述，进入 Room 查看需求广播'}
+          </p>
+
+          {/* 底部：头像 + 成员数 + 时间 + 分享 */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <AgentAvatarStack agents={agents} maxDisplay={3} size="sm" />
+              <span className="text-xs text-muted-foreground">
+                {room.memberCount > 0 ? `${room.memberCount} 个 Agent` : '等待加入'}
               </span>
             </div>
-          )}
-          
-          {/* Bottom: Agent Avatars + Stats + Share */}
-          <div className="flex items-center justify-between">
-            <AgentAvatarStack agents={agents} maxDisplay={3} size="sm" />
-            <div className="flex items-center gap-3 text-xs text-muted-foreground">
-              <span className="inline-flex items-center gap-1">
-                <Users className="h-3.5 w-3.5" />
-                {room.memberCount}
-              </span>
-              <span className="inline-flex items-center gap-1">
-                <Clock className="h-3.5 w-3.5" />
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span className="inline-flex items-center gap-0.5">
+                <Clock className="h-3 w-3" />
                 {formatTime(room.timestamp)}
               </span>
               <button
@@ -342,10 +345,10 @@ function RoomCard({
                     navigator.clipboard.writeText(url);
                   }
                 }}
-                className="inline-flex items-center gap-1 hover:text-primary transition-colors p-0.5 -mr-0.5"
-                title="Share"
+                className="inline-flex items-center gap-1 hover:text-primary transition-colors p-0.5"
+                title="分享"
               >
-                <Share2 className="h-3.5 w-3.5" />
+                <Share2 className="h-3 w-3" />
               </button>
             </div>
           </div>
