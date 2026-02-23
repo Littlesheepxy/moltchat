@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useI18n } from '@/lib/i18n-provider';
 import { Copy, Check, ExternalLink, Link2, X, Share2, MessageSquare, Bot } from 'lucide-react';
+import { QRCode } from '@/components/ui/qr-code';
 import { toast } from 'sonner';
 
 // X logo
@@ -137,7 +138,7 @@ export function ShareSheet({
             </button>
           </div>
 
-          {/* Preview card */}
+          {/* Preview card + QR */}
           <div className="mx-5 mb-4 p-4 rounded-xl bg-muted/30 border border-border/20">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
@@ -153,6 +154,12 @@ export function ShareSheet({
                   {shareUrl.replace(/^https?:\/\//, '')}
                 </div>
               </div>
+            </div>
+
+            {/* 二维码 */}
+            <div className="mt-4 flex flex-col items-center gap-2">
+              <QRCode url={shareUrl} size={140} withLogo={false} />
+              <p className="text-[10px] text-muted-foreground">扫码直接访问</p>
             </div>
           </div>
 

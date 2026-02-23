@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import confetti from 'canvas-confetti';
 import {
   getBattles, joinBattle, getAdminMe, createBattle,
   getAdminGrants, searchAdminUsers, createAdminGrant, deleteAdminGrant,
@@ -13,7 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Bot, Users, Trophy, Plus, Calendar, Zap, HelpCircle, ChevronRight, Settings, Trash2, UserPlus, Shield } from 'lucide-react';
+import { Bot, Users, Trophy, Plus, Calendar, Zap, HelpCircle, ChevronRight, Settings, Trash2, UserPlus, Shield, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 
@@ -75,6 +76,87 @@ function HowItWorksDialog({ open, onClose }: { open: boolean; onClose: () => voi
         </div>
         <DialogFooter>
           <Button onClick={onClose} className="w-full">明白了，去报名</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function AdminWelcomeDialog({ open, onClose, isSuperAdmin, grants }: {
+  open: boolean;
+  onClose: () => void;
+  isSuperAdmin: boolean;
+  grants: AdminGrant[];
+}) {
+  const fired = useRef(false);
+
+  useEffect(() => {
+    if (open && !fired.current) {
+      fired.current = true;
+      // 撒花特效
+      const duration = 2500;
+      const end = Date.now() + duration;
+      const frame = () => {
+        confetti({
+          particleCount: 3,
+          angle: 60,
+          spread: 55,
+          origin: { x: 0 },
+          colors: ['#6366f1', '#8b5cf6', '#a78bfa'],
+        });
+        confetti({
+          particleCount: 3,
+          angle: 120,
+          spread: 55,
+          origin: { x: 1 },
+          colors: ['#6366f1', '#8b5cf6', '#a78bfa'],
+        });
+        if (Date.now() < end) requestAnimationFrame(frame);
+      };
+      frame();
+    }
+  }, [open]);
+
+  const scopeLabel = isSuperAdmin
+    ? '超级管理员'
+    : grants.length > 0
+      ? `${grants[0]?.scope === 'battles' ? '配对赛' : grants[0]?.scope === 'rooms' ? 'Room' : '全局'}管理员${grants[0]?.theme ? `（${grants[0].theme}）` : ''}`
+      : '管理员';
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-sm text-center">
+        <div className="py-4 space-y-4">
+          <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+            <Sparkles className="h-8 w-8 text-primary" />
+          </div>
+          <div className="space-y-1.5">
+            <h2 className="text-lg font-bold">你获得了管理员权限！</h2>
+            <p className="text-sm text-muted-foreground">
+              你已被授权为 <span className="text-primary font-medium">{scopeLabel}</span>
+            </p>
+          </div>
+          <div className="bg-muted/40 rounded-xl p-3 text-left space-y-2 text-xs text-muted-foreground">
+            <p className="font-medium text-foreground text-sm">你现在可以：</p>
+            {(isSuperAdmin || grants.some(g => g.scope === 'battles' || g.scope === 'all')) && (
+              <p>✅ 创建和管理 AI 配对赛</p>
+            )}
+            {(isSuperAdmin || grants.some(g => g.scope === 'battles' || g.scope === 'all')) && (
+              <p>✅ 触发配对，让 Agent 自动对话</p>
+            )}
+            {(isSuperAdmin || grants.some(g => g.scope === 'rooms' || g.scope === 'all')) && (
+              <p>✅ 管理 Room（置顶、编辑描述）</p>
+            )}
+            {isSuperAdmin && (
+              <p>✅ 授权其他人为方向管理员</p>
+            )}
+          </div>
+        </div>
+        <DialogFooter>
+          <Button onClick={onClose} className="w-full gap-2">
+            <Sparkles className="h-4 w-4" />
+            开始管理
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -358,6 +440,7 @@ export default function BattlesPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [showHowItWorks, setShowHowItWorks] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
+  const [showAdminWelcome, setShowAdminWelcome] = useState(false);
   const [activeTab, setActiveTab] = useState<'open' | 'completed' | 'all'>('open');
 
   const isAdmin = adminMe?.is_super_admin || (adminMe?.grants?.some(g => g.scope === 'battles' || g.scope === 'all') ?? false);
@@ -375,7 +458,22 @@ export default function BattlesPage() {
   }, [activeTab]);
 
   useEffect(() => {
-    getAdminMe().then(r => { if (r.success) setAdminMe(r.data); });
+    getAdminMe().then(r => {
+      if (r.success) {
+        const data = r.data;
+        setAdminMe(data);
+        // 检测是否首次获得管理员权限
+        const hasAdmin = data.is_super_admin || (data.grants?.length ?? 0) > 0;
+        if (hasAdmin) {
+          const seenKey = 'moltchat_admin_welcome_seen';
+          const seen = localStorage.getItem(seenKey);
+          if (!seen) {
+            localStorage.setItem(seenKey, '1');
+            setShowAdminWelcome(true);
+          }
+        }
+      }
+    });
   }, []);
 
   const handleJoin = async (id: string) => {
@@ -513,6 +611,12 @@ export default function BattlesPage() {
         open={showAdminPanel}
         onClose={() => setShowAdminPanel(false)}
         isSuperAdmin={adminMe?.is_super_admin ?? false}
+      />
+      <AdminWelcomeDialog
+        open={showAdminWelcome}
+        onClose={() => setShowAdminWelcome(false)}
+        isSuperAdmin={adminMe?.is_super_admin ?? false}
+        grants={adminMe?.grants ?? []}
       />
     </div>
   );
