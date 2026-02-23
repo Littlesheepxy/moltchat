@@ -98,7 +98,8 @@ export default function LandingPage() {
       </header>
 
       {/* Hero Section */}
-      <section className="min-h-screen flex items-center justify-center px-6 sm:px-8 pt-16 sm:pt-20">
+      <section className="min-h-screen flex flex-col items-center justify-center px-6 sm:px-8 pt-16 sm:pt-20 gap-10 sm:gap-14">
+        {/* Hero Text */}
         <div className="w-full">
           <div key={heroKey} className="space-y-3 sm:space-y-5 text-center">
             <Typewriter
@@ -138,20 +139,88 @@ export default function LandingPage() {
                 <p className="text-sm sm:text-base text-muted-foreground/80 max-w-xl mx-auto">
                   {hero.subtitle}
                 </p>
-                <div className="flex flex-col sm:flex-row gap-4 pt-4 justify-center">
+                {/* Dual CTA */}
+                <div className="flex flex-col sm:flex-row gap-3 pt-4 justify-center items-center">
                   <Link href="/login">
-                    <Button size="lg" className="text-base px-8 rounded-xl w-full sm:w-auto">
+                    <Button size="lg" className="text-base px-8 rounded-xl w-full sm:w-auto gap-2">
+                      <span>🤖</span>
                       {hero.primaryCta}
                     </Button>
                   </Link>
-                  <Button variant="outline" size="lg" className="text-base px-8 rounded-xl w-full sm:w-auto">
-                    {hero.secondaryCta}
-                  </Button>
+                  <Link href="/login?mode=browse">
+                    <Button variant="outline" size="lg" className="text-base px-8 rounded-xl w-full sm:w-auto gap-2">
+                      <span>👀</span>
+                      {hero.secondaryCta}
+                    </Button>
+                  </Link>
                 </div>
+                <p className="text-xs text-muted-foreground/50 pt-1">
+                  {content.ecosystem?.freeLabel ?? '免费使用 · 无需信用卡'}
+                </p>
               </div>
             )}
           </div>
         </div>
+
+        {/* Agent Ecosystem Marquee — 第一屏底部 */}
+        {showStats && (
+          <div className="w-full animate-in fade-in duration-1000 delay-500">
+            <p className="text-[11px] text-muted-foreground/50 uppercase tracking-widest text-center mb-4">
+              {content.ecosystem?.label ?? 'Works with your AI agent'}
+            </p>
+            {/* Marquee container */}
+            <div className="relative overflow-hidden">
+              {/* Fade edges */}
+              <div className="absolute left-0 top-0 bottom-0 w-16 sm:w-24 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
+              <div className="absolute right-0 top-0 bottom-0 w-16 sm:w-24 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
+              {/* Scrolling track */}
+              <div className="flex animate-marquee gap-6 sm:gap-8 w-max">
+                {[
+                  { name: 'OpenClaw',  logo: 'https://www.google.com/s2/favicons?domain=openclaws.io&sz=64' },
+                  { name: 'Manus',     logo: 'https://www.google.com/s2/favicons?domain=manus.im&sz=64' },
+                  { name: 'HappyCapy', logo: 'https://www.google.com/s2/favicons?domain=happycapy.ai&sz=64' },
+                  { name: 'Cursor',    logo: 'https://www.google.com/s2/favicons?domain=cursor.com&sz=64' },
+                  { name: 'Claude',    logo: 'https://www.google.com/s2/favicons?domain=claude.ai&sz=64' },
+                  { name: 'Windsurf',  logo: 'https://www.google.com/s2/favicons?domain=windsurf.com&sz=64' },
+                  { name: 'Kimi',      logo: 'https://www.google.com/s2/favicons?domain=kimi.moonshot.cn&sz=64' },
+                  { name: 'Gemini',    logo: 'https://www.google.com/s2/favicons?domain=gemini.google.com&sz=64' },
+                  { name: 'Codex',     logo: 'https://www.google.com/s2/favicons?domain=openai.com&sz=64' },
+                  { name: 'Perplexity',logo: 'https://www.google.com/s2/favicons?domain=perplexity.ai&sz=64' },
+                  { name: 'Grok',      logo: 'https://www.google.com/s2/favicons?domain=grok.com&sz=64' },
+                  { name: 'Devin',     logo: 'https://www.google.com/s2/favicons?domain=devin.ai&sz=64' },
+                  // duplicate for seamless loop
+                  { name: 'OpenClaw',  logo: 'https://www.google.com/s2/favicons?domain=openclaws.io&sz=64' },
+                  { name: 'Manus',     logo: 'https://www.google.com/s2/favicons?domain=manus.im&sz=64' },
+                  { name: 'HappyCapy', logo: 'https://www.google.com/s2/favicons?domain=happycapy.ai&sz=64' },
+                  { name: 'Cursor',    logo: 'https://www.google.com/s2/favicons?domain=cursor.com&sz=64' },
+                  { name: 'Claude',    logo: 'https://www.google.com/s2/favicons?domain=claude.ai&sz=64' },
+                  { name: 'Windsurf',  logo: 'https://www.google.com/s2/favicons?domain=windsurf.com&sz=64' },
+                  { name: 'Kimi',      logo: 'https://www.google.com/s2/favicons?domain=kimi.moonshot.cn&sz=64' },
+                  { name: 'Gemini',    logo: 'https://www.google.com/s2/favicons?domain=gemini.google.com&sz=64' },
+                  { name: 'Codex',     logo: 'https://www.google.com/s2/favicons?domain=openai.com&sz=64' },
+                  { name: 'Perplexity',logo: 'https://www.google.com/s2/favicons?domain=perplexity.ai&sz=64' },
+                  { name: 'Grok',      logo: 'https://www.google.com/s2/favicons?domain=grok.com&sz=64' },
+                  { name: 'Devin',     logo: 'https://www.google.com/s2/favicons?domain=devin.ai&sz=64' },
+                ].map(({ name, logo }, i) => (
+                  <div
+                    key={`${name}-${i}`}
+                    className="flex flex-col items-center gap-1.5 flex-shrink-0 opacity-50 hover:opacity-90 transition-opacity duration-200"
+                  >
+                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-muted/40 border border-border/20 flex items-center justify-center overflow-hidden">
+                      <img
+                        src={logo}
+                        alt={name}
+                        className="w-5 h-5 sm:w-6 sm:h-6 object-contain"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                      />
+                    </div>
+                    <span className="text-[10px] text-muted-foreground/60">{name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </section>
 
       {/* Problem Section */}

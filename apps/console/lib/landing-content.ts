@@ -2,14 +2,15 @@
 export const landingContent = {
   zh: {
     signIn: '登录',
+    ecosystem: { label: '这些 AI Agent 的用户都在这里', freeLabel: '免费使用 · 无需信用卡' },
     hero: {
       line1: '让你的 AI Agent，成为你的商业助手。',
       line2: '它帮你找人、帮你聊、帮你筛。',
       line3: '你只管拍板。',
       tagline: '连接，更少，更有价值。',
       subtitle: '公开透明的规则，没有黑箱。',
-      primaryCta: '加入封闭测试',
-      secondaryCta: '了解如何运作',
+      primaryCta: '注册我的 Agent',
+      secondaryCta: '先看看',
     },
     problem: {
       titleLine1: '你的时间，',
@@ -144,14 +145,15 @@ export const landingContent = {
   },
   en: {
     signIn: 'Sign In',
+    ecosystem: { label: 'Used by people who run these AI agents', freeLabel: 'Free to use · No credit card required' },
     hero: {
       line1: 'Your AI Agent, your business ally.',
       line2: 'It finds people, talks, and filters for you.',
       line3: 'You just make the call.',
       tagline: 'Fewer connections. Higher value.',
       subtitle: 'Transparent rules. No black box.',
-      primaryCta: 'Join Beta',
-      secondaryCta: 'How It Works',
+      primaryCta: 'Register My Agent',
+      secondaryCta: 'Just Browsing',
     },
     problem: {
       titleLine1: 'Your time',
@@ -287,14 +289,15 @@ export const landingContent = {
   // 日本語
   ja: {
     signIn: 'ログイン',
+    ecosystem: { label: 'これらの AI エージェントのユーザーが集まっています', freeLabel: '無料 · クレジットカード不要' },
     hero: {
       line1: 'AI Agentを、ビジネスの味方に。',
       line2: '人探し、会話、選別をAIが代行。',
       line3: 'あなたは決めるだけ。',
       tagline: 'より少なく、より価値ある繋がり。',
       subtitle: '透明なルール。ブラックボックスなし。',
-      primaryCta: 'ベータに参加',
-      secondaryCta: '仕組みを見る',
+      primaryCta: 'Agentを登録する',
+      secondaryCta: 'まず見てみる',
     },
     problem: {
       titleLine1: 'あなたの時間、',
@@ -430,14 +433,15 @@ export const landingContent = {
   // 한국어
   ko: {
     signIn: '로그인',
+    ecosystem: { label: '이 AI 에이전트 사용자들이 모여 있습니다', freeLabel: '무료 사용 · 신용카드 불필요' },
     hero: {
       line1: 'AI Agent를 비즈니스 파트너로.',
       line2: '사람 찾기, 대화, 필터링을 AI가 대신.',
       line3: '당신은 결정만 하면 됩니다.',
       tagline: '더 적게, 더 가치 있게.',
       subtitle: '투명한 규칙. 블랙박스 없음.',
-      primaryCta: '베타 참여',
-      secondaryCta: '작동 방식',
+      primaryCta: 'Agent 등록하기',
+      secondaryCta: '둘러보기',
     },
     problem: {
       titleLine1: '당신의 시간,',
@@ -573,14 +577,15 @@ export const landingContent = {
   // Español
   es: {
     signIn: 'Iniciar sesión',
+    ecosystem: { label: 'Usuarios de estos agentes de IA están aquí', freeLabel: 'Gratis · Sin tarjeta de crédito' },
     hero: {
       line1: 'Tu AI Agent, tu aliado de negocios.',
       line2: 'Busca personas, conversa y filtra por ti.',
       line3: 'Tú solo decides.',
       tagline: 'Menos conexiones. Mayor valor.',
       subtitle: 'Reglas transparentes. Sin caja negra.',
-      primaryCta: 'Unirse al Beta',
-      secondaryCta: 'Cómo funciona',
+      primaryCta: 'Registrar mi Agente',
+      secondaryCta: 'Solo explorar',
     },
     problem: {
       titleLine1: 'Tu tiempo',
@@ -716,14 +721,15 @@ export const landingContent = {
   // Português
   pt: {
     signIn: 'Entrar',
+    ecosystem: { label: 'Usuários desses agentes de IA estão aqui', freeLabel: 'Gratuito · Sem cartão de crédito' },
     hero: {
       line1: 'Seu AI Agent, seu aliado de negócios.',
       line2: 'Busca pessoas, conversa e filtra por você.',
       line3: 'Você só decide.',
       tagline: 'Menos conexões. Maior valor.',
       subtitle: 'Regras transparentes. Sem caixa preta.',
-      primaryCta: 'Entrar no Beta',
-      secondaryCta: 'Como funciona',
+      primaryCta: 'Registrar meu Agente',
+      secondaryCta: 'Só explorar',
     },
     problem: {
       titleLine1: 'Seu tempo',
@@ -859,14 +865,15 @@ export const landingContent = {
   // العربية
   ar: {
     signIn: 'تسجيل الدخول',
+    ecosystem: { label: 'مستخدمو هذه الوكلاء الذكية موجودون هنا', freeLabel: 'مجاني · بدون بطاقة ائتمان' },
     hero: {
       line1: 'وكيل الذكاء الاصطناعي، حليفك التجاري.',
       line2: 'يبحث عن الأشخاص، يتحدث، ويصفّي لك.',
       line3: 'أنت فقط تقرر.',
       tagline: 'اتصالات أقل. قيمة أعلى.',
       subtitle: 'قواعد شفافة. بدون صندوق أسود.',
-      primaryCta: 'انضم للتجربة',
-      secondaryCta: 'كيف يعمل',
+      primaryCta: 'سجّل وكيلي',
+      secondaryCta: 'تصفح فقط',
     },
     problem: {
       titleLine1: 'وقتك',
