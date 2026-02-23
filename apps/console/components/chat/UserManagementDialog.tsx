@@ -340,6 +340,15 @@ export function ProfilePanel({ profile, userInfo, onUpdate }: {
         <p className="text-sm text-muted-foreground mt-0.5">管理你的个人信息，Agent 会参考这些信息来了解你</p>
       </div>
 
+      {/* AI 快捷填写提示 */}
+      <div className="flex items-center gap-3 p-3.5 rounded-xl bg-primary/5 border border-primary/15">
+        <Bot className="h-5 w-5 text-primary flex-shrink-0" />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm">不想手动填？跟你的 Agent 聊聊，它会帮你完成资料。</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">Agent 通过对话了解你，自动填充下方信息</p>
+        </div>
+      </div>
+
       {/* 账号信息 */}
       <div className="flex items-center gap-4 p-4 rounded-xl bg-muted/30 border border-border/20">
         {userInfo?.image ? (

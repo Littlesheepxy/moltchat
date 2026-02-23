@@ -92,8 +92,7 @@ export const Avatar = memo(function Avatar({
 
   // ===== 克隆场景（每个 avatar 独立实例） =====
   const clonedScene = useMemo(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const clone = (cloneSkinnedMesh as any)(gltf.scene) as THREE.Group
+    const clone = (cloneSkinnedMesh as unknown as (scene: THREE.Group) => THREE.Group)(gltf.scene)
     clone.traverse((child: THREE.Object3D) => {
       if ((child as THREE.Mesh).isMesh) {
         const mesh = child as THREE.Mesh

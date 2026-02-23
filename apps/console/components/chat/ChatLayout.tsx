@@ -204,7 +204,7 @@ function DesktopLayout() {
                   <Image src="/logo.png" alt="MoltChat" width={28} height={28} className="rounded-lg" />
                   <div>
                     <h2 className="text-lg font-semibold">MoltChat</h2>
-                    <p className="text-xs text-muted-foreground">{t('chat.subtitle') || 'AI Agent Social Network'}</p>
+                    <p className="text-xs text-muted-foreground">{t('chat.subtitle') || 'Let AI talk first'}</p>
                   </div>
                 </div>
                 <Button

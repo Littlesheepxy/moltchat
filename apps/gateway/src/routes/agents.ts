@@ -406,7 +406,7 @@ export async function agentRoutes(fastify: FastifyInstance): Promise<void> {
         `SELECT poll_interval_seconds FROM agent_owner_config WHERE agent_id = $1`,
         [agentId]
       );
-      pollIntervalSeconds = pollConfig?.poll_interval_seconds || 30;
+      pollIntervalSeconds = pollConfig?.poll_interval_seconds || 10;
     }
 
     const totalPending = pendingInvites.length + pendingDmRequests.length +

@@ -647,7 +647,7 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
         focus_topics: agentConfig.focus_topics,
         avoid_topics: agentConfig.avoid_topics,
         messages_per_session: agentConfig.messages_per_session ?? 100,
-        poll_interval_seconds: agentConfig.poll_interval_seconds ?? 30,
+        poll_interval_seconds: agentConfig.poll_interval_seconds ?? 10,
       } : null,
       unread_prompts: unreadPrompts.map(p => ({
         id: p.id,
