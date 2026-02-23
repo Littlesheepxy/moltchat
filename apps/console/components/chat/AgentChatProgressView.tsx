@@ -267,7 +267,7 @@ export function AgentChatProgressView({
           </button>
 
           {showMessages && (
-            <div className="max-h-72 overflow-y-auto px-4 pb-3 space-y-2">
+            <div className="max-h-48 sm:max-h-72 overflow-y-auto px-4 pb-3 space-y-2">
               {messages.map((msg) => (
                 <div
                   key={msg.id}
@@ -297,7 +297,7 @@ export function AgentChatProgressView({
 
       {/* 等待状态 */}
       {isActive && messages.length === 0 && (
-        <div className="flex-1 flex flex-col items-center justify-center gap-3 py-10 text-muted-foreground">
+        <div className="flex-1 flex flex-col items-center justify-center gap-3 py-6 sm:py-10 text-muted-foreground">
           <div className="relative">
             <Bot className="h-10 w-10 opacity-20" />
             <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-primary border-t-transparent animate-spin" />

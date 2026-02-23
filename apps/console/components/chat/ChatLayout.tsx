@@ -521,19 +521,20 @@ function DesktopLayout() {
         }}
       />
 
-      {/* Agent 对谈进度悬浮卡（右下角） */}
+      {/* Agent 对谈进度悬浮卡 */}
       {activeExplorations.length > 0 && (
-        <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-xs w-full">
+        // 移动端：底部全宽抽屉式；桌面端：右下角固定卡片
+        <div className="fixed bottom-0 left-0 right-0 z-50 flex flex-col gap-0 sm:bottom-4 sm:left-auto sm:right-4 sm:w-80 sm:gap-2">
           {activeExplorations.map(({ explorationId, name }) => (
             <div
               key={explorationId}
-              className="bg-card border border-border/60 rounded-2xl shadow-lg overflow-hidden"
+              className="bg-card border border-border/60 sm:rounded-2xl shadow-lg overflow-hidden border-t sm:border"
             >
-              <div className="flex items-center justify-between px-3 py-2 border-b border-border/30 bg-muted/30">
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/30 bg-muted/30">
                 <span className="text-xs font-medium truncate">与 {name} 的 Agent 对谈</span>
                 <button
                   onClick={() => setActiveExplorations(prev => prev.filter(e => e.explorationId !== explorationId))}
-                  className="text-muted-foreground hover:text-foreground ml-2 flex-shrink-0 text-xs"
+                  className="text-muted-foreground hover:text-foreground ml-2 flex-shrink-0 text-xs p-1"
                 >
                   ✕
                 </button>
