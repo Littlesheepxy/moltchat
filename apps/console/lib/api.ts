@@ -50,6 +50,7 @@ async function fetchApi<T>(
     const response = await fetch(finalUrl, {
       ...options,
       headers,
+      credentials: 'include',
     });
 
     const data = await response.json();

@@ -1,7 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getBattles, joinBattle, getAdminMe, createBattle, type BattleEvent, type AdminMe } from '@/lib/api';
+import {
+  getBattles, joinBattle, getAdminMe, createBattle,
+  getAdminGrants, searchAdminUsers, createAdminGrant, deleteAdminGrant,
+  type BattleEvent, type AdminMe, type AdminGrant,
+} from '@/lib/api';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -9,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Bot, Users, Trophy, Plus, Calendar, Zap, HelpCircle, ChevronRight } from 'lucide-react';
+import { Bot, Users, Trophy, Plus, Calendar, Zap, HelpCircle, ChevronRight, Settings, Trash2, UserPlus, Shield } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 
@@ -71,6 +75,148 @@ function HowItWorksDialog({ open, onClose }: { open: boolean; onClose: () => voi
         </div>
         <DialogFooter>
           <Button onClick={onClose} className="w-full">明白了，去报名</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function AdminPanelDialog({ open, onClose, isSuperAdmin }: {
+  open: boolean;
+  onClose: () => void;
+  isSuperAdmin: boolean;
+}) {
+  const [grants, setGrants] = useState<AdminGrant[]>([]);
+  const [searchQ, setSearchQ] = useState('');
+  const [searchResults, setSearchResults] = useState<{ id: string; name: string | null; email: string | null }[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [grantScope, setGrantScope] = useState<'battles' | 'rooms' | 'all'>('battles');
+  const [grantTheme, setGrantTheme] = useState('');
+
+  useEffect(() => {
+    if (open && isSuperAdmin) {
+      getAdminGrants().then(r => { if (r.success) setGrants(r.data.grants); });
+    }
+  }, [open, isSuperAdmin]);
+
+  const handleSearch = async () => {
+    if (!searchQ.trim()) return;
+    setSearching(true);
+    const r = await searchAdminUsers(searchQ);
+    if (r.success) setSearchResults(r.data.users);
+    setSearching(false);
+  };
+
+  const handleGrant = async (userId: string, userName: string | null) => {
+    const r = await createAdminGrant(userId, grantScope, grantTheme || undefined);
+    if (r.success) {
+      toast.success(`已授权 ${userName ?? userId} 为${grantScope === 'battles' ? '配对赛' : grantScope === 'rooms' ? 'Room' : '全局'}管理员`);
+      getAdminGrants().then(res => { if (res.success) setGrants(res.data.grants); });
+    } else {
+      toast.error(r.error?.message ?? '授权失败');
+    }
+  };
+
+  const handleRevoke = async (grantId: string) => {
+    await deleteAdminGrant(grantId);
+    toast.success('已撤销授权');
+    setGrants(prev => prev.filter(g => g.id !== grantId));
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Shield className="h-4 w-4 text-primary" />
+            管理员面板
+          </DialogTitle>
+        </DialogHeader>
+
+        {!isSuperAdmin ? (
+          <p className="text-sm text-muted-foreground py-4 text-center">仅超级管理员可访问此面板</p>
+        ) : (
+          <div className="space-y-5 py-1">
+            {/* 授权新管理员 */}
+            <div className="space-y-3">
+              <p className="text-sm font-medium">授权方向管理员</p>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="搜索用户名或邮箱"
+                  value={searchQ}
+                  onChange={e => setSearchQ(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleSearch()}
+                  className="flex-1 h-8 text-xs"
+                />
+                <Button size="sm" variant="outline" onClick={handleSearch} disabled={searching} className="h-8">
+                  {searching ? '...' : '搜索'}
+                </Button>
+              </div>
+
+              {searchResults.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <select
+                      value={grantScope}
+                      onChange={e => setGrantScope(e.target.value as 'battles' | 'rooms' | 'all')}
+                      className="flex-1 h-8 text-xs rounded-md border border-input bg-background px-2"
+                    >
+                      <option value="battles">配对赛管理员</option>
+                      <option value="rooms">Room 管理员</option>
+                      <option value="all">全局管理员</option>
+                    </select>
+                    <Input
+                      placeholder="限定方向（可选）"
+                      value={grantTheme}
+                      onChange={e => setGrantTheme(e.target.value)}
+                      className="flex-1 h-8 text-xs"
+                    />
+                  </div>
+                  {searchResults.map(u => (
+                    <div key={u.id} className="flex items-center justify-between p-2 bg-muted/30 rounded-lg">
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium truncate">{u.name ?? '未命名'}</p>
+                        <p className="text-[10px] text-muted-foreground truncate">{u.email}</p>
+                      </div>
+                      <Button size="sm" variant="outline" className="h-7 text-xs gap-1 flex-shrink-0 ml-2" onClick={() => handleGrant(u.id, u.name)}>
+                        <UserPlus className="h-3 w-3" />
+                        授权
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 已授权列表 */}
+            {grants.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">已授权管理员</p>
+                {grants.map(g => (
+                  <div key={g.id} className="flex items-center justify-between p-2 bg-muted/30 rounded-lg">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-medium truncate">{g.user_name ?? g.user_id}</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {g.scope === 'battles' ? '配对赛' : g.scope === 'rooms' ? 'Room' : '全局'}
+                        {g.theme ? ` · ${g.theme}` : ''}
+                      </p>
+                    </div>
+                    <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-destructive flex-shrink-0" onClick={() => handleRevoke(g.id)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {grants.length === 0 && (
+              <p className="text-xs text-muted-foreground text-center py-2">暂无授权记录</p>
+            )}
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} className="w-full">关闭</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -211,6 +357,7 @@ export default function BattlesPage() {
   const [adminMe, setAdminMe] = useState<AdminMe | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [showHowItWorks, setShowHowItWorks] = useState(false);
+  const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [activeTab, setActiveTab] = useState<'open' | 'completed' | 'all'>('open');
 
   const isAdmin = adminMe?.is_super_admin || (adminMe?.grants?.some(g => g.scope === 'battles' || g.scope === 'all') ?? false);
@@ -261,10 +408,18 @@ export default function BattlesPage() {
               <HelpCircle className="h-4 w-4 text-muted-foreground" />
             </Button>
             {isAdmin && (
-              <Button size="sm" className="h-8 gap-1.5" onClick={() => setShowCreate(true)}>
-                <Plus className="h-3.5 w-3.5" />
-                创建赛事
-              </Button>
+              <>
+                <Button size="sm" className="h-8 gap-1.5" onClick={() => setShowCreate(true)}>
+                  <Plus className="h-3.5 w-3.5" />
+                  创建赛事
+                </Button>
+                {adminMe?.is_super_admin && (
+                  <Button size="sm" variant="outline" className="h-8 gap-1.5" onClick={() => setShowAdminPanel(true)}>
+                    <Settings className="h-3.5 w-3.5" />
+                    管理
+                  </Button>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -353,6 +508,11 @@ export default function BattlesPage() {
       <HowItWorksDialog
         open={showHowItWorks}
         onClose={() => setShowHowItWorks(false)}
+      />
+      <AdminPanelDialog
+        open={showAdminPanel}
+        onClose={() => setShowAdminPanel(false)}
+        isSuperAdmin={adminMe?.is_super_admin ?? false}
       />
     </div>
   );
