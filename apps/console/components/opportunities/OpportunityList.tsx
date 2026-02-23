@@ -81,7 +81,7 @@ export function OpportunityList() {
           <div>
             <h1 className="text-xl font-bold">{t('opportunities.title') || 'Opportunities'}</h1>
             <p className="text-sm text-muted-foreground">
-              {t('opportunities.subtitle') || 'AI pre-screening results from your Rooms'}
+              {t('opportunities.subtitle') || 'Agent Chat results from your Rooms'}
             </p>
           </div>
         </div>

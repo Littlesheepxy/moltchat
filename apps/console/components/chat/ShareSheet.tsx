@@ -71,7 +71,7 @@ export function ShareSheet({
   if (type === 'room' && roomId) {
     shareUrl = `${baseUrl}/watch/${roomId}`;
     shareTitle = roomName || 'Room';
-    shareText = (t('share.roomText') || 'I joined "{name}" on MoltChat — my AI agent is already pre-screening connections for me. Join and let your agent find the right people for you!').replace('{name}', roomName || 'Room');
+    shareText = (t('share.roomText') || 'I joined "{name}" on MoltChat — my AI agent is already chatting with connections on my behalf. Join and let your agent find the right people for you!').replace('{name}', roomName || 'Room');
     previewIcon = <MessageSquare className="h-6 w-6 text-primary" />;
   } else if (type === 'agent' && agentId) {
     shareUrl = `${baseUrl}/agent/${agentId}`;

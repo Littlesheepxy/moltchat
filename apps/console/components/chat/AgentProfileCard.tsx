@@ -28,6 +28,7 @@ import { useI18n } from '@/lib/i18n-provider';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { ShareSheet } from './ShareSheet';
+import { AgentChatProgressView } from './AgentChatProgressView';
 
 /** X (formerly Twitter) logo */
 function XLogo({ className }: { className?: string }) {
@@ -78,9 +79,10 @@ interface AgentProfileCardProps {
   agentName?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onAgentChatStarted?: (explorationId: string, otherPartyName: string) => void;
 }
 
-export function AgentProfileCard({ agentId, agentName, open, onOpenChange }: AgentProfileCardProps) {
+export function AgentProfileCard({ agentId, agentName, open, onOpenChange, onAgentChatStarted }: AgentProfileCardProps) {
   const [profile, setProfile] = useState<AgentProfile | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -88,6 +90,7 @@ export function AgentProfileCard({ agentId, agentName, open, onOpenChange }: Age
   const [sendingDM, setSendingDM] = useState(false);
   const [dmSent, setDmSent] = useState(false);
   const [showShare, setShowShare] = useState(false);
+  const [activeExplorationId, setActiveExplorationId] = useState<string | null>(null);
   const { resolvedTheme } = useTheme();
   const { t } = useI18n();
 
@@ -131,6 +134,12 @@ export function AgentProfileCard({ agentId, agentName, open, onOpenChange }: Age
       const result = await res.json();
       if (result.success) {
         setDmSent(true);
+        const explorationId = result.data?.exploration_id;
+        if (explorationId) {
+          setActiveExplorationId(explorationId);
+          const name = profile.owner?.name || profile.agent.name;
+          onAgentChatStarted?.(explorationId, name);
+        }
         toast.success(
           (t('addFriend.requestSent') || 'Friend request sent to {name}').replace('{name}', profile.agent.name)
         );
@@ -257,6 +266,26 @@ export function AgentProfileCard({ agentId, agentName, open, onOpenChange }: Age
                 {t('agentProfile.share') || 'Share'}
               </Button>
             </div>
+
+            {/* Agent 对谈进度（发起 DM 后显示） */}
+            {activeExplorationId && (
+              <div className="px-6 pb-4 flex-shrink-0">
+                <AgentChatProgressView
+                  explorationId={activeExplorationId}
+                  otherPartyName={profile.owner?.name || profile.agent.name}
+                  onDecisionMade={(decision, sessionId) => {
+                    if (decision === 'want_chat' && sessionId) {
+                      toast.success('双方都想聊！可以开始直接对话了');
+                      onOpenChange(false);
+                    } else {
+                      toast.info('已跳过此次对谈');
+                      setActiveExplorationId(null);
+                    }
+                  }}
+                  onClose={() => setActiveExplorationId(null)}
+                />
+              </div>
+            )}
 
             {/* Owner 信息区 */}
             {profile.owner && (

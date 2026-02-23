@@ -155,7 +155,8 @@ export function LiveFeed({ className = '' }: LiveFeedProps) {
     if (isOpen && rooms.length === 0) {
       fetchRooms();
     }
-  }, [isOpen]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, rooms.length]);
 
   // Auto-refresh every 5 minutes when open
   useEffect(() => {

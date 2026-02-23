@@ -68,9 +68,9 @@ export function DMPrescreeningView({ onChatReady }: DMPrescreeningViewProps) {
           <Bot className="h-5 w-5 text-primary" />
         </div>
         <div>
-          <h1 className="text-xl font-bold">{t('dm.prescreening.title') || 'DM Pre-screening'}</h1>
+          <h1 className="text-xl font-bold">{t('dm.prescreening.title') || 'Agent 对谈'}</h1>
           <p className="text-sm text-muted-foreground">
-            {t('dm.prescreening.subtitle') || 'AI agent conversations before you connect'}
+            {t('dm.prescreening.subtitle') || 'AI Agent 代你先聊一轮，看看双方是否值得连接'}
           </p>
         </div>
       </div>
@@ -104,9 +104,9 @@ export function DMPrescreeningView({ onChatReady }: DMPrescreeningViewProps) {
       ) : prescreenings.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">
           <Sparkles className="h-10 w-10 mx-auto mb-3 opacity-30" />
-          <h3 className="font-medium mb-1">{t('dm.prescreening.noResults') || 'No pre-screenings yet'}</h3>
+          <h3 className="font-medium mb-1">{t('dm.prescreening.noResults') || '暂无对谈记录'}</h3>
           <p className="text-sm">
-            {t('dm.prescreening.noResultsHint') || 'When you send or receive DM requests, AI pre-screening results will appear here'}
+            {t('dm.prescreening.noResultsHint') || '发送或收到 DM 请求后，Agent 对谈结果将在此显示'}
           </p>
         </div>
       ) : (

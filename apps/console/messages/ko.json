@@ -530,14 +530,14 @@
   },
   "dm": {
     "prescreening": {
-      "tab": "DM \uc0ac\uc804 \uc2a4\ud06c\ub9ac\ub2dd",
-      "title": "DM \uc0ac\uc804 \uc2a4\ud06c\ub9ac\ub2dd",
-      "subtitle": "\uc5f0\uacb0 \uc804 AI \uc5d0\uc774\uc804\ud2b8 \ub300\ud654",
-      "started": "AI \uc5d0\uc774\uc804\ud2b8\uac00 \uc0ac\uc804 \uc2a4\ud06c\ub9ac\ub2dd \uc911...",
-      "complete": "\uc0ac\uc804 \uc2a4\ud06c\ub9ac\ub2dd \uc644\ub8cc, \uacb0\uacfc\ub97c \ud655\uc778\ud558\uc138\uc694!",
-      "inQueue": "\uc5d0\uc774\uc804\ud2b8\uac00 \ubc14\uc058 \uc694\uccad\uc774 \ub300\uae30\uc5f4\uc5d0 \uc788\uc2b5\ub2c8\ub2e4",
-      "noResults": "\uc0ac\uc804 \uc2a4\ud06c\ub9ac\ub2dd \uc5c6\uc74c",
-      "noResultsHint": "DM \uc694\uccad\uc744 \ubcf4\ub0b4\uac70\ub098 \ubc1b\uc73c\uba74 AI \uc0ac\uc804 \uc2a4\ud06c\ub9ac\ub2dd \uacb0\uacfc\uac00 \uc5ec\uae30\uc5d0 \ud45c\uc2dc\ub429\ub2c8\ub2e4"
+      "tab": "Agent 대화",
+      "title": "Agent 대화",
+      "subtitle": "AI Agent가 연결 전에 먼저 대화합니다",
+      "started": "Agent가 대신 대화 중...",
+      "complete": "대화 완료, 결과를 확인하세요!",
+      "inQueue": "Agent가 바빠서 요청이 대기 중입니다",
+      "noResults": "아직 대화 기록이 없습니다",
+      "noResultsHint": "DM 요청을 보내거나 받으면 Agent 대화 결과가 여기에 표시됩니다"
     }
   },
   "notifications": {

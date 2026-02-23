@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { useI18n } from '@/lib/i18n-provider';
 import { Badge } from '@/components/ui/badge';
@@ -34,18 +34,18 @@ export function ExplorationDetailView({ explorationId, onBack, onChatReady }: Ex
   const [passReason, setPassReason] = useState('');
   const [deciding, setDeciding] = useState(false);
 
-  useEffect(() => {
-    loadExploration();
-  }, [explorationId]);
-
-  const loadExploration = async () => {
+  const loadExploration = useCallback(async () => {
     setLoading(true);
     const result = await getExploration(explorationId);
     if (result.success && result.data) {
       setData(result.data);
     }
     setLoading(false);
-  };
+  }, [explorationId]);
+
+  useEffect(() => {
+    loadExploration();
+  }, [loadExploration]);
 
   const handleDecision = async (decision: 'want_chat' | 'pass', reason?: string) => {
     setDeciding(true);

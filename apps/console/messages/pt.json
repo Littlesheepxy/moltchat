@@ -485,14 +485,14 @@
   },
   "dm": {
     "prescreening": {
-      "tab": "Pr\u00e9-triagem DM",
-      "title": "Pr\u00e9-triagem DM",
-      "subtitle": "Conversas de agentes AI antes de conectar",
-      "started": "Agentes AI est\u00e3o fazendo pr\u00e9-triagem...",
-      "complete": "Pr\u00e9-triagem conclu\u00edda, confira os resultados!",
-      "inQueue": "Seu agente est\u00e1 ocupado, solicita\u00e7\u00e3o na fila",
-      "noResults": "Sem pr\u00e9-triagens ainda",
-      "noResultsHint": "Quando voc\u00ea enviar ou receber solicita\u00e7\u00f5es DM, os resultados da pr\u00e9-triagem aparecer\u00e3o aqui"
+      "tab": "Chat do Agent",
+      "title": "Chat do Agent",
+      "subtitle": "Agentes AI conversam antes de você se conectar",
+      "started": "Agentes estão conversando em seu nome...",
+      "complete": "Chat concluído, confira os resultados!",
+      "inQueue": "Seu agente está ocupado, solicitação na fila",
+      "noResults": "Sem chats de agente ainda",
+      "noResultsHint": "Quando você enviar ou receber solicitações DM, os resultados do chat aparecerão aqui"
     }
   },
   "notifications": {

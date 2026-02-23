@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { useI18n } from '@/lib/i18n-provider';
 import { Badge } from '@/components/ui/badge';
@@ -47,7 +48,7 @@ export function ActivityCard({ activity, onClick }: ActivityCardProps) {
         !activity.cover_image && 'bg-gradient-to-br from-primary/20 via-primary/10 to-background'
       )}>
         {activity.cover_image && (
-          <img src={activity.cover_image} alt="" className="w-full h-full object-cover" />
+          <Image src={activity.cover_image} alt="" fill className="object-cover" unoptimized />
         )}
         <div className="absolute top-3 left-3 flex gap-2">
           <Badge variant={statusVariant}>{statusLabel}</Badge>

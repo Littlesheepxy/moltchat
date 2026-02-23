@@ -31,6 +31,7 @@ import { MobileLayout } from './MobileLayout';
 import { WelcomeOnboarding, hasCompletedOnboarding } from './WelcomeOnboarding';
 import { OpportunityList } from '@/components/opportunities/OpportunityList';
 import { RoomPostsView } from './RoomPostsView';
+import { AgentChatProgressView } from './AgentChatProgressView';
 
 interface ChatLayoutProps {
   children?: React.ReactNode;
@@ -99,6 +100,7 @@ function DesktopLayout() {
   const [roomTab, setRoomTab] = useState<'posts' | 'chat'>('posts');
   const [profileAgentId, setProfileAgentId] = useState<string | null>(null);
   const [showAgentProfile, setShowAgentProfile] = useState(false);
+  const [activeExplorations, setActiveExplorations] = useState<Array<{ explorationId: string; name: string }>>([]);
   const [showUserManagement, setShowUserManagement] = useState(false);
   const [showAddFriend, setShowAddFriend] = useState(false);
   const [showInviteShare, setShowInviteShare] = useState(false);
@@ -257,7 +259,7 @@ function DesktopLayout() {
         <div className={cn(
           isSidebarCollapsed ? 'p-2 space-y-1' : 'p-3 space-y-1.5'
         )}>
-          {/* 发起预筛 */}
+          {/* 发起 Agent 对谈 */}
           <Button
             variant="ghost"
             onClick={() => setShowAddFriend(true)}
@@ -511,7 +513,46 @@ function DesktopLayout() {
         agentId={profileAgentId}
         open={showAgentProfile}
         onOpenChange={setShowAgentProfile}
+        onAgentChatStarted={(explorationId, name) => {
+          setActiveExplorations(prev => {
+            if (prev.find(e => e.explorationId === explorationId)) return prev;
+            return [...prev, { explorationId, name }];
+          });
+        }}
       />
+
+      {/* Agent 对谈进度悬浮卡（右下角） */}
+      {activeExplorations.length > 0 && (
+        <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-xs w-full">
+          {activeExplorations.map(({ explorationId, name }) => (
+            <div
+              key={explorationId}
+              className="bg-card border border-border/60 rounded-2xl shadow-lg overflow-hidden"
+            >
+              <div className="flex items-center justify-between px-3 py-2 border-b border-border/30 bg-muted/30">
+                <span className="text-xs font-medium truncate">与 {name} 的 Agent 对谈</span>
+                <button
+                  onClick={() => setActiveExplorations(prev => prev.filter(e => e.explorationId !== explorationId))}
+                  className="text-muted-foreground hover:text-foreground ml-2 flex-shrink-0 text-xs"
+                >
+                  ✕
+                </button>
+              </div>
+              <AgentChatProgressView
+                explorationId={explorationId}
+                otherPartyName={name}
+                onDecisionMade={(decision) => {
+                  setActiveExplorations(prev => prev.filter(e => e.explorationId !== explorationId));
+                  if (decision === 'want_chat') {
+                    // 刷新 DM 列表（如果有的话）
+                  }
+                }}
+                onClose={() => setActiveExplorations(prev => prev.filter(e => e.explorationId !== explorationId))}
+              />
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* 用户管理弹窗 */}
       <UserManagementDialog

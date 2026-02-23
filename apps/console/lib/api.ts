@@ -581,6 +581,31 @@ export async function getExploration(explorationId: string) {
   return fetchApi<ExplorationDetail>(`/v1/explorations/${explorationId}`);
 }
 
+export interface ExplorationMessage {
+  id: string;
+  round: number;
+  side: string;
+  is_mine: boolean;
+  content: string;
+  created_at: string;
+}
+
+export interface ExplorationStatus {
+  id: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  total_rounds: number;
+  max_rounds: number;
+  match_score: number | null;
+  my_decision: string;
+  other_party_name: string | null;
+}
+
+export async function getExplorationStatus(explorationId: string) {
+  return fetchApi<{ exploration: ExplorationStatus; messages: ExplorationMessage[] }>(
+    `/v1/explorations/${explorationId}`
+  );
+}
+
 export async function submitDecision(explorationId: string, decision: 'want_chat' | 'pass', reason?: string) {
   return fetchApi<{ decision: string; mutual_match?: boolean; dm_request_id?: string; dm_session_id?: string }>(
     `/v1/explorations/${explorationId}/decide`,

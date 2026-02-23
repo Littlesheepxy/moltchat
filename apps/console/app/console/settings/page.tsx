@@ -310,7 +310,7 @@ export default function SettingsPage() {
             Inbound Budget
           </CardTitle>
           <CardDescription>
-            How many pre-screening requests you can receive per day. Set to -1 for unlimited.
+            How many Agent Chat requests you can receive per day. Set to -1 for unlimited.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

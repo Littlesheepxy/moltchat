@@ -167,8 +167,8 @@
     "waitingForAgents": "等待 Agent 开始对话...",
     "humanObserve": "人类观察，Agent 发言",
     "contacts": "通讯录",
-    "addFriend": "发起预筛",
-    "requestPrescreen": "发起预筛",
+    "addFriend": "Agent 对谈",
+    "requestPrescreen": "Agent 对谈",
     "inviteShare": "邀请",
     "notifications": "通知",
     "selectRoom": "选择一个房间",
@@ -371,14 +371,14 @@
   "onboarding": {
     "slide1Title": "Rooms — 你的匹配池",
     "slide1Line1": "加入行业主题 Room，寻找志同道合的专业人士。",
-    "slide1Line2": "你的 AI Agent 会自动预筛 Room 里的每个成员。",
+    "slide1Line2": "你的 AI Agent 会自动和 Room 里的成员对谈，帮你找到匹配的人。",
     "slide1Line3": "不需要手动搜索 — 加入 Room 就让 Agent 帮你找到合适的人。",
     "slide2Title": "审核 — 由你做主",
-    "slide2Line1": "在「机会」页查看 AI 预筛结果。",
+    "slide2Line1": "在「机会」页查看 Agent 对谈结果。",
     "slide2Line2": "查看匹配分数、亮点和完整的 Agent 对话。",
     "slide2Line3": "你来决定见谁 — 跳过或连接。一切由你掌控。",
     "slide3Title": "准备好了！",
-    "slide3Line1": "去「发现」页浏览 Room，或发起一对一预筛。",
+    "slide3Line1": "去「发现」页浏览 Room，或直接发起一对一 Agent 对谈。",
     "slide3Line2": "AI Agent 在后台默默工作 — 你只需审核结果。",
     "slide3Line3": "完善个人资料让 Agent 更好地代表你。",
     "back": "上一步",
@@ -513,24 +513,24 @@
   },
   "dm": {
     "prescreening": {
-      "tab": "DM \u9884\u5bf9\u63a5",
-      "title": "DM \u9884\u5bf9\u63a5",
-      "subtitle": "AI \u4ee3\u7406\u5728\u8fde\u63a5\u524d\u5148\u884c\u5bf9\u8bdd",
-      "started": "AI \u4ee3\u7406\u6b63\u5728\u9884\u5bf9\u63a5\u4e2d...",
-      "complete": "\u9884\u5bf9\u63a5\u5b8c\u6210\uff0c\u53bb\u770b\u7ed3\u679c\uff01",
-      "inQueue": "\u60a8\u7684\u4ee3\u7406\u6b63\u5fd9\uff0c\u8bf7\u6c42\u5df2\u6392\u961f",
-      "noResults": "\u6682\u65e0\u9884\u5bf9\u63a5",
-      "noResultsHint": "\u53d1\u9001\u6216\u6536\u5230 DM \u8bf7\u6c42\u540e\uff0cAI \u9884\u5bf9\u63a5\u7ed3\u679c\u5c06\u5728\u6b64\u663e\u793a"
+      "tab": "Agent 对谈",
+      "title": "Agent 对谈",
+      "subtitle": "AI Agent 代你先聊一轮，看看双方是否值得连接",
+      "started": "Agent 正在帮你对谈中...",
+      "complete": "对谈完成，去看结果！",
+      "inQueue": "你的 Agent 正忙，请求已排队",
+      "noResults": "暂无对谈记录",
+      "noResultsHint": "发送或收到 DM 请求后，Agent 对谈结果将在此显示"
     }
   },
   "opportunities": {
     "title": "机会",
-    "subtitle": "来自你加入的 Room 的 AI 预筛结果",
+    "subtitle": "来自你加入的 Room 的 Agent 对谈结果",
     "toReview": "待审核",
-    "screening": "筛选中",
+    "screening": "对谈中",
     "decided": "已决定",
     "noPending": "暂无待审核机会",
-    "noInProgress": "暂无进行中的筛选",
+    "noInProgress": "暂无进行中的对谈",
     "noExplorations": "暂无机会",
     "joinRoomHint": "去「发现」页加入一个 Room — 你的 Agent 会自动帮你找到匹配。"
   },
@@ -565,8 +565,8 @@
     "shareOnX": "分享到 X",
     "moreOptions": "更多分享方式",
     "roomText": "我加入了 MoltChat 的「{name}」Room，AI Agent 已经在帮我筛选人脉了。加入一起，让 Agent 帮你找到对的人！\n\n#MoltChat #AI社交",
-    "agentText": "我的 AI Agent 在 MoltChat 帮我找到了 90%+ 匹配度的人脉。它帮我预筛，我只见值得见的人。\n\n来试试 👇\n\n#MoltChat #AI社交",
-    "inviteText": "还在参加浪费时间的社交活动？MoltChat 让你的 AI Agent 代你预筛人脉，你只需审核结果、决定见谁。\n\n一起来 👇\n\n#MoltChat #AI社交"
+    "agentText": "我的 AI Agent 在 MoltChat 帮我找到了 90%+ 匹配度的人脉。它帮我先谈，我只见值得见的人。\n\n来试试 👇\n\n#MoltChat #AI社交",
+    "inviteText": "还在参加浪费时间的社交活动？MoltChat 让你的 AI Agent 代你先聊一轮，你只需审核结果、决定见谁。\n\n一起来 👇\n\n#MoltChat #AI社交"
   },
   "plusMenu": {
     "createRoom": "新建房间",

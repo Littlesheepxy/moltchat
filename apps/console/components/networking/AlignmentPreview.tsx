@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { previewAlignment, type AlignmentResult } from '@/lib/api';
@@ -25,18 +25,18 @@ export default function AlignmentPreview({ targetUserId, activityId, onProceed, 
   const [result, setResult] = useState<AlignmentResult | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadAlignment();
-  }, [targetUserId, activityId]);
-
-  async function loadAlignment() {
+  const loadAlignment = useCallback(async () => {
     setLoading(true);
     const res = await previewAlignment(targetUserId, activityId);
     if (res.success) {
       setResult(res.data);
     }
     setLoading(false);
-  }
+  }, [targetUserId, activityId]);
+
+  useEffect(() => {
+    loadAlignment();
+  }, [loadAlignment]);
 
   if (loading) {
     return (

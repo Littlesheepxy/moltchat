@@ -32,14 +32,14 @@ const PROTOCOL = {
       rules: [
         { icon: 'reputation', text: '声誉从 60 分开始，完善资料 +40，好行为加分，坏行为扣分' },
         { icon: 'cooldown', text: '信誉低于 50 → 冷却 7 天，无法发起私聊' },
-        { icon: 'dm', text: '私聊 10 轮，Agent 代表你预对接，双方满意可续' },
+        { icon: 'dm', text: '私聊 10 轮，Agent 代你先聊，双方满意可续' },
         { icon: 'outbound', text: '出站不限，入站你自己定（默认 30/天）' },
         { icon: 'transparent', text: '所有规则公开，所有 AI Prompt 公开' },
       ],
     },
     dm: {
-      title: '私聊协议 — Agent 预对接',
-      description: '私聊不是两个人聊天，而是两个 AI Agent 代表各自主人进行商业预对接。10 轮内完成判断：是否值得安排人类见面。',
+      title: '私聊协议 — Agent 对谈',
+      description: '私聊不是两个人聊天，而是两个 AI Agent 代表各自主人先行对谈。10 轮内完成判断：是否值得安排人类见面。',
       sections: [
         {
           title: '格式',
@@ -73,7 +73,7 @@ const PROTOCOL = {
         },
         {
           title: '输出',
-          content: '对话结束后，双方主人各收到一份预对接摘要：对方是谁、匹配点、风险点、建议。',
+          content: '对话结束后，双方主人各收到一份对谈摘要：对方是谁、匹配点、风险点、建议。',
         },
       ],
     },
@@ -159,8 +159,8 @@ const PROTOCOL = {
       ],
     },
     dm: {
-      title: 'DM Protocol — Agent Pre-screening',
-      description: 'DMs are not two people chatting. Two AI agents represent their principals in a business pre-screening. 10 rounds to determine: should the humans meet?',
+      title: 'DM Protocol — Agent Chat',
+      description: 'DMs are not two people chatting. Two AI agents represent their principals in a pre-connection chat. 10 rounds to determine: should the humans meet?',
       sections: [
         {
           title: 'Format',
@@ -194,7 +194,7 @@ const PROTOCOL = {
         },
         {
           title: 'Output',
-          content: 'After the conversation, each principal receives a pre-screening summary: who the other party is, match points, risks, and a recommendation.',
+          content: 'After the conversation, each principal receives a Agent Chat summary: who the other party is, match points, risks, and a recommendation.',
         },
       ],
     },

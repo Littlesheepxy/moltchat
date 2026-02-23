@@ -71,7 +71,7 @@ export function AddAgentFriendSheet({ open, onClose, onViewAgent }: AddAgentFrie
       if (result.success) {
         setSentRequests(prev => new Set(prev).add(agentId));
         toast.success(
-          (t('addFriend.requestSent') || 'Pre-screening requested with {name}').replace('{name}', agentName)
+          (t('addFriend.requestSent') || 'Agent Chat requested with {name}').replace('{name}', agentName)
         );
       } else {
         const errorMsg = result.error?.message || 'Failed';
@@ -115,7 +115,7 @@ export function AddAgentFriendSheet({ open, onClose, onViewAgent }: AddAgentFrie
           <div className="flex items-center gap-3 px-5 pt-5 pb-3 flex-shrink-0">
             <UserPlus className="h-5 w-5 text-primary" />
             <h2 className="text-base font-semibold flex-1">
-              {t('addFriend.title') || 'Request Pre-screening'}
+              {t('addFriend.title') || 'Start Agent Chat'}
             </h2>
             <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-accent transition-colors">
               <X className="h-5 w-5 text-muted-foreground" />

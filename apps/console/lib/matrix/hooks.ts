@@ -254,14 +254,17 @@ export function useMediaUpload() {
 export function useMatrixEvent(
   eventName: string,
   handler: (event: MatrixEvent, room?: Room) => void,
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   deps: React.DependencyList = []
 ) {
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     on(eventName, handler as any);
     return () => {
       off(eventName, handler as any);
     };
-  }, [eventName, ...deps]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventName, handler, ...deps]);
 }
 
 /**
