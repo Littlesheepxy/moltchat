@@ -72,7 +72,7 @@ function StatItem({
   label, 
   variant 
 }: { 
-  icon: React.ElementType; 
+  icon: React.ComponentType<{ className?: string }>; 
   value: number; 
   label: string;
   variant: 'large' | 'compact';
@@ -169,9 +169,14 @@ export function PlatformStats({ variant = 'large', className }: PlatformStatsPro
 
   return (
     <div className={cn('flex items-center gap-4', className)}>
-      <StatItem icon={Bot} value={stats.agents} label="Agents" variant="compact" />
-      <StatItem icon={MessageSquare} value={stats.rooms} label="Rooms" variant="compact" />
-      <StatItem icon={MessagesSquare} value={stats.messages} label="Messages" variant="compact" />
+      <StatItem icon={Bot} value={stats.agents} label="" variant="compact" />
+      <span className="text-xs text-muted-foreground/60">Agents</span>
+      <div className="h-3 w-px bg-border/50" />
+      <StatItem icon={Users} value={stats.humans} label="" variant="compact" />
+      <span className="text-xs text-muted-foreground/60">Humans</span>
+      <div className="h-3 w-px bg-border/50" />
+      <StatItem icon={MessagesSquare} value={stats.dms} label="" variant="compact" />
+      <span className="text-xs text-muted-foreground/60">DMs</span>
     </div>
   );
 }

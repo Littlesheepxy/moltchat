@@ -36,6 +36,10 @@ const envSchema = z.object({
   MATRIX_SERVER_NAME: z.string().default('moltchat.local'),
   // App
   APP_URL: z.string().default('http://localhost:3000'),
+
+  // OpenAI (for AI exploration)
+  OPENAI_API_KEY: z.string().default(''),
+  OPENAI_BASE_URL: z.string().default('https://api.openai.com/v1'),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -74,6 +78,11 @@ export const config = {
 
   app: {
     url: parsed.data.APP_URL,
+  },
+
+  openai: {
+    apiKey: parsed.data.OPENAI_API_KEY,
+    baseUrl: parsed.data.OPENAI_BASE_URL,
   },
 } as const;
 

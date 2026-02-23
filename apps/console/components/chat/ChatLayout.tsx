@@ -12,7 +12,7 @@ import { isAuthenticated, getAgent, clearAuth } from '@/lib/auth';
 import { useI18n } from '@/lib/i18n-provider';
 import { signOut, useSession } from '@/lib/auth-client';
 import { getAgentAvatarUrl } from '@/lib/avatar';
-import { Menu, Settings, Loader2, MessageSquare, Bot, Users, Plus, Compass, PanelLeftClose, Eye, UserPlus, Share2 } from 'lucide-react';
+import { Menu, Settings, Loader2, Bot, Users, Compass, PanelLeftClose, Eye, UserPlus, Share2, Target, Megaphone, MessageSquare } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -29,6 +29,8 @@ import { AgentProfileCard } from './AgentProfileCard';
 import { UserManagementDialog } from './UserManagementDialog';
 import { MobileLayout } from './MobileLayout';
 import { WelcomeOnboarding, hasCompletedOnboarding } from './WelcomeOnboarding';
+import { OpportunityList } from '@/components/opportunities/OpportunityList';
+import { RoomPostsView } from './RoomPostsView';
 
 interface ChatLayoutProps {
   children?: React.ReactNode;
@@ -86,7 +88,7 @@ function DesktopLayout() {
   const userHandle = (session?.user as any)?.twitterUsername || agent?.twitter_handle;
   const userAvatar = session?.user?.image;
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [showDiscover, setShowDiscover] = useState(true);
+  const [activeView, setActiveView] = useState<'opportunities' | 'discover'>('discover');
   const [showCreateRoom, setShowCreateRoom] = useState(false);
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const [selectedRoom, setSelectedRoom] = useState<any>(null);
@@ -94,6 +96,7 @@ function DesktopLayout() {
   const [realRooms, setRealRooms] = useState<MoltRoom[]>([]);
   const [isLoadingRooms, setIsLoadingRooms] = useState(true);
   const [showMemberPanel, setShowMemberPanel] = useState(false);
+  const [roomTab, setRoomTab] = useState<'posts' | 'chat'>('posts');
   const [profileAgentId, setProfileAgentId] = useState<string | null>(null);
   const [showAgentProfile, setShowAgentProfile] = useState(false);
   const [showUserManagement, setShowUserManagement] = useState(false);
@@ -122,6 +125,7 @@ function DesktopLayout() {
             isDm: false,
             timestamp: new Date(r.created_at).getTime(),
             agents: r.agents || [],
+            region: r.region ?? null,
           }));
           setRealRooms(rooms);
         }
@@ -136,6 +140,7 @@ function DesktopLayout() {
       setSelectedRoom(null);
       return;
     }
+    setRoomTab('posts'); // 每次进新 Room 默认显示广播墙
     setIsLoadingRoom(true);
     fetch(`/api/gateway/v1/rooms/${selectedRoomId}`)
       .then(res => res.json())
@@ -147,7 +152,7 @@ function DesktopLayout() {
       .catch(err => console.error('Failed to load room:', err))
       .finally(() => setIsLoadingRoom(false));
   }, [selectedRoomId]);
-  
+
   // 处理登出 — 清除所有认证状态
   const handleLogout = async () => {
     if (typeof window !== 'undefined') {
@@ -166,14 +171,16 @@ function DesktopLayout() {
       window.location.href = '/login';
     }
   };
-  
+
   const sidebarWidth = isSidebarCollapsed ? 'w-16' : 'w-72';
 
   const handleDiscoverSelect = useCallback((roomId: string) => {
     setSelectedRoomId(roomId);
-    setShowDiscover(false);
   }, []);
-  
+
+  // Active view check (room detail overrides discover)
+  const showingRoomDetail = selectedRoomId && activeView === 'discover';
+
   return (
     <div className="flex h-[100dvh] bg-background overflow-hidden">
       {/* 侧边栏 */}
@@ -201,7 +208,7 @@ function DesktopLayout() {
                   <Image src="/logo.png" alt="MoltChat" width={28} height={28} className="rounded-lg" />
                   <div>
                     <h2 className="text-lg font-semibold">MoltChat</h2>
-                    <p className="text-xs text-muted-foreground">{t('chat.subtitle') || 'Where AI Agents Socialize'}</p>
+                    <p className="text-xs text-muted-foreground">{t('chat.subtitle') || 'Let AI talk first'}</p>
                   </div>
                 </div>
                 <Button
@@ -217,65 +224,40 @@ function DesktopLayout() {
           </div>
         </div>
 
-        {/* 导航 */}
+        {/* 4-Tab 导航 */}
         <div className="p-2 space-y-1">
           <Button
-            variant={showDiscover ? 'secondary' : 'ghost'}
-            onClick={() => setShowDiscover(true)}
+            variant={activeView === 'opportunities' ? 'secondary' : 'ghost'}
+            onClick={() => { setActiveView('opportunities'); setSelectedRoomId(null); }}
+            className={cn(
+              'rounded-xl',
+              isSidebarCollapsed ? 'w-full h-10 p-0' : 'w-full justify-start gap-2'
+            )}
+          >
+            <Target className="h-5 w-5" />
+            {!isSidebarCollapsed && (t('tabs.opportunities') || 'Opportunities')}
+          </Button>
+          <Button
+            variant={activeView === 'discover' ? 'secondary' : 'ghost'}
+            onClick={() => { setActiveView('discover'); setSelectedRoomId(null); }}
             className={cn(
               'rounded-xl',
               isSidebarCollapsed ? 'w-full h-10 p-0' : 'w-full justify-start gap-2'
             )}
           >
             <Compass className="h-5 w-5" />
-            {!isSidebarCollapsed && t('chat.discover')}
-          </Button>
-          <Button
-            variant="ghost"
-            onClick={() => setShowCreateRoom(true)}
-            className={cn(
-              'rounded-xl',
-              isSidebarCollapsed ? 'w-full h-10 p-0' : 'w-full justify-start gap-2'
-            )}
-          >
-            <Plus className="h-5 w-5" />
-            {!isSidebarCollapsed && t('chat.createRoom')}
+            {!isSidebarCollapsed && (t('tabs.discover') || 'Discover')}
           </Button>
         </div>
 
-        {/* 房间列表占位 */}
-        <div className="flex-1 overflow-y-auto p-2">
-          {isSidebarCollapsed ? (
-            <div className="flex flex-col items-center py-4 text-muted-foreground">
-              <MessageSquare className="h-6 w-6 opacity-50" />
-            </div>
-          ) : (
-            <div className="px-1">
-              {userName && (
-                <p className="text-xs text-muted-foreground px-1 mb-2">{t('chat.yourRooms').replace('{name}', userName)}</p>
-              )}
-              <div className="text-center py-6 text-muted-foreground">
-                <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                <p className="text-xs opacity-70">{t('chat.noRooms')}</p>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="mt-2 text-xs rounded-xl"
-                  onClick={() => setShowCreateRoom(true)}
-                >
-                  <Plus className="h-3.5 w-3.5 mr-1" />
-                  {t('chat.createFirst')}
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
+        {/* Spacer */}
+        <div className="flex-1" />
 
         {/* 底部操作区 */}
         <div className={cn(
           isSidebarCollapsed ? 'p-2 space-y-1' : 'p-3 space-y-1.5'
         )}>
-          {/* 添加好友 */}
+          {/* 发起预筛 */}
           <Button
             variant="ghost"
             onClick={() => setShowAddFriend(true)}
@@ -285,7 +267,7 @@ function DesktopLayout() {
             )}
           >
             <UserPlus className="h-[18px] w-[18px] text-primary" />
-            {!isSidebarCollapsed && <span className="text-sm">{t('chat.addFriend') || '添加好友'}</span>}
+            {!isSidebarCollapsed && <span className="text-sm">{t('chat.requestPrescreen') || 'Pre-screen'}</span>}
           </Button>
           {/* 邀请分享 */}
           <Button
@@ -297,7 +279,7 @@ function DesktopLayout() {
             )}
           >
             <Share2 className="h-[18px] w-[18px] text-primary" />
-            {!isSidebarCollapsed && <span className="text-sm">{t('chat.inviteShare') || '邀请分享'}</span>}
+            {!isSidebarCollapsed && <span className="text-sm">{t('chat.inviteShare') || 'Invite'}</span>}
           </Button>
 
           {/* 通知 */}
@@ -335,33 +317,26 @@ function DesktopLayout() {
 
       {/* 主区域 */}
       <main className="flex-1 flex flex-col overflow-hidden">
-        {showDiscover ? (
-          <DiscoverView 
-            rooms={realRooms}
-            onRoomSelect={handleDiscoverSelect}
-            onCreateRoom={() => setShowCreateRoom(true)}
-            isLoading={isLoadingRooms}
-            onAgentClick={handleAgentClick}
-          />
-        ) : (
+        {activeView === 'opportunities' ? (
+          <OpportunityList />
+        ) : showingRoomDetail ? (
           <>
-            {/* 顶部栏 */}
+            {/* Room detail header */}
             <header className="h-14 md:h-16 bg-card/50 px-3 md:px-6 flex items-center justify-between flex-shrink-0 border-b border-border/30">
               <div className="flex items-center gap-2 md:gap-3 min-w-0">
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => { setShowDiscover(true); setSelectedRoomId(null); setShowMemberPanel(false); }}
+                  onClick={() => { setSelectedRoomId(null); }}
                   className="gap-2 rounded-xl text-muted-foreground hover:text-foreground px-2 md:px-3 flex-shrink-0"
                 >
-                    <Compass className="h-4 w-4" />
-                    <span className="hidden sm:inline">{t('chat.discover')}</span>
+                  <Compass className="h-4 w-4" />
+                  <span className="hidden sm:inline">{t('tabs.discover') || 'Discover'}</span>
                 </Button>
                 {selectedRoom && (
                   <>
                     <div className="w-px h-5 bg-border/40 flex-shrink-0" />
                     <span className="text-sm md:text-[15px] font-semibold ml-1 truncate">{selectedRoom.name}</span>
-                    {/* Agent 头像堆叠 - hide on small mobile */}
                     {selectedRoom.agents && selectedRoom.agents.length > 0 && (
                       <div className="hidden sm:flex items-center ml-3">
                         <div className="flex -space-x-1.5">
@@ -395,7 +370,6 @@ function DesktopLayout() {
                 )}
               </div>
               <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
-                {/* 成员面板切换 */}
                 {selectedRoom && (
                   <Button
                     variant={showMemberPanel ? 'secondary' : 'ghost'}
@@ -407,40 +381,66 @@ function DesktopLayout() {
                     <Users className="h-4 w-4" />
                   </Button>
                 )}
-                <div className="hidden md:block w-px h-5 bg-border/30 mx-1" />
-                <div className="hidden md:flex items-center gap-1.5">
-                  <div className="w-1.5 h-1.5 rounded-full bg-yellow-500" />
-                  <span className="text-[10px] text-muted-foreground">DEV</span>
-                </div>
                 <ThemeToggle />
               </div>
             </header>
 
-            {/* 房间内容区域 */}
+            {/* Room Tab Bar */}
+            {selectedRoom && (
+              <div className="flex items-center gap-1 px-4 border-b border-border/30 bg-card/30 flex-shrink-0">
+                <button
+                  onClick={() => setRoomTab('posts')}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium border-b-2 transition-colors',
+                    roomTab === 'posts'
+                      ? 'border-primary text-primary'
+                      : 'border-transparent text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  <Megaphone className="h-3.5 w-3.5" />
+                  需求广播墙
+                </button>
+                <button
+                  onClick={() => setRoomTab('chat')}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium border-b-2 transition-colors',
+                    roomTab === 'chat'
+                      ? 'border-primary text-primary'
+                      : 'border-transparent text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  <MessageSquare className="h-3.5 w-3.5" />
+                  聊天记录
+                </button>
+              </div>
+            )}
+
+            {/* Room content */}
             {isLoadingRoom ? (
               <div className="flex-1 flex items-center justify-center">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
               </div>
             ) : selectedRoom ? (
               <div className="flex-1 flex overflow-hidden">
-                {/* 聊天区域 - 真实消息 */}
                 <div className="flex-1 flex flex-col min-w-0">
+                  {roomTab === 'posts' ? (
+                    <RoomPostsView
+                      roomId={selectedRoomId!}
+                      roomName={selectedRoom.name}
+                    />
+                  ) : (
                   <RealChatMessages
                     roomId={selectedRoomId!}
                     agents={selectedRoom.agents || []}
                     roomName={selectedRoom.name}
                     onAgentClick={handleAgentClick}
                   />
+                  )}
                 </div>
-
-                {/* 右侧成员面板 */}
                 {showMemberPanel && (
                   <div className="w-80 border-l border-border/30 bg-card flex flex-col overflow-hidden animate-in slide-in-from-right-5 duration-200">
-                    {/* 房间信息 */}
                     <div className="px-5 py-5 border-b border-border/30">
-                      <div className="flex items-start justify-between">
-                        <h3 className="text-base font-semibold mb-2">{selectedRoom.name}</h3>
-                      </div>
+                      <h3 className="text-base font-semibold mb-2">{selectedRoom.name}</h3>
                       {selectedRoom.description && (
                         <p className="text-sm text-muted-foreground leading-relaxed">{selectedRoom.description}</p>
                       )}
@@ -455,7 +455,6 @@ function DesktopLayout() {
                         </span>
                       </div>
                     </div>
-                    {/* 成员列表 */}
                     <div className="flex-1 overflow-y-auto px-4 py-4">
                       <p className="text-xs font-medium text-muted-foreground mb-3">{t('chat.members')} ({selectedRoom.agents?.length || 0})</p>
                       <div className="space-y-1">
@@ -466,11 +465,7 @@ function DesktopLayout() {
                             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-accent/50 transition-colors cursor-pointer text-left"
                           >
                             <div className="relative flex-shrink-0">
-                              <img
-                                src={getAgentAvatarUrl(a.name)}
-                                alt={a.name}
-                                className="w-9 h-9 rounded-full"
-                              />
+                              <img src={getAgentAvatarUrl(a.name)} alt={a.name} className="w-9 h-9 rounded-full" />
                               <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-card" />
                             </div>
                             <div className="flex-1 min-w-0">
@@ -486,40 +481,28 @@ function DesktopLayout() {
                   </div>
                 )}
               </div>
-            ) : (
-              /* 未选中房间时的占位 */
-              <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground p-8">
-                <div className="max-w-md text-center">
-                  <Compass className="h-12 w-12 sm:h-16 sm:w-16 mx-auto mb-4 text-primary opacity-50" />
-                  <h2 className="text-lg sm:text-xl font-semibold mb-2">{t('chat.selectRoom')}</h2>
-                  <p className="text-sm mb-6">
-                    {t('chat.selectRoomDesc')}
-                  </p>
-                  <div className="flex gap-3 justify-center">
-                    <Button onClick={() => setShowDiscover(true)} className="rounded-xl">
-                      <Compass className="h-4 w-4 mr-1" />
-                      {t('chat.browseRooms')}
-                    </Button>
-                    <Button variant="outline" onClick={() => setShowCreateRoom(true)} className="rounded-xl">
-                      <Plus className="h-4 w-4 mr-1" />
-                      {t('chat.createRoom')}
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            )}
+            ) : null}
           </>
+        ) : (
+          /* Discover view (no room selected) */
+          <DiscoverView
+            rooms={realRooms}
+            onRoomSelect={handleDiscoverSelect}
+            onCreateRoom={() => setShowCreateRoom(true)}
+            isLoading={isLoadingRooms}
+            onAgentClick={handleAgentClick}
+          />
         )}
       </main>
 
       {/* 创建房间弹窗 */}
-      <CreateRoomDialog 
-        open={showCreateRoom} 
+      <CreateRoomDialog
+        open={showCreateRoom}
         onOpenChange={setShowCreateRoom}
         onCreated={(roomId: string) => {
           console.log('Room created:', roomId);
           setShowCreateRoom(false);
-          setShowDiscover(false);
+          setActiveView('discover');
         }}
       />
 

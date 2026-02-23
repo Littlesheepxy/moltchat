@@ -22,7 +22,7 @@ echo ""
 echo "=== Step 1: 检查当前资料状态 ==="
 echo ""
 
-STATUS=$(curl -s "http://localhost:3001/v1/agents/me/profile-status?agent_id=$AGENT_ID")
+STATUS=$(curl -s "http://localhost:3002/v1/agents/me/profile-status?agent_id=$AGENT_ID")
 echo "$STATUS" | jq '{
   can_use_dm: .data.can_use_dm,
   completion_rate: .data.completion_rate,
@@ -59,7 +59,7 @@ echo "✓ 资料已清空"
 echo ""
 
 # 再次检查状态
-STATUS=$(curl -s "http://localhost:3001/v1/agents/me/profile-status?agent_id=$AGENT_ID")
+STATUS=$(curl -s "http://localhost:3002/v1/agents/me/profile-status?agent_id=$AGENT_ID")
 echo "当前完成度: $(echo "$STATUS" | jq -r '.data.completion_rate')%"
 echo ""
 echo "---"
@@ -77,7 +77,7 @@ echo "Owner: 我叫 Sarah"
 echo ""
 echo "Agent: 正在保存..."
 
-RESULT=$(curl -s -X PATCH "http://localhost:3001/v1/agents/me/owner/profile?agent_id=$AGENT_ID" \
+RESULT=$(curl -s -X PATCH "http://localhost:3002/v1/agents/me/owner/profile?agent_id=$AGENT_ID" \
   -H "Content-Type: application/json" \
   -d '{
     "display_name": "Sarah"
@@ -111,7 +111,7 @@ echo "Owner: 我在 AI/Machine Learning 行业做 Senior Research Engineer"
 echo ""
 echo "Agent: 正在解析并保存..."
 
-RESULT=$(curl -s -X PATCH "http://localhost:3001/v1/agents/me/owner/profile?agent_id=$AGENT_ID" \
+RESULT=$(curl -s -X PATCH "http://localhost:3002/v1/agents/me/owner/profile?agent_id=$AGENT_ID" \
   -H "Content-Type: application/json" \
   -d '{
     "industry": "AI/Machine Learning",
@@ -149,7 +149,7 @@ echo "       公司：Google，地点：San Francisco"
 echo ""
 echo "Agent: 正在解析并保存..."
 
-RESULT=$(curl -s -X PATCH "http://localhost:3001/v1/agents/me/owner/profile?agent_id=$AGENT_ID" \
+RESULT=$(curl -s -X PATCH "http://localhost:3002/v1/agents/me/owner/profile?agent_id=$AGENT_ID" \
   -H "Content-Type: application/json" \
   -d '{
     "bio": "I am an AI researcher with 8+ years of experience in machine learning, natural language processing, and AI safety. My focus areas include constitutional AI, RLHF, and responsible AI development.",
@@ -192,7 +192,7 @@ echo "Owner: AI Safety, Constitutional AI, RLHF, Ethics"
 echo ""
 echo "Agent: 正在更新我的配置..."
 
-RESULT=$(curl -s -X PATCH "http://localhost:3001/v1/agents/me/config?agent_id=$AGENT_ID" \
+RESULT=$(curl -s -X PATCH "http://localhost:3002/v1/agents/me/config?agent_id=$AGENT_ID" \
   -H "Content-Type: application/json" \
   -d '{
     "agent_role": "Research Assistant specializing in AI safety and constitutional AI principles, tracking latest developments and providing technical insights",
@@ -222,7 +222,7 @@ echo ""
 echo "=== Step 7: 最终资料完整度检查 ==="
 echo ""
 
-STATUS=$(curl -s "http://localhost:3001/v1/agents/me/profile-status?agent_id=$AGENT_ID")
+STATUS=$(curl -s "http://localhost:3002/v1/agents/me/profile-status?agent_id=$AGENT_ID")
 
 CAN_USE_DM=$(echo "$STATUS" | jq -r '.data.can_use_dm')
 RATE=$(echo "$STATUS" | jq -r '.data.completion_rate')
@@ -253,7 +253,7 @@ if [ "$CAN_USE_DM" = "true" ]; then
   echo ""
   echo "Agent: 太好了！资料已完成，让我试试发送 DM..."
   
-  DM_RESULT=$(curl -s -X POST "http://localhost:3001/v1/dm/request?agent_id=$AGENT_ID" \
+  DM_RESULT=$(curl -s -X POST "http://localhost:3002/v1/dm/request?agent_id=$AGENT_ID" \
     -H "Content-Type: application/json" \
     -d '{
       "to_agent_id": "69fa5b97-4ea1-4e30-a4e0-8c032a89ec27",

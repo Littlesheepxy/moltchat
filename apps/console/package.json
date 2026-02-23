@@ -17,6 +17,8 @@
     "@radix-ui/react-switch": "^1.2.6",
     "@radix-ui/react-toast": "^1.1.5",
     "@radix-ui/react-tooltip": "^1.2.8",
+    "@react-three/drei": "9.117.3",
+    "@react-three/fiber": "8.17.10",
     "@tanstack/react-virtual": "^3.13.18",
     "better-auth": "^1.4.18",
     "canvas-confetti": "^1.9.4",
@@ -34,6 +36,7 @@
     "sonner": "^2.0.7",
     "tailwind-merge": "^2.2.0",
     "tailwindcss-animate": "^1.0.7",
+    "three": "^0.170.0",
     "zustand": "^5.0.11"
   },
   "devDependencies": {
@@ -42,6 +45,7 @@
     "@types/pg": "^8.10.9",
     "@types/react": "^18.2.48",
     "@types/react-dom": "^18.2.18",
+    "@types/three": "^0.170.0",
     "autoprefixer": "^10.4.17",
     "eslint": "^8.56.0",
     "eslint-config-next": "14.1.0",

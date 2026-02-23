@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useSession, signOut } from '@/lib/auth-client';
+import { Shield } from 'lucide-react';
 
 const GATEWAY_URL = '/api/gateway';
 
@@ -55,6 +56,11 @@ export default function SettingsPage() {
   const [topics, setTopics] = useState('');
   const [notificationLevel, setNotificationLevel] = useState('important');
 
+  // Budget state
+  const [inboundLimit, setInboundLimit] = useState(30);
+  const [budgetUsed, setBudgetUsed] = useState(0);
+  const [savingBudget, setSavingBudget] = useState(false);
+
   // Redirect if not logged in
   useEffect(() => {
     if (!sessionLoading && !session) {
@@ -69,9 +75,13 @@ export default function SettingsPage() {
     const fetchProfile = async () => {
       try {
         setLoading(true);
-        const res = await fetch('/api/gateway/v1/owners/me/profile');
-        const data = await res.json();
-        
+        const [profileRes, budgetRes] = await Promise.all([
+          fetch('/api/gateway/v1/owners/me/profile'),
+          fetch('/api/gateway/v1/protocol/budget'),
+        ]);
+        const data = await profileRes.json();
+        const budgetData = await budgetRes.json();
+
         if (data.success) {
           setProfile(data.data.profile);
           setUser(data.data.user);
@@ -82,6 +92,11 @@ export default function SettingsPage() {
           setNotificationLevel(data.data.profile?.notification_level || 'important');
         } else {
           setError(data.error?.message || 'Failed to load profile');
+        }
+
+        if (budgetData.success) {
+          setInboundLimit(budgetData.data.preferences?.inbound_limit ?? 30);
+          setBudgetUsed(budgetData.data.inbound?.used ?? 0);
         }
       } catch (err) {
         setError('Failed to connect to server');
@@ -132,6 +147,27 @@ export default function SettingsPage() {
   const handleSignOut = async () => {
     await signOut();
     router.push('/');
+  };
+
+  const handleSaveBudget = async () => {
+    setSavingBudget(true);
+    try {
+      const res = await fetch('/api/gateway/v1/protocol/budget/preferences', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ inbound_limit: inboundLimit }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success('Budget updated');
+      } else {
+        toast.error(data.error?.message || 'Failed to update budget');
+      }
+    } catch {
+      toast.error('Failed to update budget');
+    } finally {
+      setSavingBudget(false);
+    }
   };
 
   // Loading states
@@ -262,6 +298,77 @@ export default function SettingsPage() {
 
           <Button onClick={handleSave} disabled={saving}>
             {saving ? 'Saving...' : 'Save Changes'}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Inbound Budget */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Shield className="h-5 w-5 text-primary" />
+            Inbound Budget
+          </CardTitle>
+          <CardDescription>
+            How many pre-screening requests you can receive per day. Set to -1 for unlimited.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-4">
+            <div className="flex-1">
+              <Label htmlFor="inboundLimit">Daily Limit</Label>
+              <div className="flex items-center gap-2 mt-1">
+                <Input
+                  id="inboundLimit"
+                  type="number"
+                  min={-1}
+                  max={999}
+                  value={inboundLimit}
+                  onChange={(e) => setInboundLimit(parseInt(e.target.value, 10) || 0)}
+                  className="w-24"
+                />
+                <span className="text-sm text-muted-foreground">
+                  {inboundLimit === -1 ? 'Unlimited' : `per day`}
+                </span>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-sm text-muted-foreground">Today</p>
+              <p className="text-lg font-semibold">
+                {budgetUsed} / {inboundLimit === -1 ? '∞' : inboundLimit}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setInboundLimit(30)}
+              className={inboundLimit === 30 ? 'border-primary' : ''}
+            >
+              30/day
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setInboundLimit(100)}
+              className={inboundLimit === 100 ? 'border-primary' : ''}
+            >
+              100/day
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setInboundLimit(-1)}
+              className={inboundLimit === -1 ? 'border-primary' : ''}
+            >
+              Unlimited
+            </Button>
+          </div>
+
+          <Button onClick={handleSaveBudget} disabled={savingBudget} size="sm">
+            {savingBudget ? 'Saving...' : 'Save Budget'}
           </Button>
         </CardContent>
       </Card>

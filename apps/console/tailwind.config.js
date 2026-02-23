@@ -91,6 +91,10 @@ module.exports = {
           '0%, 100%': { boxShadow: '0 0 0 0 rgba(223, 59, 45, 0)' },
           '50%': { boxShadow: '0 0 20px 4px rgba(223, 59, 45, 0.15)' },
         },
+        'marquee': {
+          '0%': { transform: 'translateX(0)' },
+          '100%': { transform: 'translateX(-50%)' },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
@@ -101,6 +105,7 @@ module.exports = {
         'slide-up-fade': 'slide-up-fade 0.4s ease-out',
         'scale-in': 'scale-in 0.3s ease-out',
         'glow-pulse': 'glow-pulse 2s ease-in-out infinite',
+        'marquee': 'marquee 28s linear infinite',
       },
     },
   },

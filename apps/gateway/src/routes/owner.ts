@@ -65,6 +65,8 @@ const agentUpdateOwnerProfileSchema = z.object({
   education_level: z.enum(EDUCATION_LEVELS).optional(),
   website_url: z.string().url().max(500).optional(),
   linkedin_url: z.string().url().max(500).optional(),
+  looking_for: z.string().max(500).optional(),
+  can_offer: z.string().max(500).optional(),
 });
 
 // Human-facing profile update schema (full structured fields)
@@ -83,6 +85,8 @@ const updateOwnerProfileSchema = z.object({
   education_level: z.enum(['High School', 'Associate', 'Bachelor', 'Master', 'PhD', 'Other']).nullable().optional(),
   website_url: z.string().max(500).optional(),
   linkedin_url: z.string().max(500).optional(),
+  looking_for: z.string().max(500).optional(),
+  can_offer: z.string().max(500).optional(),
 });
 
 const updateAgentConfigSchema = z.object({
@@ -96,6 +100,8 @@ const updateAgentConfigSchema = z.object({
   avoid_topics: z.array(z.string()).max(20).optional(),
   // Agent bio (stored on agents table, not agent_owner_config)
   agent_bio: z.string().max(2000).optional(),
+  // Polling frequency
+  poll_interval_seconds: z.number().int().min(10).max(300).optional(),
 });
 
 const sendPromptSchema = z.object({
@@ -124,6 +130,8 @@ interface OwnerProfileRow {
   education_level: string | null;
   website_url: string | null;
   linkedin_url: string | null;
+  looking_for: string | null;
+  can_offer: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -140,6 +148,7 @@ interface AgentConfigRow {
   focus_topics: string[];
   avoid_topics: string[];
   messages_per_session: number;
+  poll_interval_seconds: number;
   created_at: Date;
   updated_at: Date;
 }
@@ -638,6 +647,7 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
         focus_topics: agentConfig.focus_topics,
         avoid_topics: agentConfig.avoid_topics,
         messages_per_session: agentConfig.messages_per_session ?? 100,
+        poll_interval_seconds: agentConfig.poll_interval_seconds ?? 10,
       } : null,
       unread_prompts: unreadPrompts.map(p => ({
         id: p.id,
@@ -780,6 +790,8 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
         education_level: owner!.education_level || null,
         website_url: owner!.website_url || null,
         linkedin_url: owner!.linkedin_url || null,
+        looking_for: owner!.looking_for || null,
+        can_offer: owner!.can_offer || null,
         created_at: owner!.created_at.toISOString(),
         updated_at: owner!.updated_at.toISOString(),
       },
@@ -835,6 +847,8 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
       education_level: 'education_level',
       website_url: 'website_url',
       linkedin_url: 'linkedin_url',
+      looking_for: 'looking_for',
+      can_offer: 'can_offer',
     };
 
     for (const [key, dbCol] of Object.entries(fieldMap)) {
@@ -874,6 +888,8 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
         education_level: owner.education_level || null,
         website_url: owner.website_url || null,
         linkedin_url: owner.linkedin_url || null,
+        looking_for: owner.looking_for || null,
+        can_offer: owner.can_offer || null,
         updated_at: owner.updated_at.toISOString(),
       },
     });

@@ -333,7 +333,7 @@ export function AgentProfileCard({ agentId, agentName, open, onOpenChange }: Age
                 {/* Topics */}
                 {profile.owner.topics && (
                   <div className="mt-3 flex flex-wrap gap-1.5">
-                    {profile.owner.topics.split(',').map((topic, i) => (
+                    {(Array.isArray(profile.owner.topics) ? profile.owner.topics : String(profile.owner.topics).split(',')).map((topic, i) => (
                       <span
                         key={i}
                         className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-primary/8 text-primary/80 border border-primary/10"

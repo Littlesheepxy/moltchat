@@ -65,6 +65,39 @@ interface DiscoverViewProps {
   onAgentClick?: (agentId: string) => void;
 }
 
+// 地区 slug → 显示名称
+const REGION_LABELS: Record<string, string> = {
+  'region-global': '全球 / Global',
+  'region-beijing': '北京',
+  'region-shanghai': '上海',
+  'region-shenzhen': '深圳',
+  'region-guangzhou': '广州',
+  'region-hangzhou': '杭州',
+  'region-chengdu': '成都',
+  'region-wuhan': '武汉',
+  'region-nanjing': '南京',
+  'region-xian': '西安',
+  'region-china-other': '其他中国城市',
+  'region-hongkong': '香港',
+  'region-taiwan': '台湾',
+  'region-macau': '澳门',
+  'region-singapore': '新加坡',
+  'region-japan': '日本',
+  'region-korea': '韩国',
+  'region-sea': '东南亚',
+  'region-australia': '澳大利亚',
+  'region-sf-bay': '旧金山湾区',
+  'region-newyork': '纽约',
+  'region-la': '洛杉矶',
+  'region-seattle': '西雅图',
+  'region-na-other': '其他北美',
+  'region-london': '伦敦',
+  'region-berlin': '柏林',
+  'region-eu-other': '其他欧洲',
+  'region-middleeast': '中东',
+  'region-other': '其他地区',
+};
+
 // 标签类型定义
 interface TagInfo {
   text: string;
@@ -279,6 +312,13 @@ function RoomCard({
               {room.topic}
             </CardDescription>
           )}
+          {room.region && (
+            <div className="mb-2">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-muted/60 text-muted-foreground">
+                🌏 {REGION_LABELS[room.region] ?? room.region}
+              </span>
+            </div>
+          )}
           
           {/* Bottom: Agent Avatars + Stats + Share */}
           <div className="flex items-center justify-between">
@@ -330,6 +370,7 @@ export function DiscoverView({
   const { t, locale } = useI18n();
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'recent' | 'popular' | 'active'>('recent');
+  const [regionFilter, setRegionFilter] = useState('');
   const [agents, setAgents] = useState<AgentItem[]>([]);
   const [owners, setOwners] = useState<OwnerItem[]>([]);
   const [isLoadingDirectory, setIsLoadingDirectory] = useState(true);
@@ -369,6 +410,11 @@ export function DiscoverView({
       );
     }
 
+    // 地区过滤
+    if (regionFilter) {
+      result = result.filter(room => room.region === regionFilter);
+    }
+
     // 排序
     switch (sortBy) {
       case 'popular':
@@ -384,7 +430,7 @@ export function DiscoverView({
     }
 
     return result;
-  }, [displayRooms, searchQuery, sortBy]);
+  }, [displayRooms, searchQuery, sortBy, regionFilter]);
 
   // Trending rooms = top 3 by member count
   const trendingRooms = useMemo(() => {
@@ -451,7 +497,7 @@ export function DiscoverView({
             )}
           </div>
 
-          {/* 筛选按钮 - 移动端在第二行 */}
+          {/* 排序按钮 - 移动端在第二行 */}
           <div className="flex gap-1 bg-muted/50 rounded-xl p-0.5 order-3 w-full sm:w-auto sm:order-2">
             {(['recent', 'popular', 'active'] as const).map((filter) => (
               <button
@@ -465,6 +511,36 @@ export function DiscoverView({
                 )}
               >
                 {sortLabels[filter] || filter}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* 地区筛选 */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-muted-foreground flex-shrink-0">🌏 地区</span>
+          <div className="flex gap-1.5 flex-wrap">
+            {[
+              { slug: '', label: '全部' },
+              { slug: 'region-beijing', label: '北京' },
+              { slug: 'region-shanghai', label: '上海' },
+              { slug: 'region-shenzhen', label: '深圳' },
+              { slug: 'region-hangzhou', label: '杭州' },
+              { slug: 'region-singapore', label: '新加坡' },
+              { slug: 'region-sf-bay', label: '湾区' },
+              { slug: 'region-global', label: '全球' },
+            ].map(({ slug, label }) => (
+              <button
+                key={slug}
+                onClick={() => setRegionFilter(slug)}
+                className={cn(
+                  'px-2.5 py-1 rounded-lg text-xs font-medium transition-all',
+                  regionFilter === slug
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted'
+                )}
+              >
+                {label}
               </button>
             ))}
           </div>

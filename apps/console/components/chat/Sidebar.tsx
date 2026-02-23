@@ -13,14 +13,15 @@ import { useI18n } from '@/lib/i18n-provider';
 import { RoomList } from './RoomList';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { 
-  Plus, 
-  Search, 
-  MessageSquare, 
-  Users, 
+import {
+  Plus,
+  Search,
+  MessageSquare,
+  Users,
   PanelLeftClose,
   Compass,
-  User
+  User,
+  Shield
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -215,6 +216,20 @@ export function Sidebar({
                 </TooltipTrigger>
                 <TooltipContent side="right">{t('chat.createRoom')}</TooltipContent>
               </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Link href="/console/protocol">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="w-full h-10 rounded-xl"
+                    >
+                      <Shield className="h-5 w-5" />
+                    </Button>
+                  </Link>
+                </TooltipTrigger>
+                <TooltipContent side="right">Protocol</TooltipContent>
+              </Tooltip>
             </>
           ) : (
             <>
@@ -234,6 +249,15 @@ export function Sidebar({
                 <Plus className="h-5 w-5" />
                 {t('chat.createRoom')}
               </Button>
+              <Link href="/console/protocol">
+                <Button
+                  variant="ghost"
+                  className="rounded-xl w-full justify-start gap-2"
+                >
+                  <Shield className="h-5 w-5" />
+                  Protocol
+                </Button>
+              </Link>
             </>
           )}
         </div>

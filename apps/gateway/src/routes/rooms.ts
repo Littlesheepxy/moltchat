@@ -18,7 +18,13 @@ const createRoomSchema = z.object({
     allow_observer: z.boolean().optional().default(true),
     is_public: z.boolean().optional().default(false),
   }).optional(),
-  tag_ids: z.array(z.string().uuid()).max(5).optional(),  // 创建时选择标签
+  tag_ids: z.array(z.string().uuid()).max(5).optional(),  // 创建时选择标签（UUID）
+  tag_slugs: z.array(z.string().max(100)).max(5).optional(),  // 创建时选择标签（slug，自动转 UUID）
+  explore: z.object({
+    enabled: z.boolean().optional().default(false),
+    rounds: z.number().int().min(2).max(20).optional().default(10),
+    interval_minutes: z.number().int().min(10).max(1440).optional().default(60),
+  }).optional(),
 });
 
 const updateVisibilitySchema = z.object({
@@ -149,11 +155,13 @@ export async function roomRoutes(fastify: FastifyInstance): Promise<void> {
       agent_count: string; 
       message_count: string;
       category_name: string | null;
+      region_slug: string | null;
     }>(
       `SELECT r.*, 
               (SELECT COUNT(*) FROM room_members rm WHERE rm.room_id = r.id) as agent_count,
               (SELECT COUNT(*) FROM enforcement_logs el WHERE el.room_id = r.id AND el.action = 'message_sent') as message_count,
-              (SELECT t.name FROM room_tags rt JOIN tags t ON rt.tag_id = t.id WHERE rt.room_id = r.id LIMIT 1) as category_name
+              (SELECT t.name FROM room_tags rt JOIN tags t ON rt.tag_id = t.id WHERE rt.room_id = r.id AND t.category_id != 'region' LIMIT 1) as category_name,
+              (SELECT t.slug FROM room_tags rt JOIN tags t ON rt.tag_id = t.id WHERE rt.room_id = r.id AND t.category_id = 'region' LIMIT 1) as region_slug
        FROM rooms r
        WHERE ${whereClause}
        ORDER BY ${orderClause}
@@ -182,6 +190,7 @@ export async function roomRoutes(fastify: FastifyInstance): Promise<void> {
         matrix_room_id: room.matrix_room_id,
         element_room_url: room.element_room_url,
         category: room.category_name,
+        region: room.region_slug ?? null,
         is_public: room.is_public,
         last_activity: room.updated_at?.toISOString() || room.created_at.toISOString(),
         created_at: room.created_at.toISOString(),
@@ -378,7 +387,17 @@ export async function roomRoutes(fastify: FastifyInstance): Promise<void> {
       );
     }
 
-    const { name, description, settings, tag_ids } = parseResult.data;
+    const { name, description, settings, tag_ids, tag_slugs, explore } = parseResult.data;
+
+    // Resolve tag_slugs to UUIDs and merge with tag_ids
+    let resolvedTagIds: string[] = tag_ids ?? [];
+    if (tag_slugs && tag_slugs.length > 0) {
+      const slugTags = await queryMany<{ id: string }>(
+        `SELECT id FROM tags WHERE slug = ANY($1) AND status = 'active'`,
+        [tag_slugs]
+      );
+      resolvedTagIds = [...new Set([...resolvedTagIds, ...slugTags.map(t => t.id)])];
+    }
 
     // Create Matrix room if enabled
     let matrixRoomId: string | null = null;
@@ -400,8 +419,8 @@ export async function roomRoutes(fastify: FastifyInstance): Promise<void> {
 
     // Create room with owner_type field
     const room = await queryOne<RoomRow>(
-      `INSERT INTO rooms (name, description, owner_id, owner_type, invite_only, allow_observer, is_public, public_slug, matrix_room_id, element_room_url)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      `INSERT INTO rooms (name, description, owner_id, owner_type, invite_only, allow_observer, is_public, public_slug, matrix_room_id, element_room_url, explore_enabled, explore_rounds, explore_interval_minutes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        RETURNING *`,
       [
         name,
@@ -414,6 +433,9 @@ export async function roomRoutes(fastify: FastifyInstance): Promise<void> {
         publicSlug,
         matrixRoomId,
         elementRoomUrl,
+        explore?.enabled ?? false,
+        explore?.rounds ?? 10,
+        explore?.interval_minutes ?? 60,
       ]
     );
 
@@ -448,17 +470,17 @@ export async function roomRoutes(fastify: FastifyInstance): Promise<void> {
 
     // Add tags if provided
     let roomTags: { id: string; name: string; slug: string }[] = [];
-    if (tag_ids && tag_ids.length > 0) {
-      const values = tag_ids.map((tagId, i) => `($1, $${i + 2}, 'manual')`).join(', ');
+    if (resolvedTagIds.length > 0) {
+      const values = resolvedTagIds.map((tagId, i) => `($1, $${i + 2}, 'manual')`).join(', ');
       await query(
         `INSERT INTO room_tags (room_id, tag_id, source) VALUES ${values}
          ON CONFLICT (room_id, tag_id) DO NOTHING`,
-        [room.id, ...tag_ids]
+        [room.id, ...resolvedTagIds]
       );
       
       const tags = await queryMany<{ id: string; name: string; slug: string }>(
         `SELECT id, name, slug FROM tags WHERE id = ANY($1)`,
-        [tag_ids]
+        [resolvedTagIds]
       );
       roomTags = tags;
     }
@@ -477,6 +499,11 @@ export async function roomRoutes(fastify: FastifyInstance): Promise<void> {
           invite_only: room.invite_only,
           allow_observer: room.allow_observer,
           is_public: room.is_public,
+        },
+        explore: {
+          enabled: (room as any).explore_enabled,
+          rounds: (room as any).explore_rounds,
+          interval_minutes: (room as any).explore_interval_minutes,
         },
         is_public: room.is_public,
         public_slug: room.public_slug,
@@ -548,6 +575,12 @@ export async function roomRoutes(fastify: FastifyInstance): Promise<void> {
           invite_only: room.invite_only,
           allow_observer: room.allow_observer,
         },
+        explore: {
+          enabled: (room as any).explore_enabled,
+          rounds: (room as any).explore_rounds,
+          interval_minutes: (room as any).explore_interval_minutes,
+          last_explored_at: (room as any).last_explored_at,
+        },
         matrix_room_id: room.matrix_room_id,
         element_room_url: room.element_room_url,
         agent_count: agentCount,
@@ -557,6 +590,101 @@ export async function roomRoutes(fastify: FastifyInstance): Promise<void> {
           twitter_handle: m.twitter_handle,
         })),
         created_at: room.created_at.toISOString(),
+      },
+    });
+  });
+
+  /**
+   * PATCH /v1/rooms/:id/explore-settings
+   * Configure auto-explore for a room (room owner only)
+   */
+  fastify.patch<{
+    Params: { id: string };
+  }>('/v1/rooms/:id/explore-settings', async (request, reply) => {
+    const { id } = request.params;
+
+    // Try agent auth, then user session
+    const agentAuth = await verifyAgentToken(request);
+    const userAuth = agentAuth ? null : await verifyUserSession(request);
+
+    if (!agentAuth && !userAuth) {
+      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Authentication required', 401);
+    }
+
+    // Verify ownership
+    const room = await queryOne<{ owner_id: string; owner_type: string }>(
+      `SELECT owner_id, owner_type FROM rooms WHERE id = $1 AND status = 'active'`,
+      [id],
+    );
+
+    if (!room) {
+      throw new AppError(ERROR_CODES.NOT_FOUND, 'Room not found', 404);
+    }
+
+    const isOwner = agentAuth
+      ? room.owner_id === agentAuth.agentId
+      : room.owner_id === `user:${userAuth!.userId}`;
+
+    if (!isOwner) {
+      throw new AppError(ERROR_CODES.FORBIDDEN, 'Only the room owner can configure explore settings', 403);
+    }
+
+    const schema = z.object({
+      enabled: z.boolean().optional(),
+      rounds: z.number().int().min(2).max(20).optional(),
+      interval_minutes: z.number().int().min(10).max(1440).optional(),
+    });
+
+    const parseResult = schema.safeParse(request.body);
+    if (!parseResult.success) {
+      throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Invalid explore settings', 400);
+    }
+
+    const data = parseResult.data;
+    const setClauses: string[] = ['updated_at = NOW()'];
+    const params: unknown[] = [];
+    let paramIdx = 1;
+
+    if (data.enabled !== undefined) {
+      setClauses.push(`explore_enabled = $${paramIdx}`);
+      params.push(data.enabled);
+      paramIdx++;
+    }
+    if (data.rounds !== undefined) {
+      setClauses.push(`explore_rounds = $${paramIdx}`);
+      params.push(data.rounds);
+      paramIdx++;
+    }
+    if (data.interval_minutes !== undefined) {
+      setClauses.push(`explore_interval_minutes = $${paramIdx}`);
+      params.push(data.interval_minutes);
+      paramIdx++;
+    }
+
+    params.push(id);
+    await query(
+      `UPDATE rooms SET ${setClauses.join(', ')} WHERE id = $${paramIdx}`,
+      params,
+    );
+
+    // Fetch updated room
+    const updated = await queryOne<{
+      explore_enabled: boolean;
+      explore_rounds: number;
+      explore_interval_minutes: number;
+      last_explored_at: Date | null;
+    }>(
+      `SELECT explore_enabled, explore_rounds, explore_interval_minutes, last_explored_at
+       FROM rooms WHERE id = $1`,
+      [id],
+    );
+
+    return successResponse({
+      explore: {
+        enabled: updated!.explore_enabled,
+        rounds: updated!.explore_rounds,
+        interval_minutes: updated!.explore_interval_minutes,
+        last_explored_at: updated!.last_explored_at,
       },
     });
   });
@@ -638,6 +766,51 @@ export async function roomRoutes(fastify: FastifyInstance): Promise<void> {
     if (room.matrix_room_id && agent.matrix_user_id && agent.matrix_access_token) {
       await inviteAgentToRoom(room.matrix_room_id, agent.matrix_user_id);
       await agentJoinRoom(room.matrix_room_id, agent.matrix_user_id, agent.matrix_access_token);
+    }
+
+    // Auto-publish agent broadcast card
+    // Load owner profile to build broadcast content
+    const ownerProfile = await queryOne<{
+      owner_user_id: string;
+      display_name: string | null;
+      industry: string | null;
+      job_title: string | null;
+      looking_for: string | null;
+      can_offer: string | null;
+    }>(
+      `SELECT a.owner_user_id, op.display_name, op.industry, op.job_title,
+              op.looking_for, op.can_offer
+       FROM agents a
+       LEFT JOIN owner_profiles op ON op.user_id = a.owner_user_id
+       WHERE a.id = $1`,
+      [authResult.agentId],
+    );
+
+    if (ownerProfile?.owner_user_id) {
+      const name = ownerProfile.display_name || '未知用户';
+      const role = [ownerProfile.job_title, ownerProfile.industry].filter(Boolean).join(' · ');
+      const lookingFor = ownerProfile.looking_for;
+      const canOffer = ownerProfile.can_offer;
+
+      // Build broadcast text
+      const lines: string[] = [`👋 ${name} 加入了这个 Room`];
+      if (role) lines.push(`🏷 ${role}`);
+      if (lookingFor) lines.push(`🔍 寻找  ${lookingFor}`);
+      if (canOffer) lines.push(`💡 提供  ${canOffer}`);
+      if (!lookingFor && !canOffer) lines.push('📋 资料待完善，可以向 Agent 了解更多');
+
+      const broadcastContent = lines.join('\n');
+
+      // Upsert: if agent already has a broadcast in this room, update it
+      await query(
+        `INSERT INTO room_posts
+           (room_id, author_user_id, author_agent_id, post_type, content, expires_at)
+         VALUES ($1, $2, $3, 'agent_broadcast', $4, NULL)
+         ON CONFLICT (room_id, author_agent_id)
+         WHERE post_type = 'agent_broadcast' AND status = 'active'
+         DO UPDATE SET content = EXCLUDED.content, updated_at = NOW()`,
+        [id, ownerProfile.owner_user_id, authResult.agentId, broadcastContent],
+      );
     }
 
     return successResponse({
@@ -1069,4 +1242,222 @@ export async function roomRoutes(fastify: FastifyInstance): Promise<void> {
       rooms: rooms.map(r => ({ id: r.room_id, name: r.room_name })),
     });
   });
+
+  // ============================================
+  // Room Posts API
+  // ============================================
+
+  /**
+   * GET /v1/rooms/:id/posts
+   * 获取 Room 的卡片流（Agent 广播 + 临时需求）
+   */
+  fastify.get<{ Params: { id: string } }>('/v1/rooms/:id/posts', async (request, reply) => {
+    const { id } = request.params;
+
+    // Expire stale posts first
+    await query(
+      `UPDATE room_posts SET status = 'expired'
+       WHERE room_id = $1 AND expires_at < NOW() AND status = 'active'`,
+      [id],
+    );
+
+    const posts = await queryMany<{
+      id: string;
+      post_type: string;
+      request_type: string | null;
+      title: string | null;
+      content: string;
+      structured_data: unknown;
+      expires_at: Date | null;
+      response_count: number;
+      status: string;
+      created_at: Date;
+      author_user_id: string | null;
+      author_agent_id: string | null;
+      author_display_name: string | null;
+      author_agent_name: string | null;
+    }>(
+      `SELECT
+         rp.id, rp.post_type, rp.request_type, rp.title, rp.content,
+         rp.structured_data, rp.expires_at, rp.response_count, rp.status, rp.created_at,
+         rp.author_user_id, rp.author_agent_id,
+         op.display_name AS author_display_name,
+         a.name AS author_agent_name
+       FROM room_posts rp
+       LEFT JOIN users u ON u.id = rp.author_user_id
+       LEFT JOIN owner_profiles op ON op.user_id = rp.author_user_id
+       LEFT JOIN agents a ON a.id = rp.author_agent_id
+       WHERE rp.room_id = $1 AND rp.status = 'active'
+       ORDER BY
+         rp.post_type = 'agent_broadcast' ASC,  -- temp_request first
+         rp.created_at DESC
+       LIMIT 50`,
+      [id],
+    );
+
+    return successResponse({ posts });
+  });
+
+  /**
+   * POST /v1/rooms/:id/posts
+   * 发布临时需求卡片（人类 or Agent 代发）
+   */
+  fastify.post<{ Params: { id: string } }>('/v1/rooms/:id/posts', async (request, reply) => {
+    const { id } = request.params;
+    const schema = z.object({
+      post_type: z.enum(['temp_request']).default('temp_request'),
+      request_type: z.enum(['meetup', 'hiring', 'resource', 'collab', 'other']).default('other'),
+      title: z.string().min(1).max(255),
+      content: z.string().min(1).max(2000),
+      structured_data: z.record(z.unknown()).optional(),
+      expires_in_days: z.number().int().min(1).max(30).default(7),
+    });
+
+    const parseResult = schema.safeParse(request.body);
+    if (!parseResult.success) {
+      throw new AppError(ERROR_CODES.VALIDATION_ERROR, parseResult.error.errors.map(e => e.message).join(', '));
+    }
+
+    const { post_type, request_type, title, content, structured_data, expires_in_days } = parseResult.data;
+
+    // Auth: agent or user
+    let authorUserId: string | null = null;
+    let authorAgentId: string | null = null;
+
+    const agentAuth = await verifyAgentToken(request);
+    if (agentAuth) {
+      const agent = await queryOne<{ id: string; owner_user_id: string }>(
+        `SELECT id, owner_user_id FROM agents WHERE id = $1`,
+        [agentAuth.agentId],
+      );
+      if (agent) {
+        authorAgentId = agent.id;
+        authorUserId = agent.owner_user_id;
+      }
+    } else {
+      const userAuth = await verifyUserSession(request);
+      if (!userAuth) throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Authentication required');
+      authorUserId = userAuth.userId;
+    }
+
+    const expiresAt = new Date(Date.now() + expires_in_days * 86400_000);
+
+    const post = await queryOne<{ id: string }>(
+      `INSERT INTO room_posts
+         (room_id, author_user_id, author_agent_id, post_type, request_type,
+          title, content, structured_data, expires_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING id`,
+      [id, authorUserId, authorAgentId, post_type, request_type,
+       title, content, structured_data ? JSON.stringify(structured_data) : null, expiresAt],
+    );
+
+    reply.status(201);
+    return successResponse({ post_id: post!.id });
+  });
+
+  /**
+   * POST /v1/rooms/:id/posts/:postId/respond
+   * 对临时需求卡片表示「感兴趣」
+   */
+  fastify.post<{ Params: { id: string; postId: string } }>(
+    '/v1/rooms/:id/posts/:postId/respond',
+    async (request, reply) => {
+      const { postId } = request.params;
+      const schema = z.object({ message: z.string().max(500).optional() });
+      const { message } = schema.parse(request.body);
+
+      // Auth
+      let responderUserId: string | null = null;
+      let responderAgentId: string | null = null;
+
+      const agentAuth = await verifyAgentToken(request);
+      if (agentAuth) {
+        const agent = await queryOne<{ id: string; owner_user_id: string }>(
+          `SELECT id, owner_user_id FROM agents WHERE id = $1`,
+          [agentAuth.agentId],
+        );
+        if (agent) { responderAgentId = agent.id; responderUserId = agent.owner_user_id; }
+      } else {
+        const userAuth = await verifyUserSession(request);
+        if (!userAuth) throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Authentication required');
+        responderUserId = userAuth.userId;
+      }
+
+      // Check post exists and is active
+      const post = await queryOne<{ id: string; author_user_id: string; room_id: string; title: string }>(
+        `SELECT id, author_user_id, room_id, title FROM room_posts WHERE id = $1 AND status = 'active'`,
+        [postId],
+      );
+      if (!post) throw new AppError(ERROR_CODES.NOT_FOUND, 'Post not found or expired');
+
+      // Can't respond to your own post
+      if (post.author_user_id === responderUserId) {
+        throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Cannot respond to your own post');
+      }
+
+      await query(
+        `INSERT INTO room_post_responses (post_id, responder_user_id, responder_agent_id, message)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (post_id, responder_user_id) DO NOTHING`,
+        [postId, responderUserId, responderAgentId, message || null],
+      );
+
+      // Notify post author
+      if (post.author_user_id) {
+        const responderName = await queryOne<{ display_name: string | null }>(
+          `SELECT display_name FROM owner_profiles WHERE user_id = $1`,
+          [responderUserId],
+        );
+        await query(
+          `INSERT INTO agent_notifications (owner_user_id, type, title, content, metadata)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [
+            post.author_user_id,
+            'post_response',
+            '有人对你的需求感兴趣',
+            `${responderName?.display_name || '有人'} 对「${post.title || '你的需求'}」表示感兴趣`,
+            JSON.stringify({ post_id: postId, room_id: post.room_id, responder_user_id: responderUserId }),
+          ],
+        );
+      }
+
+      reply.status(201);
+      return successResponse({ ok: true });
+    },
+  );
+
+  /**
+   * DELETE /v1/rooms/:id/posts/:postId
+   * 删除自己发的帖子
+   */
+  fastify.delete<{ Params: { id: string; postId: string } }>(
+    '/v1/rooms/:id/posts/:postId',
+    async (request, reply) => {
+      const { postId } = request.params;
+
+      let userId: string | null = null;
+      const agentAuth = await verifyAgentToken(request);
+      if (agentAuth) {
+        const agent = await queryOne<{ owner_user_id: string }>(
+          `SELECT owner_user_id FROM agents WHERE id = $1`, [agentAuth.agentId],
+        );
+        userId = agent?.owner_user_id ?? null;
+      } else {
+        const userAuth = await verifyUserSession(request);
+        if (!userAuth) throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Authentication required');
+        userId = userAuth.userId;
+      }
+
+      const updated = await queryOne<{ id: string }>(
+        `UPDATE room_posts SET status = 'deleted'
+         WHERE id = $1 AND author_user_id = $2 AND status = 'active'
+         RETURNING id`,
+        [postId, userId],
+      );
+      if (!updated) throw new AppError(ERROR_CODES.NOT_FOUND, 'Post not found or not yours');
+
+      return successResponse({ ok: true });
+    },
+  );
 }

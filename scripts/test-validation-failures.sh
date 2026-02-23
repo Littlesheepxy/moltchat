@@ -24,7 +24,7 @@ echo "       (只有 23 字符)"
 echo ""
 echo "Agent: 正在保存..."
 
-RESULT=$(curl -s -X PATCH "http://localhost:3001/v1/agents/me/owner/profile?agent_id=$AGENT_ID" \
+RESULT=$(curl -s -X PATCH "http://localhost:3002/v1/agents/me/owner/profile?agent_id=$AGENT_ID" \
   -H "Content-Type: application/json" \
   -d '{
     "bio": "I am an AI researcher"
@@ -62,7 +62,7 @@ echo "       (只有 2 个)"
 echo ""
 echo "Agent: 正在保存..."
 
-RESULT=$(curl -s -X PATCH "http://localhost:3001/v1/agents/me/owner/profile?agent_id=$AGENT_ID" \
+RESULT=$(curl -s -X PATCH "http://localhost:3002/v1/agents/me/owner/profile?agent_id=$AGENT_ID" \
   -H "Content-Type: application/json" \
   -d '{
     "topics": ["AI", "Machine Learning"]
@@ -96,7 +96,7 @@ echo "       (不在预设列表中)"
 echo ""
 echo "Agent: 正在保存..."
 
-RESULT=$(curl -s -X PATCH "http://localhost:3001/v1/agents/me/owner/profile?agent_id=$AGENT_ID" \
+RESULT=$(curl -s -X PATCH "http://localhost:3002/v1/agents/me/owner/profile?agent_id=$AGENT_ID" \
   -H "Content-Type: application/json" \
   -d '{
     "industry": "Blockchain"
@@ -134,7 +134,7 @@ echo "       (只有 3 字符)"
 echo ""
 echo "Agent: 正在保存..."
 
-RESULT=$(curl -s -X PATCH "http://localhost:3001/v1/agents/me/owner/profile?agent_id=$AGENT_ID" \
+RESULT=$(curl -s -X PATCH "http://localhost:3002/v1/agents/me/owner/profile?agent_id=$AGENT_ID" \
   -H "Content-Type: application/json" \
   -d '{
     "job_title": "CEO"
@@ -168,7 +168,7 @@ echo ""
 echo "Owner: I work in AI"
 echo ""
 
-RESULT=$(curl -s -X PATCH "http://localhost:3001/v1/agents/me/owner/profile?agent_id=$AGENT_ID" \
+RESULT=$(curl -s -X PATCH "http://localhost:3002/v1/agents/me/owner/profile?agent_id=$AGENT_ID" \
   -H "Content-Type: application/json" \
   -d '{"bio": "I work in AI"}')
 
@@ -190,7 +190,7 @@ echo "       machine learning, NLP, and AI safety. I focus on"
 echo "       constitutional AI and RLHF."
 echo ""
 
-RESULT=$(curl -s -X PATCH "http://localhost:3001/v1/agents/me/owner/profile?agent_id=$AGENT_ID" \
+RESULT=$(curl -s -X PATCH "http://localhost:3002/v1/agents/me/owner/profile?agent_id=$AGENT_ID" \
   -H "Content-Type: application/json" \
   -d '{
     "bio": "I work in AI research with 8+ years of experience in machine learning, natural language processing, and AI safety. My focus areas include constitutional AI and RLHF."
@@ -225,7 +225,7 @@ echo "Data: {
 }"
 echo ""
 
-RESULT=$(curl -s -X PATCH "http://localhost:3001/v1/agents/me/owner/profile?agent_id=$AGENT_ID" \
+RESULT=$(curl -s -X PATCH "http://localhost:3002/v1/agents/me/owner/profile?agent_id=$AGENT_ID" \
   -H "Content-Type: application/json" \
   -d '{
     "display_name": "Sarah",

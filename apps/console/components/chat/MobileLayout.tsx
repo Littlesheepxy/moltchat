@@ -9,7 +9,7 @@ import { getAgentAvatarUrl } from '@/lib/avatar';
 import {
   MessageSquare, Compass, Users, User, Plus, Search, Bot,
   ArrowLeft, ChevronRight, LogOut, Shield, Eye, Bell,
-  Loader2, Palette,
+  Loader2, Palette, Zap, Target,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,13 +25,15 @@ import { MobilePlusMenu } from './PlusMenu';
 import { ShareSheet } from './ShareSheet';
 import { AddAgentFriendSheet } from './AddAgentFriendSheet';
 import { NotificationBell, useUnreadNotificationCount, MobileNotificationList } from './NotificationBell';
+import { ProtocolDashboard } from './ProtocolDashboard';
+import { OpportunityList } from '@/components/opportunities/OpportunityList';
 import type { MoltRoom } from '@/lib/matrix/types';
 
 // ============================================
 // Types
 // ============================================
 
-type MobileTab = 'rooms' | 'discover' | 'contacts' | 'me';
+type MobileTab = 'opportunities' | 'discover' | 'agent' | 'me';
 type MobileView =
   | { type: 'tabs' }
   | { type: 'room-chat'; roomId: string };
@@ -239,7 +241,7 @@ function ContactsTab({ onAgentClick }: { onAgentClick: (agentId: string) => void
 // Me Tab Content — Full User Center
 // ============================================
 
-type MeSubView = 'main' | 'profile' | 'agents' | 'appearance' | 'security' | 'notifications';
+type MeSubView = 'main' | 'profile' | 'agents' | 'appearance' | 'security' | 'notifications' | 'protocol';
 
 function MeTab({ onLogout }: { onLogout: () => void }) {
   const { t, locale } = useI18n();
@@ -361,6 +363,17 @@ function MeTab({ onLogout }: { onLogout: () => void }) {
     );
   }
 
+  if (subView === 'protocol') {
+    return (
+      <div className="flex flex-col h-full">
+        <SubViewHeader title={t('protocol.title')} />
+        <div className="flex-1 overflow-y-auto">
+          <ProtocolDashboard />
+        </div>
+      </div>
+    );
+  }
+
   // Main menu
   const menuSections = [
     {
@@ -412,6 +425,28 @@ function MeTab({ onLogout }: { onLogout: () => void }) {
 
       {/* Menu sections */}
       <div className="px-4 space-y-5 pb-4">
+        {/* Protocol link */}
+        <div>
+          <p className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wider px-1 mb-2">
+            Protocol
+          </p>
+          <div className="bg-card rounded-xl border border-border/30 overflow-hidden">
+            <button
+              onClick={() => setSubView('protocol')}
+              className="w-full flex items-center gap-3.5 px-4 py-3.5 hover:bg-accent/50 active:bg-accent transition-colors text-left"
+            >
+              <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                <Shield className="h-4.5 w-4.5 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium">{t('protocol.title')}</div>
+                <div className="text-[11px] text-muted-foreground truncate">{t('protocol.budgetAndReputation')}</div>
+              </div>
+              <ChevronRight className="h-4 w-4 text-muted-foreground/40 flex-shrink-0" />
+            </button>
+          </div>
+        </div>
+
         {menuSections.map((section) => (
           <div key={section.label}>
             <p className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wider px-1 mb-2">
@@ -670,9 +705,9 @@ function BottomTabBar({ activeTab, onTabChange }: {
   const { unreadCount } = useUnreadNotificationCount();
 
   const tabs: { id: MobileTab; icon: typeof MessageSquare; label: string; badge?: number }[] = [
-    { id: 'rooms', icon: MessageSquare, label: t('tabs.rooms') || 'Rooms' },
+    { id: 'opportunities', icon: Target, label: t('tabs.opportunities') || 'Opportunities' },
     { id: 'discover', icon: Compass, label: t('tabs.discover') || 'Discover' },
-    { id: 'contacts', icon: Users, label: t('tabs.contacts') || 'Contacts' },
+    { id: 'agent', icon: Bot, label: 'Agent' },
     { id: 'me', icon: User, label: t('tabs.me') || 'Me', badge: unreadCount },
   ];
 
@@ -826,15 +861,8 @@ export function MobileLayout() {
     <div className="flex flex-col h-[100dvh] bg-background">
       {/* Tab content */}
       <div className="flex-1 overflow-hidden">
-        {activeTab === 'rooms' && (
-          <RoomsTab
-            rooms={realRooms}
-            isLoading={isLoadingRooms}
-            onRoomSelect={handleRoomSelect}
-            onCreateRoom={() => setShowCreateRoom(true)}
-            onAddFriend={() => setShowAddFriend(true)}
-            onInviteShare={() => setShowInviteShare(true)}
-          />
+        {activeTab === 'opportunities' && (
+          <OpportunityList />
         )}
         {activeTab === 'discover' && (
           <DiscoverView
@@ -845,8 +873,22 @@ export function MobileLayout() {
             onAgentClick={handleAgentClick}
           />
         )}
-        {activeTab === 'contacts' && (
-          <ContactsTab onAgentClick={handleAgentClick} />
+        {activeTab === 'agent' && (
+          <div className="flex flex-col h-full overflow-y-auto p-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                <Bot className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h1 className="text-lg font-bold">Agent</h1>
+                <p className="text-sm text-muted-foreground">Manage and train your AI agent</p>
+              </div>
+            </div>
+            <div className="text-center py-16 text-muted-foreground">
+              <Bot className="h-12 w-12 mx-auto mb-4 opacity-30" />
+              <p className="text-sm">Agent management coming soon</p>
+            </div>
+          </div>
         )}
         {activeTab === 'me' && (
           <MeTab onLogout={handleLogout} />

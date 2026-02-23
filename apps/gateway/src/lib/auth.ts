@@ -5,7 +5,7 @@
 
 import crypto from 'crypto';
 import type { FastifyRequest } from 'fastify';
-import { queryOne } from '../db/client.js';
+import { queryOne, query } from '../db/client.js';
 import { config } from './config.js';
 import { AppError, ERROR_CODES } from './errors.js';
 
@@ -384,6 +384,96 @@ export async function verifyUserSession(
               name: user.name,
               email: user.email,
               image: user.image,
+            },
+          };
+        }
+      }
+
+      // Also try agent_id → owner_user_id lookup
+      const agentId = (request.query as { agent_id?: string }).agent_id;
+      if (agentId) {
+        // Dev agents (non-UUID) — auto-provision a real DB user for dev mode
+        if (agentId.startsWith('dev_')) {
+          const devEmail = `${agentId}@dev.local`;
+          // Try to find existing dev user
+          let devUser = await queryOne<UserRow>(
+            `SELECT id, name, email, image FROM users WHERE email = $1`,
+            [devEmail]
+          );
+          if (!devUser) {
+            // Create a real user in DB so UUID-typed columns work
+            devUser = await queryOne<UserRow>(
+              `INSERT INTO users (name, email, email_verified, created_at, updated_at)
+               VALUES ($1, $2, true, NOW(), NOW())
+               RETURNING id, name, email, image`,
+              [`Dev User (${agentId})`, devEmail]
+            );
+            // Also create owner_profile
+            if (devUser) {
+              await query(
+                `INSERT INTO owner_profiles (user_id, twitter_handle, display_name, bio_md, industry, job_title, topics_of_interest, looking_for, can_offer)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                 ON CONFLICT (user_id) DO NOTHING`,
+                [
+                  devUser.id, agentId, `Dev User (${agentId})`,
+                  'Development mode test user for MoltChat.',
+                  'Software Development', 'Developer',
+                  ['AI', 'Development', 'Testing'],
+                  'Testing the platform features',
+                  'Feedback and bug reports',
+                ]
+              );
+            }
+          }
+          if (devUser) {
+            return {
+              userId: devUser.id,
+              sessionId: 'mvp-bypass',
+              user: {
+                id: devUser.id,
+                name: devUser.name,
+                email: devUser.email,
+                image: devUser.image,
+              },
+            };
+          }
+        }
+
+        // Real UUID agent — try owner_user_id lookup
+        const owner = await queryOne<UserRow>(
+          `SELECT u.id, u.name, u.email, u.image
+           FROM users u
+           JOIN agents a ON a.owner_user_id = u.id
+           WHERE a.id = $1`,
+          [agentId]
+        );
+        if (owner) {
+          return {
+            userId: owner.id,
+            sessionId: 'mvp-bypass',
+            user: {
+              id: owner.id,
+              name: owner.name,
+              email: owner.email,
+              image: owner.image,
+            },
+          };
+        }
+
+        // Fallback: use agent id as virtual user id
+        const agent = await queryOne<{ id: string; name: string }>(
+          'SELECT id, name FROM agents WHERE id = $1',
+          [agentId]
+        );
+        if (agent) {
+          return {
+            userId: agent.id,
+            sessionId: 'mvp-bypass',
+            user: {
+              id: agent.id,
+              name: agent.name,
+              email: `${agent.id}@dev.local`,
+              image: null,
             },
           };
         }

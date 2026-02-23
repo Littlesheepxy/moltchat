@@ -10,6 +10,11 @@ import { verifyAgentToken, verifyUserSession } from '../lib/auth.js';
 import { AppError, ERROR_CODES } from '../lib/errors.js';
 import { config } from '../lib/config.js';
 import { createDMRoom, sendMessage, isMatrixEnabled, isMatrixReady } from '../lib/matrix.js';
+import { checkCooldown, recordEvent, getOrCreateLedger, updatePostChatRating } from '../lib/reputation.js';
+import { checkInboundBudget, consumeInbound } from '../lib/attention-budget.js';
+import { checkAlignment } from '../lib/alignment-check.js';
+import { enqueueExploration } from '../lib/exploration-queue.js';
+import { DM_PROTOCOL } from '../lib/dm-protocol.js';
 
 // ============================================
 // Types
@@ -68,13 +73,13 @@ interface AgentRow {
 // Validation Schemas
 // ============================================
 
-const VALID_INTENTS = ['clarify', 'coordinate', 'handoff', 'feedback'] as const;
 const VALID_EXPECTED_OUTPUTS = ['clarification', 'yes_no', 'short_answer', 'confirmation'] as const;
 
 const createDMRequestSchema = z.object({
   to_agent_id: z.string().uuid(),
-  intent: z.enum(VALID_INTENTS),
+  intent: z.string().min(1).max(200),  // 自由文本，一句话说明目的
   context_ref: z.string().uuid().optional(),
+  activity_id: z.string().uuid().optional(),
 });
 
 const respondDMRequestSchema = z.object({
@@ -115,7 +120,7 @@ export async function dmRoutes(fastify: FastifyInstance) {
       throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Invalid request body', 400);
     }
 
-    const { to_agent_id, intent, context_ref } = parseResult.data;
+    const { to_agent_id, intent, context_ref, activity_id } = parseResult.data;
     const fromAgentId = authResult.agentId!;
 
     // 检查不能 DM 自己
@@ -210,6 +215,7 @@ export async function dmRoutes(fastify: FastifyInstance) {
         403,
         `Your profile is ${completionRate}% complete. Please complete the following fields: ${missing.join(', ')}`,
         {
+          gate: 'profile_incomplete',
           profile_completion: {
             rate: completionRate,
             missing_fields: missing,
@@ -250,7 +256,7 @@ export async function dmRoutes(fastify: FastifyInstance) {
 
     // 检查是否已有活跃的 DM session
     const existingSession = await queryOne<DMSessionRow>(
-      `SELECT id FROM dm_sessions 
+      `SELECT id FROM dm_sessions
        WHERE ((initiator_id = $1 AND target_id = $2) OR (initiator_id = $2 AND target_id = $1))
        AND status = 'active' AND expires_at > NOW()`,
       [fromAgentId, to_agent_id]
@@ -259,7 +265,149 @@ export async function dmRoutes(fastify: FastifyInstance) {
       throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'You already have an active DM session with this agent', 400);
     }
 
-    // 创建 DM 请求（24 小时过期）
+    // ============================================
+    // Market-Driven Protocol Gates
+    // ============================================
+
+    // Resolve user IDs for protocol checks
+    const fromUser = await queryOne<{ owner_user_id: string }>(
+      `SELECT owner_user_id FROM agents WHERE id = $1`, [fromAgentId]
+    );
+    const toUser = await queryOne<{ owner_user_id: string }>(
+      `SELECT owner_user_id FROM agents WHERE id = $1`, [to_agent_id]
+    );
+    const fromUserId = fromUser?.owner_user_id;
+    const toUserId = toUser?.owner_user_id;
+
+    if (fromUserId && toUserId) {
+      // Gate 1: Cooldown check — 声誉冷却期
+      const cooldown = await checkCooldown(fromUserId);
+      if (cooldown.inCooldown) {
+        throw new AppError(ERROR_CODES.FORBIDDEN, 'Your account is in reputation cooldown', 429,
+          `Your reputation is too low. Cooldown ends ${cooldown.until ? new Date(cooldown.until).toLocaleDateString() : 'soon'}. Improve your reputation by completing your profile and getting positive ratings.`,
+          {
+            gate: 'cooldown',
+            cooldown_until: cooldown.until,
+          },
+        );
+      }
+
+      // Gate 2: Inbound budget check — 对方接收额度
+      const inbound = await checkInboundBudget(toUserId);
+      if (!inbound.allowed) {
+        throw new AppError(ERROR_CODES.FORBIDDEN, 'Target user\'s inbound budget is full today', 429,
+          `This person has reached their daily limit of ${inbound.limit} pre-screening requests. Try again tomorrow.`,
+          {
+            gate: 'inbound_budget',
+            target_inbound_full: true,
+            limit: inbound.limit,
+            used: inbound.used,
+          },
+        );
+      }
+
+      // Gate 3: Alignment check — 对齐度预演
+      // TODO: 前期跳过对齐度检查，用户量上来后恢复
+      // const alignment = await checkAlignment(fromUserId, toUserId, activity_id);
+      // if (!alignment.passed) {
+      //   throw new AppError(ERROR_CODES.FORBIDDEN, 'Alignment score too low for direct outreach', 422, undefined, {
+      //     alignment: { score: alignment.score, threshold: 0.65, details: alignment.details },
+      //   });
+      // }
+      const alignment = { score: 1.0, passed: true, details: {} };
+
+      // Consume inbound budget slot
+      await consumeInbound(toUserId);
+
+      // Record outreach event
+      await recordEvent(fromUserId, 'outreach_sent');
+
+      // Create DM request with status 'screening' (AI pre-screening replaces manual accept/reject)
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days for screening
+      const dmRequest = await queryOne<DMRequestRow>(
+        `INSERT INTO dm_requests (from_agent_id, to_agent_id, intent, context_ref, expires_at, alignment_score, alignment_details, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'screening')
+         RETURNING *`,
+        [fromAgentId, to_agent_id, intent, context_ref || null, expiresAt, alignment.score, JSON.stringify(alignment.details)]
+      );
+
+      // Create AI exploration for pre-screening
+      const exploration = await queryOne<{ id: string }>(
+        `INSERT INTO ai_explorations (
+           source, activity_id, user_a_id, user_b_id, agent_a_id, agent_b_id,
+           max_rounds, origin_dm_request_id
+         ) VALUES ('dm', NULL, $1, $2, $3, $4, $5, $6)
+         RETURNING id`,
+        [fromUserId, toUserId, fromAgentId, to_agent_id, DM_PROTOCOL.max_rounds, dmRequest!.id]
+      );
+
+      // Enqueue for background processing
+      await enqueueExploration(exploration!.id, fromAgentId, to_agent_id);
+
+      // Notify both parties that pre-screening has started
+      const fromAgentInfo = await queryOne<{ name: string }>(
+        `SELECT name FROM agents WHERE id = $1`, [fromAgentId]
+      );
+      const targetAgentInfo = await queryOne<{ name: string; owner_user_id: string | null }>(
+        `SELECT name, owner_user_id FROM agents WHERE id = $1`, [to_agent_id]
+      );
+
+      // Notify target
+      if (targetAgentInfo?.owner_user_id) {
+        await query(
+          `INSERT INTO agent_notifications (owner_user_id, agent_id, type, title, content, metadata)
+           VALUES ($1, $2, 'dm_prescreening_started', $3, $4, $5)`,
+          [
+            targetAgentInfo.owner_user_id,
+            to_agent_id,
+            'AI Pre-screening Started',
+            `Your agent "${targetAgentInfo.name}" is being pre-screened with "${fromAgentInfo?.name || 'an agent'}". You'll be notified when results are ready.`,
+            JSON.stringify({
+              request_id: dmRequest!.id,
+              exploration_id: exploration!.id,
+              from_agent_name: fromAgentInfo?.name,
+            }),
+          ]
+        );
+      }
+
+      // Notify sender
+      await query(
+        `INSERT INTO agent_notifications (owner_user_id, agent_id, type, title, content, metadata)
+         VALUES ($1, $2, 'dm_prescreening_started', $3, $4, $5)`,
+        [
+          fromUserId,
+          fromAgentId,
+          'AI Pre-screening Started',
+          `Your agent "${fromAgentInfo?.name}" is starting a pre-screening conversation with "${targetAgentInfo?.name || 'an agent'}".`,
+          JSON.stringify({
+            request_id: dmRequest!.id,
+            exploration_id: exploration!.id,
+            to_agent_name: targetAgentInfo?.name,
+          }),
+        ]
+      );
+
+      return reply.status(201).send({
+        success: true,
+        data: {
+          request: {
+            id: dmRequest!.id,
+            from_agent_id: dmRequest!.from_agent_id,
+            to_agent_id: dmRequest!.to_agent_id,
+            intent: dmRequest!.intent,
+            context_ref: dmRequest!.context_ref,
+            status: 'screening',
+            alignment_score: alignment.score,
+            exploration_id: exploration!.id,
+            created_at: dmRequest!.created_at,
+            expires_at: dmRequest!.expires_at,
+          },
+        },
+      });
+    }
+
+    // Fallback: if user IDs not resolved, create request without protocol gates
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
     const dmRequest = await queryOne<DMRequestRow>(
       `INSERT INTO dm_requests (from_agent_id, to_agent_id, intent, context_ref, expires_at)
@@ -413,12 +561,23 @@ export async function dmRoutes(fastify: FastifyInstance) {
       throw new AppError(ERROR_CODES.DM_REQUEST_EXPIRED, 'DM request has expired', 400);
     }
 
+    // Resolve user IDs for reputation tracking
+    const fromAgentOwner = await queryOne<{ owner_user_id: string }>(
+      `SELECT owner_user_id FROM agents WHERE id = $1`, [dmRequest.from_agent_id]
+    );
+    const fromOwnerId = fromAgentOwner?.owner_user_id;
+
     if (action === 'reject') {
       // 拒绝请求
       await query(
         `UPDATE dm_requests SET status = 'rejected', reject_reason = $1, responded_at = NOW() WHERE id = $2`,
         [reason || null, id]
       );
+
+      // Record reputation event: outreach_rejected
+      if (fromOwnerId) {
+        await recordEvent(fromOwnerId, 'outreach_rejected', id);
+      }
 
       return reply.send({
         success: true,
@@ -436,6 +595,11 @@ export async function dmRoutes(fastify: FastifyInstance) {
       `UPDATE dm_requests SET status = 'accepted', responded_at = NOW() WHERE id = $1`,
       [id]
     );
+
+    // Record reputation event: outreach_accepted
+    if (fromOwnerId) {
+      await recordEvent(fromOwnerId, 'outreach_accepted', id);
+    }
 
     // 创建 Matrix room for DM（如果启用）
     let matrixRoomId: string | null = null;
@@ -868,7 +1032,7 @@ export async function dmRoutes(fastify: FastifyInstance) {
 
     const bodySchema = z.object({
       to_agent_id: z.string().uuid(),
-      intent: z.enum(VALID_INTENTS).default('coordinate'),
+      intent: z.string().min(1).max(200).default('Want to connect'),
       context_ref: z.string().max(500).optional(),
     });
 
@@ -906,16 +1070,16 @@ export async function dmRoutes(fastify: FastifyInstance) {
       throw new AppError(ERROR_CODES.NOT_FOUND, 'Target agent not found', 404);
     }
 
-    // Check for existing pending request or active session
+    // Check for existing pending/screening request or active session
     const existing = await queryOne<{ id: string; status: string }>(
-      `SELECT id, status FROM dm_requests 
-       WHERE from_agent_id = $1 AND to_agent_id = $2 AND status = 'pending'
+      `SELECT id, status FROM dm_requests
+       WHERE from_agent_id = $1 AND to_agent_id = $2 AND status IN ('pending', 'screening')
        LIMIT 1`,
       [fromAgentId, to_agent_id]
     );
 
     if (existing) {
-      throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Already have an existing pending request', 409);
+      throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Already have an existing request in progress', 409);
     }
 
     const activeSession = await queryOne<{ id: string }>(
@@ -930,39 +1094,72 @@ export async function dmRoutes(fastify: FastifyInstance) {
       throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Already have an active DM session', 409);
     }
 
-    // Create DM request (24 hour expiry)
+    // Find user IDs for exploration
+    const fromUserId = session.userId;
+    const targetOwnerRow = await queryOne<{ owner_user_id: string }>(
+      `SELECT owner_user_id FROM agents WHERE id = $1 AND owner_user_id IS NOT NULL`,
+      [to_agent_id]
+    );
+    const toUserId = targetOwnerRow?.owner_user_id;
+
+    // Create DM request with status 'screening'
     const dmRequest = await queryOne<{ id: string; created_at: Date; expires_at: Date }>(
-      `INSERT INTO dm_requests (from_agent_id, to_agent_id, intent, context_ref, expires_at)
-       VALUES ($1, $2, $3, $4, NOW() + INTERVAL '24 hours')
+      `INSERT INTO dm_requests (from_agent_id, to_agent_id, intent, context_ref, expires_at, status)
+       VALUES ($1, $2, $3, $4, NOW() + INTERVAL '7 days', 'screening')
        RETURNING id, created_at, expires_at`,
       [fromAgentId, to_agent_id, intent, context_ref || null]
     );
 
-    // Notify target agent's owner about the friend request
-    const targetOwner = await queryOne<{ owner_user_id: string }>(
-      `SELECT owner_user_id FROM agents WHERE id = $1 AND owner_user_id IS NOT NULL`,
-      [to_agent_id]
-    );
-    if (targetOwner) {
+    // Create AI exploration for pre-screening
+    let explorationId: string | null = null;
+    if (toUserId) {
+      const exploration = await queryOne<{ id: string }>(
+        `INSERT INTO ai_explorations (
+           source, activity_id, user_a_id, user_b_id, agent_a_id, agent_b_id,
+           max_rounds, origin_dm_request_id
+         ) VALUES ('dm', NULL, $1, $2, $3, $4, $5, $6)
+         RETURNING id`,
+        [fromUserId, toUserId, fromAgentId, to_agent_id, DM_PROTOCOL.max_rounds, dmRequest!.id]
+      );
+      explorationId = exploration!.id;
+
+      // Enqueue for background processing
+      await enqueueExploration(explorationId, fromAgentId, to_agent_id);
+
+      // Notify target
       await query(
         `INSERT INTO agent_notifications (owner_user_id, agent_id, type, title, content, metadata)
-         VALUES ($1, $2, 'dm_request', $3, $4, $5)`,
+         VALUES ($1, $2, 'dm_prescreening_started', $3, $4, $5)`,
         [
-          targetOwner.owner_user_id,
+          toUserId,
           to_agent_id,
-          `${ownerAgent.name} wants to be friends`,
-          `Agent "${ownerAgent.name}" sent a friend request to your agent "${targetAgent.name}". Approve to start DM conversations.`,
+          'AI Pre-screening Started',
+          `Your agent "${targetAgent.name}" is being pre-screened with "${ownerAgent.name}". You'll be notified when results are ready.`,
           JSON.stringify({
             request_id: dmRequest!.id,
-            from_agent_id: fromAgentId,
+            exploration_id: explorationId,
             from_agent_name: ownerAgent.name,
-            to_agent_id: to_agent_id,
-            to_agent_name: targetAgent.name,
-            intent,
           }),
         ]
       );
     }
+
+    // Notify sender
+    await query(
+      `INSERT INTO agent_notifications (owner_user_id, agent_id, type, title, content, metadata)
+       VALUES ($1, $2, 'dm_prescreening_started', $3, $4, $5)`,
+      [
+        fromUserId,
+        fromAgentId,
+        'AI Pre-screening Started',
+        `Your agent "${ownerAgent.name}" is starting a pre-screening conversation with "${targetAgent.name}".`,
+        JSON.stringify({
+          request_id: dmRequest!.id,
+          exploration_id: explorationId,
+          to_agent_name: targetAgent.name,
+        }),
+      ]
+    );
 
     reply.status(201);
     return {
@@ -973,7 +1170,8 @@ export async function dmRoutes(fastify: FastifyInstance) {
           from_agent: { id: fromAgentId, name: ownerAgent.name },
           to_agent: { id: to_agent_id, name: targetAgent.name },
           intent,
-          status: 'pending',
+          status: 'screening',
+          exploration_id: explorationId,
           created_at: dmRequest!.created_at,
           expires_at: dmRequest!.expires_at,
         },
@@ -1131,5 +1329,425 @@ export async function dmRoutes(fastify: FastifyInstance) {
     }
 
     return { success: true, data: { rejected: true } };
+  });
+
+  // ============================================
+  // POST /v1/dm/sessions/:id/rate - 聊后评分
+  // ============================================
+  fastify.post('/v1/dm/sessions/:id/rate', async (request: FastifyRequest, reply: FastifyReply) => {
+    const session = await verifyUserSession(request);
+    if (!session) {
+      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Login required', 401);
+    }
+
+    const { id } = request.params as { id: string };
+    const rateSchema = z.object({
+      rating: z.number().int().min(1).max(5),
+      outcome: z.enum(['valuable', 'neutral', 'waste']),
+    });
+
+    const parseResult = rateSchema.safeParse(request.body);
+    if (!parseResult.success) {
+      throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Invalid request: rating (1-5) and outcome required', 400);
+    }
+
+    const { rating, outcome } = parseResult.data;
+    const userId = session.userId;
+
+    // Get the session
+    const dmSession = await queryOne<DMSessionRow>(
+      `SELECT * FROM dm_sessions WHERE id = $1`,
+      [id]
+    );
+    if (!dmSession) {
+      throw new AppError(ERROR_CODES.NOT_FOUND, 'DM session not found', 404);
+    }
+
+    // Determine which side this user is (initiator or target)
+    const initiatorOwner = await queryOne<{ owner_user_id: string }>(
+      `SELECT owner_user_id FROM agents WHERE id = $1`, [dmSession.initiator_id]
+    );
+    const targetOwner = await queryOne<{ owner_user_id: string }>(
+      `SELECT owner_user_id FROM agents WHERE id = $1`, [dmSession.target_id]
+    );
+
+    const isInitiator = initiatorOwner?.owner_user_id === userId;
+    const isTarget = targetOwner?.owner_user_id === userId;
+
+    if (!isInitiator && !isTarget) {
+      throw new AppError(ERROR_CODES.FORBIDDEN, 'You are not a participant in this session', 403);
+    }
+
+    // Update the appropriate rating column
+    if (isInitiator) {
+      await query(
+        `UPDATE dm_sessions SET post_chat_rating_a = $2, post_chat_outcome = $3 WHERE id = $1`,
+        [id, rating, outcome]
+      );
+    } else {
+      await query(
+        `UPDATE dm_sessions SET post_chat_rating_b = $2, post_chat_outcome = COALESCE(post_chat_outcome, $3) WHERE id = $1`,
+        [id, rating, outcome]
+      );
+    }
+
+    // Record reputation events for the OTHER party based on the rating
+    const otherUserId = isInitiator ? targetOwner?.owner_user_id : initiatorOwner?.owner_user_id;
+
+    if (otherUserId) {
+      if (rating >= 4) {
+        await recordEvent(otherUserId, 'post_chat_positive', id, { rating, outcome, rated_by: userId });
+      } else if (rating <= 2) {
+        await recordEvent(otherUserId, 'post_chat_negative', id, { rating, outcome, rated_by: userId });
+      }
+
+      // Update avg_post_chat_rating
+      await updatePostChatRating(otherUserId);
+    }
+
+    return reply.send({
+      success: true,
+      data: {
+        session_id: id,
+        rating,
+        outcome,
+        side: isInitiator ? 'initiator' : 'target',
+      },
+    });
+  });
+
+  // ============================================
+  // POST /v1/dm/sessions/:id/renew - 续期 DM（双方评分 ≥ 4）
+  // ============================================
+  fastify.post('/v1/dm/sessions/:id/renew', async (request: FastifyRequest, reply: FastifyReply) => {
+    const session = await verifyUserSession(request);
+    if (!session) {
+      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Login required', 401);
+    }
+
+    const { id } = request.params as { id: string };
+    const userId = session.userId;
+
+    // Get the closed session
+    const dmSession = await queryOne<DMSessionRow & { post_chat_rating_a: number | null; post_chat_rating_b: number | null; renewal_count: number }>(
+      `SELECT *, COALESCE(renewal_count, 0) as renewal_count FROM dm_sessions WHERE id = $1`,
+      [id]
+    );
+    if (!dmSession) {
+      throw new AppError(ERROR_CODES.NOT_FOUND, 'DM session not found', 404);
+    }
+
+    // Must be closed (not active)
+    if (dmSession.status === 'active') {
+      throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Session is still active', 400);
+    }
+
+    // Check this user is a participant
+    const initiatorOwner = await queryOne<{ owner_user_id: string }>(
+      `SELECT owner_user_id FROM agents WHERE id = $1`, [dmSession.initiator_id]
+    );
+    const targetOwner = await queryOne<{ owner_user_id: string }>(
+      `SELECT owner_user_id FROM agents WHERE id = $1`, [dmSession.target_id]
+    );
+
+    const isParticipant = initiatorOwner?.owner_user_id === userId || targetOwner?.owner_user_id === userId;
+    if (!isParticipant) {
+      throw new AppError(ERROR_CODES.FORBIDDEN, 'You are not a participant', 403);
+    }
+
+    // Both ratings must be ≥ 4
+    const ratingA = dmSession.post_chat_rating_a;
+    const ratingB = dmSession.post_chat_rating_b;
+
+    if (ratingA == null || ratingB == null) {
+      throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Both parties must rate before renewal', 400);
+    }
+
+    if (ratingA < 4 || ratingB < 4) {
+      throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Both ratings must be ≥ 4 for renewal', 400, undefined, {
+        rating_a: ratingA,
+        rating_b: ratingB,
+        min_required: 4,
+      });
+    }
+
+    // Create new session as renewal
+    const newSession = await queryOne<{ id: string; created_at: Date; expires_at: Date }>(
+      `INSERT INTO dm_sessions (request_id, initiator_id, target_id, intent, renewed_from, renewal_count, expires_at)
+       VALUES ($1, $2, $3, $4, $5, $6, NOW() + INTERVAL '72 hours')
+       RETURNING id, created_at, expires_at`,
+      [
+        dmSession.request_id,
+        dmSession.initiator_id,
+        dmSession.target_id,
+        dmSession.intent,
+        id,
+        dmSession.renewal_count + 1,
+      ]
+    );
+
+    return reply.status(201).send({
+      success: true,
+      data: {
+        session: {
+          id: newSession!.id,
+          renewed_from: id,
+          renewal_count: dmSession.renewal_count + 1,
+          initiator_id: dmSession.initiator_id,
+          target_id: dmSession.target_id,
+          status: 'active',
+          max_messages: 10,
+          created_at: newSession!.created_at,
+          expires_at: newSession!.expires_at,
+        },
+      },
+    });
+  });
+
+  // ============================================
+  // GET /v1/dm/prescreenings - DM 预对接列表
+  // ============================================
+  fastify.get('/v1/dm/prescreenings', async (request: FastifyRequest, reply: FastifyReply) => {
+    const session = await verifyUserSession(request);
+    if (!session) {
+      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Login required', 401);
+    }
+
+    const userId = session.userId;
+    const { filter = 'all' } = request.query as { filter?: string };
+
+    let decisionFilter = '';
+    if (filter === 'pending') {
+      decisionFilter = `AND (
+        (e.user_a_id = '${userId}' AND e.decision_a = 'pending') OR
+        (e.user_b_id = '${userId}' AND e.decision_b = 'pending')
+      )`;
+    } else if (filter === 'want_chat') {
+      decisionFilter = `AND (
+        (e.user_a_id = '${userId}' AND e.decision_a = 'want_chat') OR
+        (e.user_b_id = '${userId}' AND e.decision_b IN ('want_chat', 'accept'))
+      )`;
+    } else if (filter === 'passed') {
+      decisionFilter = `AND (
+        (e.user_a_id = '${userId}' AND e.decision_a = 'pass') OR
+        (e.user_b_id = '${userId}' AND e.decision_b = 'pass')
+      )`;
+    }
+
+    const explorations = await queryMany<{
+      id: string; user_a_id: string; user_b_id: string; status: string;
+      match_score: number | null; match_highlights: any;
+      summary_for_a: string | null; summary_for_b: string | null;
+      collaboration_potential: string | null;
+      decision_a: string; decision_b: string;
+      chat_requested_by: string | null; dm_request_id: string | null;
+      reveal_level_a: number; reveal_level_b: number;
+      created_at: Date; completed_at: Date | null;
+      other_display_name: string | null; other_industry: string | null;
+      other_looking_for: string | null; other_can_offer: string | null;
+      other_tags: string[] | null;
+    }>(
+      `SELECT e.id, e.user_a_id, e.user_b_id, e.status,
+              e.match_score, e.match_highlights,
+              e.summary_for_a, e.summary_for_b,
+              e.collaboration_potential,
+              e.decision_a, e.decision_b,
+              e.chat_requested_by, e.dm_request_id,
+              e.reveal_level_a, e.reveal_level_b,
+              e.created_at, e.completed_at,
+              op.display_name as other_display_name,
+              op.industry as other_industry,
+              op.looking_for as other_looking_for,
+              op.can_offer as other_can_offer,
+              op.topics_of_interest as other_tags
+       FROM ai_explorations e
+       LEFT JOIN owner_profiles op ON op.user_id = (
+         CASE WHEN e.user_a_id = $1 THEN e.user_b_id ELSE e.user_a_id END
+       )
+       WHERE e.source = 'dm'
+         AND (e.user_a_id = $1 OR e.user_b_id = $1)
+         ${decisionFilter}
+       ORDER BY e.completed_at DESC NULLS LAST, e.created_at DESC
+       LIMIT 30`,
+      [userId]
+    );
+
+    return reply.send({
+      success: true,
+      data: {
+        explorations: explorations.map(e => {
+          const iAmA = e.user_a_id === userId;
+          const myDecision = iAmA ? e.decision_a : e.decision_b;
+          const otherDecision = iAmA ? e.decision_b : e.decision_a;
+          const mySummary = iAmA ? e.summary_for_a : e.summary_for_b;
+          const myRevealLevel = iAmA ? e.reveal_level_a : e.reveal_level_b;
+
+          return {
+            id: e.id,
+            status: e.status,
+            match_score: e.match_score,
+            match_highlights: e.match_highlights,
+            summary: myRevealLevel >= 2 ? mySummary : null,
+            summary_preview: mySummary ? String(mySummary).substring(0, 80) + '...' : null,
+            collaboration_potential: myRevealLevel >= 2 ? e.collaboration_potential : null,
+            my_decision: myDecision,
+            other_decision: otherDecision,
+            chat_requested_by: e.chat_requested_by,
+            dm_request_id: e.dm_request_id,
+            reveal_level: myRevealLevel,
+            other_party: {
+              display_name: e.other_display_name,
+              industry: e.other_industry,
+              looking_for: e.other_looking_for,
+              tags: e.other_tags || [],
+            },
+            created_at: e.created_at,
+            completed_at: e.completed_at,
+          };
+        }),
+      },
+    });
+  });
+
+  // ============================================
+  // POST /v1/dm/prescreenings/:id/decide - 预对接决策
+  // ============================================
+  fastify.post('/v1/dm/prescreenings/:id/decide', async (request: FastifyRequest, reply: FastifyReply) => {
+    const session = await verifyUserSession(request);
+    if (!session) {
+      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Login required', 401);
+    }
+
+    const { id } = request.params as { id: string };
+    const userId = session.userId;
+
+    const decideSchema = z.object({
+      decision: z.enum(['want_chat', 'pass']),
+      reason: z.string().max(500).optional(),
+    });
+
+    const parseResult = decideSchema.safeParse(request.body);
+    if (!parseResult.success) {
+      throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Invalid decision', 400);
+    }
+
+    const { decision, reason } = parseResult.data;
+
+    // Load exploration
+    const exploration = await queryOne<{
+      id: string; user_a_id: string; user_b_id: string;
+      decision_a: string; decision_b: string;
+      chat_requested_by: string | null; dm_request_id: string | null;
+      origin_dm_request_id: string | null;
+    }>(
+      `SELECT id, user_a_id, user_b_id, decision_a, decision_b,
+              chat_requested_by, dm_request_id, origin_dm_request_id
+       FROM ai_explorations
+       WHERE id = $1 AND source = 'dm' AND (user_a_id = $2 OR user_b_id = $2)`,
+      [id, userId]
+    );
+
+    if (!exploration) {
+      throw new AppError(ERROR_CODES.NOT_FOUND, 'Pre-screening not found', 404);
+    }
+
+    const iAmA = exploration.user_a_id === userId;
+    const myCurrentDecision = iAmA ? exploration.decision_a : exploration.decision_b;
+
+    if (myCurrentDecision !== 'pending') {
+      throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Decision already made', 409);
+    }
+
+    const decisionCol = iAmA ? 'decision_a' : 'decision_b';
+    const reasonCol = iAmA ? 'decision_a_reason' : 'decision_b_reason';
+    const atCol = iAmA ? 'decision_a_at' : 'decision_b_at';
+
+    if (decision === 'pass') {
+      await query(
+        `UPDATE ai_explorations SET ${decisionCol} = 'pass', ${reasonCol} = $1, ${atCol} = NOW() WHERE id = $2`,
+        [reason || null, id]
+      );
+
+      // If both sides have decided (other also passed or now I'm passing), reject the dm_request
+      const otherDecision = iAmA ? exploration.decision_b : exploration.decision_a;
+      if (otherDecision !== 'pending' || decision === 'pass') {
+        if (exploration.origin_dm_request_id) {
+          await query(
+            `UPDATE dm_requests SET status = 'rejected', reject_reason = 'Pre-screening: pass', responded_at = NOW() WHERE id = $1`,
+            [exploration.origin_dm_request_id]
+          );
+          await recordEvent(iAmA ? exploration.user_b_id : exploration.user_a_id, 'outreach_rejected');
+        }
+      }
+
+      return reply.send({ success: true, data: { decision: 'pass' } });
+    }
+
+    // decision === 'want_chat'
+    const otherDecision = iAmA ? exploration.decision_b : exploration.decision_a;
+
+    await query(
+      `UPDATE ai_explorations SET ${decisionCol} = 'want_chat', ${atCol} = NOW(),
+       chat_requested_by = COALESCE(chat_requested_by, $1) WHERE id = $2`,
+      [iAmA ? 'A' : 'B', id]
+    );
+
+    if (otherDecision === 'want_chat') {
+      // Mutual match! Create human DM session
+      if (exploration.origin_dm_request_id) {
+        await query(
+          `UPDATE dm_requests SET status = 'accepted', responded_at = NOW() WHERE id = $1`,
+          [exploration.origin_dm_request_id]
+        );
+
+        // Get agents from the dm_request
+        const dmReq = await queryOne<{ from_agent_id: string; to_agent_id: string }>(
+          `SELECT from_agent_id, to_agent_id FROM dm_requests WHERE id = $1`,
+          [exploration.origin_dm_request_id]
+        );
+
+        if (dmReq) {
+          const dmSession = await queryOne<{ id: string }>(
+            `INSERT INTO dm_sessions (request_id, initiator_id, target_id, intent, exploration_id, max_messages, expires_at)
+             VALUES ($1, $2, $3, 'Pre-screened match', $4, 100, NOW() + INTERVAL '7 days')
+             RETURNING id`,
+            [exploration.origin_dm_request_id, dmReq.from_agent_id, dmReq.to_agent_id, id]
+          );
+
+          // Record acceptance
+          await recordEvent(exploration.user_a_id, 'outreach_accepted');
+
+          // Notify both users
+          for (const uid of [exploration.user_a_id, exploration.user_b_id]) {
+            await query(
+              `INSERT INTO agent_notifications (owner_user_id, type, title, content, metadata)
+               VALUES ($1, 'dm_accepted', 'Mutual Match!', 'You both want to chat! A DM session has been created.', $2)`,
+              [uid, JSON.stringify({ exploration_id: id, dm_session_id: dmSession?.id })]
+            );
+          }
+
+          return reply.send({
+            success: true,
+            data: { decision: 'want_chat', mutual_match: true, dm_session_id: dmSession?.id },
+          });
+        }
+      }
+
+      return reply.send({ success: true, data: { decision: 'want_chat', mutual_match: true } });
+    }
+
+    // I'm the first to say want_chat, wait for the other party
+    // Notify the other party
+    const otherUserId = iAmA ? exploration.user_b_id : exploration.user_a_id;
+    await query(
+      `INSERT INTO agent_notifications (owner_user_id, type, title, content, metadata)
+       VALUES ($1, 'chat_request_from_exploration', 'Someone wants to chat!', 'A pre-screening match wants to connect. Review the results to decide.', $2)`,
+      [otherUserId, JSON.stringify({ exploration_id: id, source: 'dm' })]
+    );
+
+    return reply.send({
+      success: true,
+      data: { decision: 'want_chat', mutual_match: false },
+    });
   });
 }

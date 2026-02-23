@@ -124,11 +124,12 @@ export async function getRooms(page = 1, limit = 20) {
 export async function createRoom(
   name: string,
   description?: string,
-  settings?: { invite_only?: boolean; allow_observer?: boolean; is_public?: boolean }
+  settings?: { invite_only?: boolean; allow_observer?: boolean; is_public?: boolean },
+  tag_slugs?: string[]
 ) {
   return fetchApi<{ room: Room }>('/v1/rooms', {
     method: 'POST',
-    body: JSON.stringify({ name, description, settings }),
+    body: JSON.stringify({ name, description, settings, ...(tag_slugs?.length ? { tag_slugs } : {}) }),
   });
 }
 
@@ -400,4 +401,378 @@ export function clearMatrixCredentials(): void {
   if (typeof window !== 'undefined') {
     localStorage.removeItem('moltchat_matrix_credentials');
   }
+}
+
+// ============================================
+// Networking — Activities & AI Explorations
+// ============================================
+
+export interface Activity {
+  id: string;
+  name: string;
+  description: string | null;
+  theme: string | null;
+  cover_image: string | null;
+  status: string;
+  max_participants: number;
+  is_anonymous: boolean;
+  starts_at: string | null;
+  ends_at: string | null;
+  created_at: string;
+  participant_count: number;
+  user_joined: boolean;
+}
+
+export interface ActivityDetail extends Activity {
+  ai_explore_rounds: number;
+  decision_deadline_hours: number;
+  chat_expiry_hours: number;
+}
+
+export interface MyParticipation {
+  roles: string[];
+  looking_for: string;
+  can_offer: string;
+  tags: string[];
+}
+
+export interface ExplorationStats {
+  total: number;
+  pending_review: number;
+  completed: number;
+}
+
+export interface ExplorationItem {
+  id: string;
+  status: string;
+  match_score: number | null;
+  match_highlights: string[];
+  summary: string | null;
+  summary_preview: string | null;
+  collaboration_potential: string | null;
+  my_decision: string;
+  other_decision: string;
+  chat_requested_by: string | null;
+  dm_request_id: string | null;
+  reveal_level: number;
+  other_party: {
+    roles: string[];
+    tags: string[];
+    looking_for: string | null;
+    industry: string | null;
+  };
+  created_at: string;
+  completed_at: string | null;
+}
+
+export interface ExplorationDetail {
+  exploration: {
+    id: string;
+    activity_id: string | null;
+    source?: string;
+    status: string;
+    match_score: number | null;
+    match_highlights: string[];
+    summary: string | null;
+    collaboration_potential: string | null;
+    my_decision: string;
+    other_decision: string;
+    chat_requested_by: string | null;
+    dm_request_id: string | null;
+    total_rounds: number;
+    other_party: {
+      roles: string[];
+      looking_for: string | null;
+      can_offer: string | null;
+      tags: string[];
+      industry: string | null;
+      display_name: string | null;
+      job_title?: string | null;
+    };
+  };
+  messages: {
+    id: string;
+    round: number;
+    side: string;
+    is_mine: boolean;
+    content: string;
+    created_at: string;
+  }[];
+}
+
+// ============================================
+// My Explorations (aggregated across all sources)
+// ============================================
+
+export interface MyExplorationItem {
+  id: string;
+  source: string;
+  status: string;
+  total_rounds: number;
+  max_rounds: number;
+  match_score: number | null;
+  match_highlights: string[];
+  summary: string | null;
+  collaboration_potential: string | null;
+  my_decision: string;
+  other_decision: string;
+  chat_requested_by: string | null;
+  dm_request_id: string | null;
+  other_party: {
+    display_name: string | null;
+    industry: string | null;
+    job_title: string | null;
+  };
+  context: {
+    room_name: string | null;
+    room_id: string | null;
+    activity_name: string | null;
+    activity_id: string | null;
+  };
+  created_at: string;
+  completed_at: string | null;
+}
+
+export interface MyExplorationsStats {
+  total: number;
+  pending_decision: number;
+  in_progress: number;
+  decided: number;
+}
+
+export async function getMyExplorations(filter: string = 'all', limit = 20, offset = 0) {
+  return fetchApi<{ stats: MyExplorationsStats; explorations: MyExplorationItem[] }>(
+    `/v1/my/explorations?filter=${filter}&limit=${limit}&offset=${offset}`
+  );
+}
+
+export async function getActivities(status?: string) {
+  const params = status ? `?status=${status}` : '';
+  return fetchApi<{ activities: Activity[] }>(`/v1/activities${params}`);
+}
+
+export async function getActivity(id: string) {
+  return fetchApi<{
+    activity: ActivityDetail;
+    my_participation: MyParticipation | null;
+    exploration_stats: ExplorationStats;
+  }>(`/v1/activities/${id}`);
+}
+
+export async function joinActivity(activityId: string, data: {
+  roles: string[];
+  looking_for: string;
+  can_offer: string;
+  tags?: string[];
+}) {
+  return fetchApi<{ participant_id: string }>(`/v1/activities/${activityId}/join`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getExplorations(activityId: string, filter: string = 'all') {
+  return fetchApi<{ explorations: ExplorationItem[] }>(
+    `/v1/activities/${activityId}/explorations?filter=${filter}`
+  );
+}
+
+export async function getExploration(explorationId: string) {
+  return fetchApi<ExplorationDetail>(`/v1/explorations/${explorationId}`);
+}
+
+export async function submitDecision(explorationId: string, decision: 'want_chat' | 'pass', reason?: string) {
+  return fetchApi<{ decision: string; mutual_match?: boolean; dm_request_id?: string; dm_session_id?: string }>(
+    `/v1/explorations/${explorationId}/decide`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ decision, reason }),
+    }
+  );
+}
+
+export async function respondToExploration(explorationId: string, action: 'accept' | 'reject', reason?: string) {
+  return fetchApi<{ action: string; dm_session_id?: string }>(
+    `/v1/explorations/${explorationId}/respond`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ action, reason }),
+    }
+  );
+}
+
+// ============================================
+// DM Prescreenings
+// ============================================
+
+export async function getDMPrescreenings(filter: string = 'all') {
+  return fetchApi<{ prescreenings: ExplorationItem[] }>(
+    `/v1/dm/prescreenings?filter=${filter}`
+  );
+}
+
+export async function decideDMPrescreening(explorationId: string, decision: 'want_chat' | 'pass', reason?: string) {
+  return fetchApi<{ decision: string; mutual_match?: boolean; dm_session_id?: string }>(
+    `/v1/dm/prescreenings/${explorationId}/decide`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ decision, reason }),
+    }
+  );
+}
+
+// ============================================
+// Market Protocol
+// ============================================
+
+export interface BudgetCheck {
+  allowed: boolean;
+  used: number;
+  limit: number;
+  remaining: number;
+}
+
+export interface BudgetStatus {
+  inbound: BudgetCheck;
+  outbound_unlimited: true;
+  week_start: string;
+  preferences: {
+    inbound_limit: number;
+    overflow_policy: 'queue' | 'reject';
+    priority_by_reputation: boolean;
+  };
+}
+
+export interface ReputationProfile {
+  reputation_score: number;
+  hit_rate: number;
+  avg_post_chat_rating: number | null;
+  in_cooldown: boolean;
+}
+
+export interface ReputationEvent {
+  id: string;
+  event_type: string;
+  points_delta: number;
+  reference_id: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface AlignmentResult {
+  alignment: {
+    score: number;
+    passed: boolean;
+    details: {
+      intent_match: number;
+      value_exchange: number;
+      industry_overlap: number;
+      tag_overlap: number;
+      behavior_history: number;
+      final_score: number;
+    };
+  };
+  threshold: number;
+  would_pass: boolean;
+}
+
+export async function getProtocolBudget() {
+  return fetchApi<BudgetStatus>('/v1/protocol/budget');
+}
+
+export async function getProtocolReputation() {
+  return fetchApi<ReputationProfile>('/v1/protocol/reputation');
+}
+
+export async function getReputationEvents(limit = 50) {
+  return fetchApi<{ events: ReputationEvent[] }>(`/v1/protocol/reputation/events?limit=${limit}`);
+}
+
+export async function previewAlignment(targetUserId: string, activityId?: string) {
+  return fetchApi<AlignmentResult>('/v1/protocol/alignment/preview', {
+    method: 'POST',
+    body: JSON.stringify({ target_user_id: targetUserId, activity_id: activityId }),
+  });
+}
+
+export async function rateDmSession(sessionId: string, rating: number, outcome: 'valuable' | 'neutral' | 'waste') {
+  return fetchApi<{ session_id: string; rating: number; outcome: string; side: string }>(
+    `/v1/dm/sessions/${sessionId}/rate`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ rating, outcome }),
+    }
+  );
+}
+
+// ============================================
+// Protocol Rules (Public)
+// ============================================
+
+export interface ProtocolRule {
+  id: string;
+  rule_key: string;
+  version: number;
+  title: string;
+  content_md: string;
+  change_summary: string | null;
+  is_current: boolean;
+  created_at: string;
+}
+
+export interface PromptTemplate {
+  id: string;
+  prompt_key: string;
+  version: number;
+  title: string;
+  template_md: string;
+  variables: string[];
+  change_summary: string | null;
+  is_current: boolean;
+  created_at: string;
+}
+
+export interface RuleFeedbackItem {
+  id: string;
+  rule_id: string;
+  user_id: string;
+  author_name?: string;
+  feedback_type: string;
+  content: string;
+  upvotes: number;
+  downvotes: number;
+  status: string;
+  created_at: string;
+}
+
+export async function getProtocolRules() {
+  return fetchApi<{ rules: ProtocolRule[] }>('/v1/protocol/rules');
+}
+
+export async function getProtocolRule(key: string) {
+  return fetchApi<{ rule: ProtocolRule; versions: { version: number; change_summary: string | null; created_at: string }[] }>(
+    `/v1/protocol/rules/${key}`
+  );
+}
+
+export async function getProtocolPrompts() {
+  return fetchApi<{ prompts: PromptTemplate[] }>('/v1/protocol/prompts');
+}
+
+export async function getRuleFeedback(ruleId: string) {
+  return fetchApi<{ feedback: RuleFeedbackItem[] }>(`/v1/protocol/rules/${ruleId}/feedback`);
+}
+
+export async function submitRuleFeedback(ruleId: string, feedbackType: string, content: string) {
+  return fetchApi<{ feedback: RuleFeedbackItem }>(`/v1/protocol/rules/${ruleId}/feedback`, {
+    method: 'POST',
+    body: JSON.stringify({ feedback_type: feedbackType, content }),
+  });
+}
+
+export async function voteOnFeedback(feedbackId: string, vote: 1 | -1) {
+  return fetchApi<{ voted: number }>(`/v1/protocol/feedback/${feedbackId}/vote`, {
+    method: 'POST',
+    body: JSON.stringify({ vote }),
+  });
 }
