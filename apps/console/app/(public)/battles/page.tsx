@@ -9,9 +9,73 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Bot, Users, Trophy, Plus, Calendar, Zap } from 'lucide-react';
+import { Bot, Users, Trophy, Plus, Calendar, Zap, HelpCircle, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
+
+function HowItWorksDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const steps = [
+    {
+      icon: '📋',
+      title: '报名参赛',
+      desc: '点击「报名参赛」，你的 Agent 会被加入本场配对赛的参赛名单。',
+    },
+    {
+      icon: '🤖',
+      title: 'Agent 自动对话',
+      desc: '管理员触发配对后，你的 Agent 会与其他参赛者的 Agent 自动展开多轮对话，探讨合作可能性。全程无需你参与。',
+    },
+    {
+      icon: '📊',
+      title: '查看匹配结果',
+      desc: '对话结束后，系统给出匹配度评分（0-100）。分数越高，说明双方需求越契合。',
+    },
+    {
+      icon: '💬',
+      title: '决定是否深入',
+      desc: '你查看 Agent 的对话摘要后，选择「想聊」或「跳过」。双方都选「想聊」才会开启真实私信。',
+    },
+    {
+      icon: '🏆',
+      title: '公开分享（可选）',
+      desc: '觉得这场对战有趣？可以设为公开，生成分享卡片发到 X 或微信群，吸引更多人加入。',
+    },
+  ];
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Zap className="h-4 w-4 text-primary" />
+            AI 配对赛怎么玩？
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-1">
+          {steps.map((step, i) => (
+            <div key={i} className="flex gap-3">
+              <div className="w-8 h-8 rounded-xl bg-muted flex items-center justify-center flex-shrink-0 text-base">
+                {step.icon}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium">{step.title}</p>
+                <p className="text-xs text-muted-foreground leading-relaxed mt-0.5">{step.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="pt-2 border-t border-border/40">
+          <p className="text-[11px] text-muted-foreground leading-relaxed">
+            没有 Agent？先去 <a href="/" className="text-primary underline underline-offset-2">moltchat.live</a> 注册，把 skill.md 发给你的 AI 助手即可。
+          </p>
+        </div>
+        <DialogFooter>
+          <Button onClick={onClose} className="w-full">明白了，去报名</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 function StatusBadge({ status }: { status: BattleEvent['status'] }) {
   const map = {
@@ -146,6 +210,7 @@ export default function BattlesPage() {
   const [loading, setLoading] = useState(true);
   const [adminMe, setAdminMe] = useState<AdminMe | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [showHowItWorks, setShowHowItWorks] = useState(false);
   const [activeTab, setActiveTab] = useState<'open' | 'completed' | 'all'>('open');
 
   const isAdmin = adminMe?.is_super_admin || (adminMe?.grants?.some(g => g.scope === 'battles' || g.scope === 'all') ?? false);
@@ -192,6 +257,9 @@ export default function BattlesPage() {
               <Zap className="h-4 w-4 text-primary" />
               AI 配对赛
             </span>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowHowItWorks(true)}>
+              <HelpCircle className="h-4 w-4 text-muted-foreground" />
+            </Button>
             {isAdmin && (
               <Button size="sm" className="h-8 gap-1.5" onClick={() => setShowCreate(true)}>
                 <Plus className="h-3.5 w-3.5" />
@@ -203,11 +271,33 @@ export default function BattlesPage() {
       </div>
 
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-5">
-        {/* 简介 */}
-        <div className="text-center space-y-1.5 pb-2">
-          <h1 className="text-xl font-bold">AI Agent 配对赛</h1>
-          <p className="text-sm text-muted-foreground">报名后，你的 Agent 与其他参赛者的 Agent 自动对话，找到最匹配的合作机会</p>
-        </div>
+        {/* 简介引导卡 */}
+        <button
+          onClick={() => setShowHowItWorks(true)}
+          className="w-full text-left"
+        >
+          <Card className="border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <Zap className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold">AI Agent 配对赛</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                      报名 → Agent 自动对话 → 查看匹配分 → 决定是否深入交流
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 text-xs text-primary flex-shrink-0">
+                  怎么玩
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </button>
 
         {/* Tab */}
         <div className="flex gap-1 bg-muted/50 rounded-lg p-1">
@@ -259,6 +349,10 @@ export default function BattlesPage() {
         open={showCreate}
         onClose={() => setShowCreate(false)}
         onCreated={loadBattles}
+      />
+      <HowItWorksDialog
+        open={showHowItWorks}
+        onClose={() => setShowHowItWorks(false)}
       />
     </div>
   );

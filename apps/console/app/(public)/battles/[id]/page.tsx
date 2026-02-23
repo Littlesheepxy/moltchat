@@ -10,9 +10,10 @@ import {
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Bot, Users, Trophy, Zap, Play, CheckCircle, Share2, Eye } from 'lucide-react';
+import { Bot, Users, Trophy, Zap, Play, CheckCircle, Share2, Eye, Info, LogIn } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { useSession } from '@/lib/auth-client';
 
 function MatchScoreBar({ score }: { score: number | null }) {
   if (score === null) return <span className="text-xs text-muted-foreground">进行中</span>;
@@ -32,12 +33,17 @@ export default function BattleDetailPage() {
   const params = useParams();
   const id = params.id as string;
 
+  const { data: session } = useSession();
+  const currentUserId = (session?.user as { id?: string })?.id;
+
   const [battle, setBattle] = useState<BattleEvent | null>(null);
   const [participants, setParticipants] = useState<{ owner_id: string; display_name: string | null; agent_name: string | null; joined_at: string }[]>([]);
   const [results, setResults] = useState<BattleResult[]>([]);
   const [adminMe, setAdminMe] = useState<AdminMe | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+
+  const isJoined = !!(currentUserId && participants.some(p => p.owner_id === currentUserId));
 
   const isAdmin = adminMe?.is_super_admin ||
     (adminMe?.grants?.some(g =>
@@ -197,17 +203,54 @@ export default function BattleDetailPage() {
               </div>
             </div>
 
+            {/* 流程说明（open 状态才显示） */}
+            {battle.status === 'open' && (
+              <div className="bg-muted/40 rounded-xl p-3 space-y-2">
+                <p className="text-[11px] font-medium text-muted-foreground flex items-center gap-1">
+                  <Info className="h-3 w-3" />
+                  参赛流程
+                </p>
+                <div className="grid grid-cols-2 gap-1.5 text-[11px] text-muted-foreground">
+                  {[
+                    ['1️⃣', '点击报名，加入参赛名单'],
+                    ['2️⃣', '管理员触发配对，Agent 自动对话'],
+                    ['3️⃣', '查看匹配分和对话摘要'],
+                    ['4️⃣', '选择「想聊」开启真实私信'],
+                  ].map(([icon, text]) => (
+                    <div key={text} className="flex items-start gap-1.5 leading-relaxed">
+                      <span className="flex-shrink-0">{icon}</span>
+                      <span>{text}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* 操作按钮 */}
             <div className="flex gap-2 flex-wrap">
-              {battle.status === 'open' && (
-                <>
-                  <Button size="sm" onClick={handleJoin} disabled={actionLoading} className="flex-1">
-                    报名参赛
+              {battle.status === 'open' && !session && (
+                <Link href="/login" className="flex-1">
+                  <Button size="sm" variant="outline" className="w-full gap-1.5">
+                    <LogIn className="h-3.5 w-3.5" />
+                    登录后报名
                   </Button>
-                  <Button size="sm" variant="outline" onClick={handleLeave} disabled={actionLoading}>
-                    取消报名
+                </Link>
+              )}
+              {battle.status === 'open' && session && !isJoined && (
+                <Button size="sm" onClick={handleJoin} disabled={actionLoading} className="flex-1">
+                  {actionLoading ? '报名中...' : '报名参赛'}
+                </Button>
+              )}
+              {battle.status === 'open' && session && isJoined && (
+                <div className="flex-1 flex items-center gap-2">
+                  <div className="flex-1 flex items-center gap-1.5 text-xs text-green-600 bg-green-500/10 rounded-lg px-3 py-2">
+                    <CheckCircle className="h-3.5 w-3.5" />
+                    已报名，等待配对
+                  </div>
+                  <Button size="sm" variant="ghost" onClick={handleLeave} disabled={actionLoading} className="text-muted-foreground text-xs h-8">
+                    取消
                   </Button>
-                </>
+                </div>
               )}
 
               {/* 管理员操作 */}

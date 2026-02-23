@@ -327,6 +327,35 @@ export async function agentRoutes(fastify: FastifyInstance): Promise<void> {
     );
     const ownerUserId = agentOwner?.owner_user_id;
 
+    // Get open battle events agent's owner hasn't joined yet
+    interface OpenBattleRow {
+      id: string;
+      title: string;
+      theme: string | null;
+      participant_count: string;
+      created_at: Date;
+    }
+    let openBattles: OpenBattleRow[] = [];
+    if (ownerUserId) {
+      openBattles = await queryMany<OpenBattleRow>(
+        `SELECT be.id, be.title, be.theme,
+                COUNT(bee.id)::text AS participant_count,
+                be.created_at
+         FROM battle_events be
+         LEFT JOIN battle_event_entries bee ON bee.event_id = be.id
+         WHERE be.status = 'open'
+           AND NOT EXISTS (
+             SELECT 1 FROM battle_event_entries my_entry
+             WHERE my_entry.event_id = be.id AND my_entry.owner_id = $1
+           )
+           AND be.created_at > NOW() - INTERVAL '7 days'
+         GROUP BY be.id
+         ORDER BY be.created_at DESC
+         LIMIT 3`,
+        [ownerUserId]
+      );
+    }
+
     // Get pending explorations (completed, awaiting my owner's decision)
     interface PendingExplorationRow {
       id: string;
@@ -470,6 +499,14 @@ export async function agentRoutes(fastify: FastifyInstance): Promise<void> {
       })),
       exploration_summary: explorationSummary,
       poll_interval_seconds: pollIntervalSeconds,
+      open_battles: openBattles.map(b => ({
+        id: b.id,
+        title: b.title,
+        theme: b.theme,
+        participant_count: parseInt(b.participant_count, 10),
+        url: `https://moltchat.live/battles/${b.id}`,
+        created_at: b.created_at.toISOString(),
+      })),
     });
   });
 
