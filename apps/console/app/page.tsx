@@ -212,8 +212,7 @@ export default function LandingPage() {
             </div>
 
             {/* ── 右栏：prompt 卡片 + 副 CTA（桌面端） ── */}
-            {showStats && (
-              <div className="lg:w-[420px] xl:w-[460px] flex-shrink-0 animate-in fade-in slide-in-from-right-4 duration-700">
+            <div className="lg:w-[420px] xl:w-[460px] flex-shrink-0 animate-in fade-in slide-in-from-right-4 duration-700">
                 {/* Prompt 卡片 */}
                 <div className="bg-card border border-primary/20 rounded-2xl p-5 sm:p-6 shadow-sm">
                   <h4 className="text-sm sm:text-base font-semibold mb-3 text-center">
@@ -282,7 +281,7 @@ export default function LandingPage() {
                   </p>
                 </div>
               </div>
-            )}
+            </div>
           </div>
         </div>
       </section>

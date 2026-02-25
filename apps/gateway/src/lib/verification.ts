@@ -103,12 +103,13 @@ export function parseTweetUrl(url: string): ParsedTweetUrl {
  */
 export async function fetchTweetContent(url: string): Promise<string> {
   const parsed = parseTweetUrl(url);
-  
+
   // Try multiple approaches
   const strategies = [
+    () => fetchViaOEmbed(parsed),
     () => fetchViaVxTwitter(parsed),
+    () => fetchViaFxTwitter(parsed),
     () => fetchViaNitter(parsed),
-    () => fetchDirectHtml(parsed),
   ];
 
   for (const strategy of strategies) {
@@ -132,17 +133,46 @@ export async function fetchTweetContent(url: string): Promise<string> {
 }
 
 /**
- * Strategy 1: Use vxtwitter/fxtwitter API (most reliable)
- * These services provide JSON API for tweet content
+ * Strategy 0: Twitter oEmbed API (official, no auth required, most reliable)
+ * https://publish.twitter.com/oembed?url=...
+ */
+async function fetchViaOEmbed(parsed: ParsedTweetUrl): Promise<string | null> {
+  // Must use twitter.com format — x.com returns 404 from oEmbed endpoint
+  const tweetUrl = `https://twitter.com/${parsed.handle}/status/${parsed.tweetId}`;
+  const apiUrl = `https://publish.twitter.com/oembed?url=${encodeURIComponent(tweetUrl)}&omit_script=true`;
+
+  try {
+    const response = await fetch(apiUrl, {
+      headers: { 'User-Agent': 'MoltChat/1.0' },
+      signal: AbortSignal.timeout(8000),
+    });
+
+    if (!response.ok) return null;
+
+    const data = await response.json() as { html?: string; author_name?: string };
+    if (!data.html) return null;
+
+    // Extract plain text from the <p> tag inside the blockquote
+    const pMatch = data.html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
+    if (pMatch?.[1]) {
+      return decodeHtmlEntities(pMatch[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim());
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Strategy 1: Use vxtwitter API
  */
 async function fetchViaVxTwitter(parsed: ParsedTweetUrl): Promise<string | null> {
   const apiUrl = `https://api.vxtwitter.com/${parsed.handle}/status/${parsed.tweetId}`;
-  
+
   try {
     const response = await fetch(apiUrl, {
-      headers: {
-        'User-Agent': 'MoltChat/1.0',
-      },
+      headers: { 'User-Agent': 'MoltChat/1.0' },
+      signal: AbortSignal.timeout(8000),
     });
 
     if (!response.ok) {
@@ -157,7 +187,28 @@ async function fetchViaVxTwitter(parsed: ParsedTweetUrl): Promise<string | null>
 }
 
 /**
- * Strategy 2: Use Nitter instances
+ * Strategy 2: Use fxtwitter API (mirror of vxtwitter)
+ */
+async function fetchViaFxTwitter(parsed: ParsedTweetUrl): Promise<string | null> {
+  const apiUrl = `https://api.fxtwitter.com/${parsed.handle}/status/${parsed.tweetId}`;
+
+  try {
+    const response = await fetch(apiUrl, {
+      headers: { 'User-Agent': 'MoltChat/1.0' },
+      signal: AbortSignal.timeout(8000),
+    });
+
+    if (!response.ok) return null;
+
+    const data = await response.json() as { tweet?: { text?: string }; text?: string };
+    return data.tweet?.text || data.text || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Strategy 3: Use Nitter instances
  */
 async function fetchViaNitter(parsed: ParsedTweetUrl): Promise<string | null> {
   const nitterInstances = [
@@ -172,6 +223,7 @@ async function fetchViaNitter(parsed: ParsedTweetUrl): Promise<string | null> {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         },
+        signal: AbortSignal.timeout(6000),
       });
 
       if (!response.ok) continue;
@@ -197,55 +249,6 @@ function extractFromNitterHtml(html: string): string | null {
     // Strip HTML tags and decode entities
     return decodeHtmlEntities(contentMatch[1]!.replace(/<[^>]+>/g, '').trim());
   }
-  return null;
-}
-
-/**
- * Strategy 3: Direct HTML fetch (fallback, less reliable)
- */
-async function fetchDirectHtml(parsed: ParsedTweetUrl): Promise<string | null> {
-  try {
-    // Try mobile version which sometimes has less JS dependency
-    const mobileUrl = `https://mobile.twitter.com/${parsed.handle}/status/${parsed.tweetId}`;
-    
-    const response = await fetch(mobileUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15',
-        'Accept': 'text/html',
-      },
-      redirect: 'follow',
-    });
-
-    if (!response.ok) return null;
-
-    const html = await response.text();
-    return extractFromTwitterHtml(html);
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Extract tweet text from Twitter HTML (best effort)
- */
-function extractFromTwitterHtml(html: string): string | null {
-  // Try to find tweet text in various places
-  const patterns = [
-    // Meta description often contains tweet text
-    /<meta\s+(?:name|property)=["'](?:og:description|description)["']\s+content=["']([^"']+)["']/i,
-    // Data attribute
-    /data-tweet-text=["']([^"']+)["']/i,
-    // Tweet text div
-    /<div[^>]+data-testid=["']tweetText["'][^>]*>([\s\S]*?)<\/div>/i,
-  ];
-
-  for (const pattern of patterns) {
-    const match = html.match(pattern);
-    if (match?.[1]) {
-      return decodeHtmlEntities(match[1].replace(/<[^>]+>/g, '').trim());
-    }
-  }
-
   return null;
 }
 
