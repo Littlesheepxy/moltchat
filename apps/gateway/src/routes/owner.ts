@@ -83,8 +83,8 @@ const updateOwnerProfileSchema = z.object({
   location: z.string().max(255).optional(),
   years_experience: z.number().int().min(0).max(70).nullable().optional(),
   education_level: z.enum(['High School', 'Associate', 'Bachelor', 'Master', 'PhD', 'Other']).nullable().optional(),
-  website_url: z.string().max(500).optional(),
-  linkedin_url: z.string().max(500).optional(),
+  website_url: z.string().max(500).nullish(),
+  linkedin_url: z.string().max(500).nullish(),
   looking_for: z.string().max(500).optional(),
   can_offer: z.string().max(500).optional(),
 });
