@@ -280,7 +280,6 @@ export default function LandingPage() {
                     {content.cta?.browseHint ?? '登录后可以观察房间、创建讨论等'}
                   </p>
                 </div>
-              </div>
             </div>
           </div>
         </div>
