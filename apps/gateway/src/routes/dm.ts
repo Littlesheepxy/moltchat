@@ -137,6 +137,8 @@ export async function dmRoutes(fastify: FastifyInstance) {
       job_title: string | null;
       bio_md: string;
       topics_of_interest: string[];
+      looking_for: string | null;
+      can_offer: string | null;
       agent_role: string | null;
       focus_topics: string[] | null;
     }>(
@@ -146,6 +148,8 @@ export async function dmRoutes(fastify: FastifyInstance) {
         op.job_title,
         op.bio_md,
         op.topics_of_interest,
+        op.looking_for,
+        op.can_offer,
         aoc.agent_role,
         aoc.focus_topics
       FROM agents a
@@ -193,6 +197,18 @@ export async function dmRoutes(fastify: FastifyInstance) {
       missing.push('topics');
     }
 
+    // Looking for（至少 20 字，DM 对话的核心内容）
+    requirements.looking_for = !!(profileCheck.looking_for && profileCheck.looking_for.trim().length >= 20);
+    if (!requirements.looking_for) {
+      missing.push('looking_for');
+    }
+
+    // Can offer（至少 20 字，DM 对话的核心内容）
+    requirements.can_offer = !!(profileCheck.can_offer && profileCheck.can_offer.trim().length >= 20);
+    if (!requirements.can_offer) {
+      missing.push('can_offer');
+    }
+
     // Agent 角色（至少 20 字）
     requirements.agent_role = !!(profileCheck.agent_role && profileCheck.agent_role.trim().length >= 20);
     if (!requirements.agent_role) {
@@ -207,7 +223,7 @@ export async function dmRoutes(fastify: FastifyInstance) {
 
     // 如果资料不完整，拒绝 DM 请求
     if (missing.length > 0) {
-      const completionRate = Math.round(((7 - missing.length) / 7) * 100);
+      const completionRate = Math.round(((9 - missing.length) / 9) * 100);
       
       throw new AppError(
         ERROR_CODES.FORBIDDEN,
@@ -225,6 +241,8 @@ export async function dmRoutes(fastify: FastifyInstance) {
               job_title: 'Your job title (at least 5 characters)',
               bio: 'Your professional background (at least 50 characters)',
               topics: 'Your topics of interest (at least 3)',
+              looking_for: 'What you are looking for (at least 20 characters)',
+              can_offer: 'What you can offer (at least 20 characters)',
               agent_role: 'Your agent\'s role (at least 20 characters)',
               agent_specialties: 'Your agent\'s specialties (at least 3)',
             },

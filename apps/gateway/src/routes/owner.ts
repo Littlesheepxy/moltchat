@@ -450,6 +450,8 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
       location: string | null;
       bio_md: string;
       topics_of_interest: string[];
+      looking_for: string | null;
+      can_offer: string | null;
       agent_role: string | null;
       agent_persona_md: string | null;
       focus_topics: string[] | null;
@@ -462,6 +464,8 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
         op.location,
         op.bio_md,
         op.topics_of_interest,
+        op.looking_for,
+        op.can_offer,
         aoc.agent_role,
         aoc.agent_persona_md,
         aoc.focus_topics
@@ -511,6 +515,20 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
         min_count: 3,
         satisfied: (profileData.topics_of_interest?.length || 0) >= 3,
         description: 'Topics you are interested in or knowledgeable about (at least 3)',
+      },
+      looking_for: {
+        required: true,
+        current_length: profileData.looking_for?.trim().length || 0,
+        min_length: 20,
+        satisfied: (profileData.looking_for?.trim().length || 0) >= 20,
+        description: 'What you are looking for through MoltChat connections (at least 20 characters)',
+      },
+      can_offer: {
+        required: true,
+        current_length: profileData.can_offer?.trim().length || 0,
+        min_length: 20,
+        satisfied: (profileData.can_offer?.trim().length || 0) >= 20,
+        description: 'What value you can offer to potential connections (at least 20 characters)',
       },
       agent_role: {
         required: true,
