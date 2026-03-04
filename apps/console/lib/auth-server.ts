@@ -88,13 +88,44 @@ export const auth = betterAuth({
     twitter: {
       clientId: process.env.TWITTER_CLIENT_ID!,
       clientSecret: process.env.TWITTER_CLIENT_SECRET!,
-      // Request additional scopes for tweet posting and offline access
+      // Disable default scopes (includes invalid "users.email") and set explicitly
+      disableDefaultScope: true,
       scope: [
         "tweet.read",
-        "tweet.write", 
+        "tweet.write",
         "users.read",
-        "offline.access",  // For refresh tokens to maintain session
+        "offline.access",
       ],
+      // Override getUserInfo to add detailed error logging and fallback email handling
+      getUserInfo: async (token) => {
+        const fetch = (await import("@better-fetch/fetch")).betterFetch;
+
+        const { data: profile, error: profileError } = await fetch<{
+          data: { id: string; name: string; username: string; profile_image_url?: string };
+        }>("https://api.x.com/2/users/me?user.fields=profile_image_url", {
+          method: "GET",
+          headers: { Authorization: `Bearer ${token.accessToken}` },
+        });
+
+        if (profileError) {
+          console.error("[Twitter OAuth] getUserInfo failed:", JSON.stringify(profileError));
+          return null;
+        }
+
+        // Use username as email fallback — Twitter doesn't reliably return email
+        const email = `${profile.data.username}@twitter.placeholder`;
+
+        return {
+          user: {
+            id: profile.data.id,
+            name: profile.data.name,
+            email,
+            image: profile.data.profile_image_url,
+            emailVerified: false,
+          },
+          data: profile,
+        };
+      },
     },
   },
 
