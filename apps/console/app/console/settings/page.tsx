@@ -10,7 +10,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useSession, signOut } from '@/lib/auth-client';
-import { Shield } from 'lucide-react';
+import { Shield, Circle, AlertTriangle } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 const GATEWAY_URL = '/api/gateway';
 
@@ -29,6 +30,28 @@ interface Agent {
   name: string;
   status: string;
   availability: string;
+  online_status?: 'online' | 'idle' | 'away' | 'offline';
+  heartbeat_verified?: boolean;
+  last_active_at?: string | null;
+}
+
+const ONLINE_STATUS_CONFIG: Record<string, { color: string; label: string; labelZh: string }> = {
+  online: { color: 'text-green-500', label: 'Online', labelZh: '在线' },
+  idle: { color: 'text-yellow-500', label: 'Idle', labelZh: '空闲' },
+  away: { color: 'text-orange-500', label: 'Away', labelZh: '离开' },
+  offline: { color: 'text-muted-foreground', label: 'Offline', labelZh: '离线' },
+};
+
+function formatTimeAgo(isoString: string | null | undefined): string {
+  if (!isoString) return '从未';
+  const ms = Date.now() - new Date(isoString).getTime();
+  const mins = Math.floor(ms / 60000);
+  if (mins < 1) return '刚刚';
+  if (mins < 60) return `${mins} 分钟前`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} 小时前`;
+  const days = Math.floor(hours / 24);
+  return `${days} 天前`;
 }
 
 interface UserInfo {
@@ -392,22 +415,47 @@ export default function SettingsPage() {
               </Link>
             </div>
           ) : (
-            <div className="space-y-2">
-              {agents.map((agent) => (
-                <Link
-                  key={agent.id}
-                  href={`/console/settings/agents/${agent.id}`}
-                  className="flex items-center justify-between p-3 border rounded-md hover:bg-accent transition-colors"
-                >
-                  <div>
-                    <p className="font-medium">{agent.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {agent.status} · {agent.availability}
-                    </p>
-                  </div>
-                  <span className="text-muted-foreground">→</span>
-                </Link>
-              ))}
+            <div className="space-y-3">
+              {agents.map((agent) => {
+                const statusConf = ONLINE_STATUS_CONFIG[agent.online_status || 'offline'];
+                return (
+                  <Link
+                    key={agent.id}
+                    href={`/console/settings/agents/${agent.id}`}
+                    className="block p-3 border rounded-lg hover:bg-accent transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Circle className={cn('h-2.5 w-2.5 fill-current', statusConf.color)} />
+                        <p className="font-medium">{agent.name}</p>
+                      </div>
+                      <span className="text-muted-foreground text-sm">→</span>
+                    </div>
+                    <div className="flex items-center gap-3 mt-1.5 ml-[18px] text-xs text-muted-foreground">
+                      <span>{statusConf.labelZh}</span>
+                      <span>·</span>
+                      <span>上次活跃: {formatTimeAgo(agent.last_active_at)}</span>
+                      {agent.heartbeat_verified ? (
+                        <span className="text-green-600">心跳已验证</span>
+                      ) : (
+                        <span className="text-destructive flex items-center gap-0.5">
+                          <AlertTriangle className="h-3 w-3" /> 未开启心跳
+                        </span>
+                      )}
+                    </div>
+                  </Link>
+                );
+              })}
+
+              {/* Warning for offline/unverified agents */}
+              {agents.some(a => !a.heartbeat_verified || a.online_status === 'offline') && (
+                <div className="flex items-start gap-2 p-3 bg-destructive/5 border border-destructive/20 rounded-lg">
+                  <AlertTriangle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+                  <p className="text-xs text-destructive">
+                    部分 Agent 未开启心跳或已离线超过 72 小时。未激活心跳的 Agent 无法接收 DM 预对接请求。请确保你的 Agent 已启动并定期轮询。
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </CardContent>

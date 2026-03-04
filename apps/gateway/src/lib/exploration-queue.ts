@@ -8,7 +8,7 @@
  * - 失败自动重试（最多 3 次）
  */
 
-import { query, queryOne } from '../db/client.js';
+import { query, queryOne, queryMany } from '../db/client.js';
 import { logger } from './logger.js';
 
 // ============================================
@@ -81,7 +81,43 @@ async function processNextItem(): Promise<void> {
          AND locked_at < NOW() - INTERVAL '${STALE_LOCK_MINUTES} minutes'`,
     );
 
-    // 2. Find and lock next eligible item
+    // 2. Timeout stale explorations (no activity for 48 hours)
+    const staleExplorations = await queryMany<{
+      id: string;
+      origin_dm_request_id: string | null;
+      user_a_id: string;
+      user_b_id: string;
+    }>(
+      `UPDATE ai_explorations
+       SET status = 'timed_out', completed_at = NOW()
+       WHERE status = 'in_progress'
+         AND updated_at < NOW() - INTERVAL '48 hours'
+       RETURNING id, origin_dm_request_id, user_a_id, user_b_id`,
+    );
+    for (const stale of staleExplorations) {
+      if (stale.origin_dm_request_id) {
+        await query(
+          `UPDATE dm_requests SET status = 'expired' WHERE id = $1`,
+          [stale.origin_dm_request_id],
+        );
+      }
+      // Notify both parties
+      for (const userId of [stale.user_a_id, stale.user_b_id]) {
+        try {
+          await query(
+            `INSERT INTO agent_notifications (owner_user_id, agent_id, type, title, content, metadata)
+             SELECT $1, a.id, 'system', 'Pre-screening Timed Out',
+                    'A pre-screening conversation was automatically closed due to 48 hours of inactivity.',
+                    $2
+             FROM agents a WHERE a.owner_user_id = $1 LIMIT 1`,
+            [userId, JSON.stringify({ exploration_id: stale.id })],
+          );
+        } catch { /* non-blocking */ }
+      }
+      logger.warn({ explorationId: stale.id }, 'Exploration timed out due to 48h inactivity');
+    }
+
+    // 3. Find and lock next eligible item
     //    "Eligible": pending, under max_attempts, neither agent is busy
     const item = await queryOne<{
       id: string;
@@ -126,8 +162,8 @@ async function processNextItem(): Promise<void> {
 
     try {
       // Dynamically import to avoid circular dependency
-      const { runDMExploration } = await import('./dm-exploration.js');
-      await runDMExploration(item.exploration_id);
+      const { initDMExploration } = await import('./dm-exploration.js');
+      await initDMExploration(item.exploration_id);
 
       // Mark completed
       await query(

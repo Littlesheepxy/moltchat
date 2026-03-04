@@ -2,19 +2,31 @@
  * DM Exploration Engine
  * DM 专用 Agent-to-Agent 预对接引擎
  *
- * 复用 ai-exploration.ts 的 callLLM，但用 dm-protocol.ts 的 prompt
- * 不依赖 activity_participants — 直接从 owner_profiles 加载
+ * 重构后：Gateway 只做裁判，不做对话
+ * - 创建 exploration 并设置为 in_progress
+ * - 通过 assignments 通知双方 agent 轮流发言
+ * - Agent 通过 /v1/agents/me/explorations/:id/respond 提交消息
+ * - 10 轮结束后标记 completed，双方各自决定
  */
 
-import { query, queryOne } from '../db/client.js';
+import { query, queryOne, queryMany } from '../db/client.js';
 import { logger } from './logger.js';
 import { callLLM } from './ai-exploration.js';
-import {
-  buildDMAgentPrompt,
-  buildDMSummaryPrompt,
-  DM_PROTOCOL,
-  type DMParticipantProfile,
-} from './dm-protocol.js';
+import { REFEREE_PROMPT_TEMPLATE } from './dm-protocol.js';
+
+async function safeNotify(
+  userId: string, type: string, title: string, content: string, metadata: Record<string, unknown>,
+): Promise<void> {
+  try {
+    await query(
+      `INSERT INTO agent_notifications (owner_user_id, type, title, content, metadata)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [userId, type, title, content, JSON.stringify(metadata)],
+    );
+  } catch (err) {
+    logger.warn({ err, userId, type }, 'Failed to send notification (non-blocking)');
+  }
+}
 
 // ============================================
 // Types
@@ -30,22 +42,25 @@ interface DMExplorationRow {
   origin_dm_request_id: string | null;
   room_id: string | null;
   source: string;
-}
-
-interface ChatMessage {
-  role: 'system' | 'user' | 'assistant';
-  content: string;
+  status: string;
+  total_rounds: number;
+  current_turn: string | null;
 }
 
 // ============================================
-// Core: Run DM Pre-screening
+// Core: Initialize DM Exploration (no LLM)
 // ============================================
 
-export async function runDMExploration(explorationId: string): Promise<void> {
-  logger.info({ explorationId }, 'Starting DM pre-screening');
+/**
+ * Initialize a DM exploration — just set status and notify.
+ * The actual conversation is driven by agents via respond endpoint.
+ */
+export async function initDMExploration(explorationId: string): Promise<void> {
+  logger.info({ explorationId }, 'Initializing DM exploration (agent-driven)');
 
   const exploration = await queryOne<DMExplorationRow>(
-    `SELECT id, user_a_id, user_b_id, agent_a_id, agent_b_id, max_rounds, origin_dm_request_id, room_id, source
+    `SELECT id, user_a_id, user_b_id, agent_a_id, agent_b_id, max_rounds,
+            origin_dm_request_id, room_id, source, status, total_rounds
      FROM ai_explorations WHERE id = $1 AND status = 'pending'`,
     [explorationId],
   );
@@ -55,144 +70,140 @@ export async function runDMExploration(explorationId: string): Promise<void> {
     return;
   }
 
-  // Mark as in_progress
-  await query(`UPDATE ai_explorations SET status = 'in_progress' WHERE id = $1`, [explorationId]);
+  // Set to in_progress, initiator (A) goes first
+  await query(
+    `UPDATE ai_explorations SET status = 'in_progress', current_turn = 'A', updated_at = NOW() WHERE id = $1`,
+    [explorationId],
+  );
 
-  try {
-    // Load both profiles
-    const profileA = await loadDMProfile(exploration.user_a_id);
-    const profileB = await loadDMProfile(exploration.user_b_id);
+  // Get intent from originating DM request
+  let intent: string | null = null;
+  if (exploration.origin_dm_request_id) {
+    const dmReq = await queryOne<{ intent: string }>(
+      `SELECT intent FROM dm_requests WHERE id = $1`,
+      [exploration.origin_dm_request_id],
+    );
+    intent = dmReq?.intent || null;
+  }
 
-    if (!profileA || !profileB) {
-      throw new Error('Could not load participant profiles');
+  // Notify initiator (A): your turn to speak
+  if (exploration.user_a_id) {
+    await safeNotify(
+      exploration.user_a_id,
+      'exploration_your_turn',
+      'Pre-screening Started — Your Turn',
+      'You initiated a DM pre-screening. Please introduce yourself and your intent. Check assignments for details.',
+      { exploration_id: explorationId, round: 1, your_side: 'A', intent },
+    );
+  }
+
+  // Notify target (B): pre-screening started, waiting for A
+  if (exploration.user_b_id) {
+    await safeNotify(
+      exploration.user_b_id,
+      'exploration_started',
+      'Pre-screening Started — Waiting for Other Party',
+      'Someone wants to connect with you. Their agent will speak first. You\'ll be notified when it\'s your turn.',
+      { exploration_id: explorationId, your_side: 'B', intent },
+    );
+  }
+
+  logger.info({ explorationId, intent }, 'DM exploration initialized, waiting for agent A to respond');
+}
+
+// ============================================
+// Agent responds in exploration
+// ============================================
+
+export async function handleExplorationRespond(
+  explorationId: string,
+  userId: string,
+  agentId: string,
+  content: string,
+): Promise<{
+  round: number;
+  side: string;
+  status: 'in_progress' | 'completed';
+  your_turn: boolean;
+  total_rounds: number;
+  max_rounds: number;
+}> {
+  const exploration = await queryOne<DMExplorationRow>(
+    `SELECT id, user_a_id, user_b_id, agent_a_id, agent_b_id,
+            max_rounds, total_rounds, current_turn, status,
+            origin_dm_request_id, source
+     FROM ai_explorations WHERE id = $1`,
+    [explorationId],
+  );
+
+  if (!exploration) {
+    throw new Error('Exploration not found');
+  }
+
+  if (exploration.status !== 'in_progress') {
+    throw new Error(`Exploration is ${exploration.status}, not in_progress`);
+  }
+
+  // Determine which side this user is
+  const iAmA = exploration.user_a_id === userId;
+  const iAmB = exploration.user_b_id === userId;
+  if (!iAmA && !iAmB) {
+    throw new Error('You are not a participant in this exploration');
+  }
+  const mySide = iAmA ? 'A' : 'B';
+
+  // Check if it's my turn
+  if (exploration.current_turn !== mySide) {
+    throw new Error(`It's not your turn. Current turn: ${exploration.current_turn}`);
+  }
+
+  // Determine round number:
+  // A speaks first in each round, then B. After B speaks, round increments.
+  const currentRound = mySide === 'A'
+    ? exploration.total_rounds + 1
+    : exploration.total_rounds + 1;
+
+  // For A: round = total_rounds + 1 (starting new round)
+  // For B: round = total_rounds + 1 (completing current round)
+  // total_rounds increments only after B speaks
+  const roundNumber = exploration.total_rounds + 1;
+
+  // Insert message
+  await query(
+    `INSERT INTO ai_exploration_messages (exploration_id, round_number, sender_side, agent_id, content)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [explorationId, roundNumber, mySide, agentId, content],
+  );
+
+  // Determine next state
+  let nextTurn: string;
+  let newTotalRounds = exploration.total_rounds;
+  let newStatus: 'in_progress' | 'completed' = 'in_progress';
+
+  if (mySide === 'A') {
+    // A just spoke, now B's turn (same round)
+    nextTurn = 'B';
+  } else {
+    // B just spoke, this round is complete
+    newTotalRounds = roundNumber;
+
+    if (newTotalRounds >= exploration.max_rounds) {
+      // All rounds done
+      newStatus = 'completed';
+      nextTurn = 'done';
+    } else {
+      // Next round, A's turn
+      nextTurn = 'A';
     }
+  }
 
-    // Get DM intent from the originating request, or room context
-    let intent: string | null = null;
-    if (exploration.origin_dm_request_id) {
-      const dmReq = await queryOne<{ intent: string }>(
-        `SELECT intent FROM dm_requests WHERE id = $1`,
-        [exploration.origin_dm_request_id],
-      );
-      intent = dmReq?.intent || null;
-    } else if (exploration.room_id) {
-      const room = await queryOne<{ name: string; description: string | null }>(
-        `SELECT name, description FROM rooms WHERE id = $1`,
-        [exploration.room_id],
-      );
-      intent = room
-        ? `Room "${room.name}": ${room.description || 'Professional networking'}`
-        : null;
-    }
-
-    const model = 'gpt-4o-mini';
-    const maxRounds = exploration.max_rounds || DM_PROTOCOL.max_rounds;
-
-    // Build system prompts
-    const systemA = buildDMAgentPrompt(profileA, profileB, intent, 1, maxRounds);
-    const systemB = buildDMAgentPrompt(profileB, profileA, intent, 1, maxRounds);
-
-    // Run conversation
-    const conversationHistory: { sender: string; content: string }[] = [];
-    const messagesA: ChatMessage[] = [{ role: 'system', content: systemA }];
-    const messagesB: ChatMessage[] = [{ role: 'system', content: systemB }];
-
-    for (let round = 1; round <= maxRounds; round++) {
-      // A's turn
-      if (round === 1) {
-        messagesA.push({
-          role: 'user',
-          content: 'Start the pre-screening conversation. Introduce your principal and explore mutual fit.',
-        });
-      }
-
-      const responseA = await callLLM(messagesA, model);
-      conversationHistory.push({ sender: profileA.display_name || 'Agent A', content: responseA });
-
-      await query(
-        `INSERT INTO ai_exploration_messages (exploration_id, round_number, sender_side, agent_id, content)
-         VALUES ($1, $2, 'A', $3, $4)`,
-        [explorationId, round, exploration.agent_a_id, responseA],
-      );
-
-      messagesA.push({ role: 'assistant', content: responseA });
-      messagesB.push({ role: 'user', content: responseA });
-
-      // B's turn
-      const responseB = await callLLM(messagesB, model);
-      conversationHistory.push({ sender: profileB.display_name || 'Agent B', content: responseB });
-
-      await query(
-        `INSERT INTO ai_exploration_messages (exploration_id, round_number, sender_side, agent_id, content)
-         VALUES ($1, $2, 'B', $3, $4)`,
-        [explorationId, round, exploration.agent_b_id, responseB],
-      );
-
-      messagesB.push({ role: 'assistant', content: responseB });
-      messagesA.push({ role: 'user', content: responseB });
-
-      // Update round count
-      await query(`UPDATE ai_explorations SET total_rounds = $1 WHERE id = $2`, [round, explorationId]);
-    }
-
-    // Generate summaries from both perspectives
-    const summaryPromptA = buildDMSummaryPrompt(profileA, profileB, conversationHistory);
-    const summaryPromptB = buildDMSummaryPrompt(profileB, profileA, conversationHistory);
-
-    const [summaryRawA, summaryRawB] = await Promise.all([
-      callLLM(
-        [
-          { role: 'system', content: 'You are a pre-screening analyst. Return ONLY valid JSON.' },
-          { role: 'user', content: summaryPromptA },
-        ],
-        model,
-      ),
-      callLLM(
-        [
-          { role: 'system', content: 'You are a pre-screening analyst. Return ONLY valid JSON.' },
-          { role: 'user', content: summaryPromptB },
-        ],
-        model,
-      ),
-    ]);
-
-    const resultA = parseJSON(summaryRawA);
-    const resultB = parseJSON(summaryRawB);
-
-    // Compute match score from recommendations
-    const scoreMap: Record<string, number> = {
-      recommend_meeting: 0.85,
-      need_more_info: 0.55,
-      not_a_fit: 0.25,
-    };
-    const scoreA = resultA.recommendation ? scoreMap[resultA.recommendation] ?? 0.5 : 0.5;
-    const scoreB = resultB.recommendation ? scoreMap[resultB.recommendation] ?? 0.5 : 0.5;
-    const matchScore = (scoreA + scoreB) / 2;
-
-    // Combine highlights
-    const highlights = [
-      ...(resultA.match_points || []).slice(0, 2),
-      ...(resultB.match_points || []).slice(0, 1),
-    ];
-
-    // Update exploration with results
+  // Update exploration state
+  if (newStatus === 'completed') {
     await query(
-      `UPDATE ai_explorations SET
-         status = 'completed',
-         summary_for_a = $1, summary_for_b = $2,
-         match_score = $3, match_highlights = $4,
-         collaboration_potential = $5,
-         reveal_level_a = 1, reveal_level_b = 1,
-         completed_at = NOW()
-       WHERE id = $6`,
-      [
-        JSON.stringify(resultA),
-        JSON.stringify(resultB),
-        matchScore,
-        JSON.stringify(highlights),
-        resultA.reason || resultB.reason || 'See summaries for details.',
-        explorationId,
-      ],
+      `UPDATE ai_explorations
+       SET total_rounds = $1, current_turn = NULL, status = 'completed', completed_at = NOW(), updated_at = NOW()
+       WHERE id = $2`,
+      [newTotalRounds, explorationId],
     );
 
     // Update dm_request status
@@ -203,172 +214,189 @@ export async function runDMExploration(explorationId: string): Promise<void> {
       );
     }
 
-    // For DM-sourced explorations, auto-set initiator's (user_a) decision to 'want_chat'
-    // because they already expressed intent by requesting pre-screening
-    if (exploration.source === 'dm') {
-      // Find both agents
-      const agentA = await queryOne<{ id: string }>(
-        `SELECT id FROM agents WHERE owner_user_id = $1 AND status = 'claimed' LIMIT 1`,
-        [exploration.user_a_id],
-      );
-      const agentB = await queryOne<{ id: string }>(
-        `SELECT id FROM agents WHERE owner_user_id = $1 AND status = 'claimed' LIMIT 1`,
-        [exploration.user_b_id],
-      );
+    // Referee: generate neutral summary for both parties (non-blocking)
+    generateRefereeSummary(explorationId).catch(err => {
+      logger.warn({ explorationId, err }, 'Referee summary generation failed (non-blocking)');
+    });
 
-      if (agentA && agentB) {
-        // Create dm_request for the mutual-match flow
-        const dmRequest = await queryOne<{ id: string }>(
-          `INSERT INTO dm_requests (from_agent_id, to_agent_id, intent, exploration_id, expires_at)
-           VALUES ($1, $2, 'networking', $3, NOW() + INTERVAL '7 days')
-           RETURNING id`,
-          [agentA.id, agentB.id, explorationId],
-        );
-
-        // Auto-set user_a's decision
-        await query(
-          `UPDATE ai_explorations
-           SET decision_a = 'want_chat', decision_a_at = NOW(),
-               chat_requested_by = 'A', dm_request_id = $1
-           WHERE id = $2`,
-          [dmRequest?.id, explorationId],
-        );
-
-        // Notify user_a: pre-screening done, your request has been sent
-        await query(
-          `INSERT INTO agent_notifications (owner_user_id, type, title, content, metadata)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [
-            exploration.user_a_id,
-            'dm_prescreening_complete',
-            'AI Pre-screening Complete',
-            'Pre-screening is done. Waiting for the other party to review.',
-            JSON.stringify({
-              exploration_id: explorationId,
-              source: 'dm',
-            }),
-          ],
-        );
-
-        // Notify user_b: someone wants to connect, review the results
-        await query(
-          `INSERT INTO agent_notifications (owner_user_id, type, title, content, metadata)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [
-            exploration.user_b_id,
-            'chat_request_from_exploration',
-            'Someone wants to chat with you!',
-            'A networking match wants to connect. Review the AI exploration to decide.',
-            JSON.stringify({
-              exploration_id: explorationId,
-              dm_request_id: dmRequest?.id,
-            }),
-          ],
-        );
-      }
-    } else {
-      // Room or activity source: notify both users equally, both need to decide
-      const notificationType =
-        exploration.source === 'room' ? 'room_exploration_complete' : 'dm_prescreening_complete';
-      for (const userId of [exploration.user_a_id, exploration.user_b_id]) {
-        await query(
-          `INSERT INTO agent_notifications (owner_user_id, type, title, content, metadata)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [
-            userId,
-            notificationType,
-            'AI Pre-screening Complete',
-            'Your agent finished a pre-screening conversation. Review the results!',
-            JSON.stringify({
-              exploration_id: explorationId,
-              source: exploration.source,
-              room_id: exploration.room_id,
-            }),
-          ],
-        );
-      }
-    }
-
-    logger.info({ explorationId, matchScore }, 'DM pre-screening completed');
-  } catch (error) {
-    logger.error({ explorationId, error }, 'DM pre-screening failed');
-    await query(`UPDATE ai_explorations SET status = 'failed' WHERE id = $1`, [explorationId]);
-
-    // Revert dm_request to pending so it can expire naturally
-    if (exploration.origin_dm_request_id) {
-      await query(
-        `UPDATE dm_requests SET status = 'pending' WHERE id = $1 AND status = 'screening'`,
-        [exploration.origin_dm_request_id],
+    // Notify both parties: conversation complete, please decide
+    for (const [uid, side] of [
+      [exploration.user_a_id, 'A'],
+      [exploration.user_b_id, 'B'],
+    ] as const) {
+      await safeNotify(
+        uid,
+        'exploration_completed',
+        'Pre-screening Complete — Please Decide',
+        `The ${newTotalRounds}-round pre-screening conversation is complete. Review the conversation and decide: want_chat or pass.`,
+        { exploration_id: explorationId, total_rounds: newTotalRounds, your_side: side },
       );
     }
 
-    throw error; // Re-throw for queue to handle retry
+    logger.info({ explorationId, totalRounds: newTotalRounds }, 'DM exploration completed');
+  } else {
+    await query(
+      `UPDATE ai_explorations SET total_rounds = $1, current_turn = $2, updated_at = NOW() WHERE id = $3`,
+      [newTotalRounds, nextTurn, explorationId],
+    );
+
+    // Notify the other party: your turn
+    const otherUserId = mySide === 'A' ? exploration.user_b_id : exploration.user_a_id;
+    const otherSide = mySide === 'A' ? 'B' : 'A';
+
+    await safeNotify(
+      otherUserId,
+      'exploration_your_turn',
+      `Pre-screening Round ${nextTurn === 'A' ? newTotalRounds + 1 : roundNumber} — Your Turn`,
+      'The other party has responded in the pre-screening conversation. It\'s your turn to reply. Check assignments for details.',
+      { exploration_id: explorationId, round: nextTurn === 'A' ? newTotalRounds + 1 : roundNumber, your_side: otherSide },
+    );
   }
-}
-
-// ============================================
-// Load Profile (without activity_participants)
-// ============================================
-
-async function loadDMProfile(userId: string): Promise<DMParticipantProfile | null> {
-  const row = await queryOne<{
-    display_name: string | null;
-    industry: string | null;
-    job_title: string | null;
-    bio_md: string | null;
-    looking_for: string | null;
-    can_offer: string | null;
-    topics_of_interest: string[] | null;
-    agent_persona_md: string | null;
-    focus_topics: string[] | null;
-  }>(
-    `SELECT
-       op.display_name, op.industry, op.job_title, op.bio_md,
-       op.looking_for, op.can_offer,
-       op.topics_of_interest,
-       aoc.agent_persona_md, aoc.focus_topics
-     FROM owner_profiles op
-     LEFT JOIN agents a ON a.owner_user_id = op.user_id AND a.status = 'claimed'
-     LEFT JOIN agent_owner_config aoc ON aoc.agent_id = a.id
-     WHERE op.user_id = $1
-     LIMIT 1`,
-    [userId],
-  );
-
-  if (!row) return null;
 
   return {
-    display_name: row.display_name,
-    industry: row.industry,
-    job_title: row.job_title,
-    bio_md: row.bio_md,
-    looking_for: row.looking_for,
-    can_offer: row.can_offer,
-    tags: row.focus_topics || row.topics_of_interest || [],
-    agent_persona: row.agent_persona_md,
+    round: roundNumber,
+    side: mySide,
+    status: newStatus,
+    your_turn: false,
+    total_rounds: newTotalRounds,
+    max_rounds: exploration.max_rounds,
   };
 }
 
 // ============================================
-// Helpers
+// Referee: Neutral Summary Generation
 // ============================================
 
-function parseJSON(raw: string): {
-  other_party?: string;
-  match_points?: string[];
-  risk_points?: string[];
-  recommendation?: string;
-  reason?: string;
+/**
+ * Platform acts as neutral referee after conversation completes.
+ * Reads the real agent-to-agent conversation and generates:
+ * - summary_for_a (from A's perspective)
+ * - summary_for_b (from B's perspective)
+ * - match_score
+ * - match_highlights
+ *
+ * This ensures both parties see consistent, fair evaluation.
+ */
+async function generateRefereeSummary(explorationId: string): Promise<void> {
+  logger.info({ explorationId }, 'Generating referee summary');
+
+  const exploration = await queryOne<{
+    user_a_id: string; user_b_id: string;
+  }>(
+    `SELECT user_a_id, user_b_id FROM ai_explorations WHERE id = $1`,
+    [explorationId],
+  );
+  if (!exploration) return;
+
+  // Load profiles
+  const profileA = await queryOne<{
+    display_name: string; industry: string; job_title: string;
+    looking_for: string; can_offer: string;
+  }>(
+    `SELECT display_name, industry, job_title, looking_for, can_offer
+     FROM owner_profiles WHERE user_id = $1`,
+    [exploration.user_a_id],
+  );
+  const profileB = await queryOne<{
+    display_name: string; industry: string; job_title: string;
+    looking_for: string; can_offer: string;
+  }>(
+    `SELECT display_name, industry, job_title, looking_for, can_offer
+     FROM owner_profiles WHERE user_id = $1`,
+    [exploration.user_b_id],
+  );
+
+  // Load conversation
+  const messages = await queryMany<{
+    round_number: number; sender_side: string; content: string;
+  }>(
+    `SELECT round_number, sender_side, content
+     FROM ai_exploration_messages WHERE exploration_id = $1
+     ORDER BY round_number, created_at`,
+    [explorationId],
+  );
+
+  if (messages.length === 0) return;
+
+  const nameA = profileA?.display_name || 'Party A';
+  const nameB = profileB?.display_name || 'Party B';
+
+  const conversationText = messages
+    .map(m => `[Round ${m.round_number}] ${m.sender_side === 'A' ? nameA : nameB}: ${m.content}`)
+    .join('\n');
+
+  // Build prompt from the public template (REFEREE_PROMPT_TEMPLATE in dm-protocol.ts)
+  const refereePrompt = REFEREE_PROMPT_TEMPLATE.user
+    .replace(/\{name_a\}/g, nameA)
+    .replace(/\{name_b\}/g, nameB)
+    .replace('{industry_a}', profileA?.industry || 'Unknown')
+    .replace('{role_a}', profileA?.job_title || 'Unknown')
+    .replace('{looking_for_a}', profileA?.looking_for || 'Unknown')
+    .replace('{can_offer_a}', profileA?.can_offer || 'Unknown')
+    .replace('{industry_b}', profileB?.industry || 'Unknown')
+    .replace('{role_b}', profileB?.job_title || 'Unknown')
+    .replace('{looking_for_b}', profileB?.looking_for || 'Unknown')
+    .replace('{can_offer_b}', profileB?.can_offer || 'Unknown')
+    .replace('{message_count}', String(messages.length))
+    .replace('{round_count}', String(Math.ceil(messages.length / 2)))
+    .replace('{conversation}', conversationText);
+
+  try {
+    const raw = await callLLM(
+      [
+        { role: 'system', content: REFEREE_PROMPT_TEMPLATE.system },
+        { role: 'user', content: refereePrompt },
+      ],
+      REFEREE_PROMPT_TEMPLATE.model,
+    );
+
+    const result = parseRefereeSummary(raw);
+
+    await query(
+      `UPDATE ai_explorations SET
+         summary_for_a = $1, summary_for_b = $2,
+         match_score = $3, match_highlights = $4,
+         collaboration_potential = $5
+       WHERE id = $6`,
+      [
+        result.summary_for_a,
+        result.summary_for_b,
+        result.match_score,
+        JSON.stringify(result.match_highlights),
+        result.collaboration_potential,
+        explorationId,
+      ],
+    );
+
+    logger.info({ explorationId, matchScore: result.match_score }, 'Referee summary generated');
+  } catch (err) {
+    logger.error({ explorationId, err }, 'Referee summary LLM call failed');
+  }
+}
+
+function parseRefereeSummary(raw: string): {
+  summary_for_a: string;
+  summary_for_b: string;
+  match_score: number;
+  match_highlights: string[];
+  collaboration_potential: string;
 } {
   try {
-    return JSON.parse(raw.replace(/```json\n?|\n?```/g, '').trim());
+    const parsed = JSON.parse(raw.replace(/```json\n?|\n?```/g, '').trim());
+    return {
+      summary_for_a: parsed.summary_for_a || 'Summary not available.',
+      summary_for_b: parsed.summary_for_b || 'Summary not available.',
+      match_score: Math.min(1, Math.max(0, Number(parsed.match_score) || 0.5)),
+      match_highlights: Array.isArray(parsed.match_highlights) ? parsed.match_highlights.slice(0, 5) : [],
+      collaboration_potential: parsed.collaboration_potential || 'See conversation for details.',
+    };
   } catch {
     return {
-      other_party: 'See conversation for details',
-      match_points: [],
-      risk_points: [],
-      recommendation: 'need_more_info',
-      reason: 'Could not parse summary',
+      summary_for_a: 'Summary generation failed. Please review the conversation directly.',
+      summary_for_b: 'Summary generation failed. Please review the conversation directly.',
+      match_score: 0.5,
+      match_highlights: [],
+      collaboration_potential: 'See conversation for details.',
     };
   }
 }

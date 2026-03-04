@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 import { useI18n } from '@/lib/i18n-provider';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { Sparkles, MessageSquare, ArrowRight, Check, Clock, X, Send } from 'lucide-react';
+import { Sparkles, MessageSquare, ArrowRight, Check, Clock, X, Send, Loader2, Timer } from 'lucide-react';
 import type { ExplorationItem } from '@/lib/api';
 
 interface ExplorationCardProps {
@@ -39,20 +39,36 @@ export function ExplorationCard({ exploration, onClick }: ExplorationCardProps) 
       <CardContent className="p-4">
         {/* Top row: score + status */}
         <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <div className={cn('text-lg font-bold tabular-nums', scoreColor)}>
-              {scorePercent}%
+          {exploration.status !== 'in_progress' && exploration.status !== 'pending' ? (
+            <div className="flex items-center gap-2">
+              <div className={cn('text-lg font-bold tabular-nums', scoreColor)}>
+                {scorePercent}%
+              </div>
+              <div className="flex-1 h-1.5 bg-muted rounded-full w-16 overflow-hidden">
+                <div
+                  className={cn('h-full rounded-full transition-all', barColor)}
+                  style={{ width: `${scorePercent}%` }}
+                />
+              </div>
             </div>
-            <div className="flex-1 h-1.5 bg-muted rounded-full w-16 overflow-hidden">
-              <div
-                className={cn('h-full rounded-full transition-all', barColor)}
-                style={{ width: `${scorePercent}%` }}
-              />
+          ) : (
+            <div className="text-sm font-medium text-muted-foreground">
+              {t('networking.prescreening') || '预对接'}
             </div>
-          </div>
+          )}
 
           {/* Status badge */}
-          {isChatReady ? (
+          {exploration.status === 'timed_out' ? (
+            <Badge variant="destructive" className="gap-1">
+              <Timer className="h-3 w-3" />
+              {t('networking.timedOut')}
+            </Badge>
+          ) : exploration.status === 'in_progress' ? (
+            <Badge variant="outline" className="gap-1">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              {t('networking.inProgress')}
+            </Badge>
+          ) : isChatReady ? (
             <Badge variant="success" className="gap-1">
               <MessageSquare className="h-3 w-3" />
               {t('networking.chatReady')}
@@ -74,6 +90,22 @@ export function ExplorationCard({ exploration, onClick }: ExplorationCardProps) 
             </Badge>
           ) : null}
         </div>
+
+        {/* Conversation progress for in_progress */}
+        {exploration.status === 'in_progress' && (
+          <div className="mb-3">
+            <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
+              <span>{t('networking.conversationProgress') || '对话进度'}</span>
+              <span className="tabular-nums">{exploration.total_rounds}/{exploration.max_rounds || 10}</span>
+            </div>
+            <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full bg-blue-500 transition-all"
+                style={{ width: `${Math.round((exploration.total_rounds / (exploration.max_rounds || 10)) * 100)}%` }}
+              />
+            </div>
+          </div>
+        )}
 
         {/* Highlights */}
         {exploration.match_highlights && exploration.match_highlights.length > 0 && (

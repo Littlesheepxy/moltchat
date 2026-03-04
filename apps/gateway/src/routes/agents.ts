@@ -9,6 +9,7 @@ import {
 import { config } from '../lib/config.js';
 import { verifyAgentToken } from '../lib/auth.js';
 import { executeExplorationDecision } from '../lib/exploration-actions.js';
+import { handleExplorationRespond } from '../lib/dm-exploration.js';
 
 // ============================================
 // Request Schemas
@@ -211,9 +212,11 @@ export async function agentRoutes(fastify: FastifyInstance): Promise<void> {
     
     const agentId = authResult.agentId;
 
-    // Update last_active_at
+    // Update last_active_at + first-time heartbeat verification
     await query(
-      `UPDATE agents SET last_active_at = NOW() WHERE id = $1`,
+      `UPDATE agents SET last_active_at = NOW(),
+         heartbeat_verified_at = COALESCE(heartbeat_verified_at, NOW())
+       WHERE id = $1`,
       [agentId]
     );
 
@@ -356,6 +359,26 @@ export async function agentRoutes(fastify: FastifyInstance): Promise<void> {
       );
     }
 
+    // Get active explorations (in_progress, it's my turn to respond)
+    interface ActiveExplorationRow {
+      id: string;
+      source: string;
+      user_a_id: string;
+      current_turn: string;
+      total_rounds: number;
+      max_rounds: number;
+      intent: string | null;
+      other_name: string | null;
+      other_industry: string | null;
+      other_job_title: string | null;
+      other_looking_for: string | null;
+      other_can_offer: string | null;
+      other_topics: string[] | null;
+      last_message: string | null;
+      created_at: Date;
+    }
+    let activeExplorations: ActiveExplorationRow[] = [];
+
     // Get pending explorations (completed, awaiting my owner's decision)
     interface PendingExplorationRow {
       id: string;
@@ -375,6 +398,34 @@ export async function agentRoutes(fastify: FastifyInstance): Promise<void> {
     let pollIntervalSeconds = 30;
 
     if (ownerUserId) {
+      // Active explorations: it's my turn to speak
+      activeExplorations = await queryMany<ActiveExplorationRow>(
+        `SELECT e.id, COALESCE(e.source, 'activity') AS source,
+                e.user_a_id, e.current_turn, e.total_rounds, e.max_rounds,
+                dr.intent,
+                op.display_name as other_name, op.industry as other_industry,
+                op.job_title as other_job_title, op.looking_for as other_looking_for,
+                op.can_offer as other_can_offer, op.topics_of_interest as other_topics,
+                (SELECT content FROM ai_exploration_messages
+                 WHERE exploration_id = e.id ORDER BY created_at DESC LIMIT 1) as last_message,
+                e.created_at
+         FROM ai_explorations e
+         LEFT JOIN owner_profiles op ON op.user_id = CASE
+           WHEN e.user_a_id = $1 THEN e.user_b_id ELSE e.user_a_id
+         END
+         LEFT JOIN dm_requests dr ON dr.id = e.origin_dm_request_id
+         WHERE (e.user_a_id = $1 OR e.user_b_id = $1)
+           AND e.status = 'in_progress'
+           AND (
+             (e.user_a_id = $1 AND e.current_turn = 'A') OR
+             (e.user_b_id = $1 AND e.current_turn = 'B')
+           )
+         ORDER BY e.created_at ASC
+         LIMIT 10`,
+        [ownerUserId]
+      );
+
+      // Pending decisions (completed, awaiting decision)
       pendingExplorations = await queryMany<PendingExplorationRow>(
         `SELECT e.id, COALESCE(e.source, 'activity') AS source, e.match_score, e.match_highlights,
                 CASE WHEN e.user_a_id = $1 THEN e.summary_for_a ELSE e.summary_for_b END as summary,
@@ -435,12 +486,18 @@ export async function agentRoutes(fastify: FastifyInstance): Promise<void> {
         `SELECT poll_interval_seconds FROM agent_owner_config WHERE agent_id = $1`,
         [agentId]
       );
-      pollIntervalSeconds = pollConfig?.poll_interval_seconds || 10;
+      const configuredInterval = pollConfig?.poll_interval_seconds || 10;
+
+      // Dynamic poll interval: accelerate during active conversations
+      const hasActiveConversation = activeExplorations.length > 0;
+      pollIntervalSeconds = hasActiveConversation
+        ? 3
+        : configuredInterval;
     }
 
     const totalPending = pendingInvites.length + pendingDmRequests.length +
                          unreadMentions.length + roomsNeedParticipation.length +
-                         pendingExplorations.length;
+                         activeExplorations.length + pendingExplorations.length;
 
     return successResponse({
       total_pending: totalPending,
@@ -483,6 +540,50 @@ export async function agentRoutes(fastify: FastifyInstance): Promise<void> {
         last_message_at: d.last_message_at.toISOString(),
         message_count: d.message_count,
       })),
+      active_explorations: activeExplorations.map(e => {
+        const iAmA = e.user_a_id === ownerUserId;
+        const mySide = iAmA ? 'A' : 'B';
+        const currentRound = mySide === 'A' ? e.total_rounds + 1 : e.total_rounds + 1;
+        return {
+          id: e.id,
+          type: 'exploration_your_turn',
+          your_side: mySide,
+          current_round: currentRound,
+          max_rounds: e.max_rounds,
+          total_rounds: e.total_rounds,
+          intent: e.intent,
+          is_initiator: iAmA,
+          other_party: {
+            display_name: e.other_name,
+            industry: e.other_industry,
+            job_title: e.other_job_title,
+            looking_for: e.other_looking_for,
+            can_offer: e.other_can_offer,
+            topics: e.other_topics || [],
+          },
+          last_message: e.last_message,
+          respond_url: `/v1/agents/me/explorations/${e.id}/respond`,
+          conversation_url: `/v1/agents/me/explorations/${e.id}`,
+          rules: {
+            max_rounds: e.max_rounds,
+            guidelines: [
+              'Truthfully represent your principal\'s background, needs, and resources',
+              'Identify match points and risks between both parties',
+              'Be professional, direct, and substantive (2-4 sentences per turn)',
+              'In the final round, give a clear conclusion: recommend meeting / not a fit / need more info',
+            ],
+            prohibitions: [
+              'Do NOT fabricate credentials or resources your principal does not have',
+              'Do NOT promise conditions your principal has not authorized',
+              'Do NOT disclose private information your principal has not made public',
+            ],
+          },
+          action: mySide === 'A' && e.total_rounds === 0
+            ? 'You initiated this pre-screening. Introduce yourself, state your intent, and explore mutual fit.'
+            : 'The other party has spoken. Read their message, respond substantively, and continue exploring mutual fit.',
+          created_at: e.created_at.toISOString(),
+        };
+      }),
       pending_explorations: pendingExplorations.map(e => ({
         id: e.id,
         source: e.source,
@@ -573,11 +674,12 @@ export async function agentRoutes(fastify: FastifyInstance): Promise<void> {
       created_at: Date;
       claimed_at: Date | null;
       last_active_at: Date | null;
+      heartbeat_verified_at: Date | null;
     }
 
     const agentData = await queryOne<AgentFullRow>(
       `SELECT id, name, twitter_handle, status, availability, 
-              created_at, claimed_at, last_active_at
+              created_at, claimed_at, last_active_at, heartbeat_verified_at
        FROM agents WHERE id = $1`,
       [authResult.agentId]
     );
@@ -592,6 +694,11 @@ export async function agentRoutes(fastify: FastifyInstance): Promise<void> {
       [authResult.agentId]
     );
 
+    const hoursAgo = agentData.last_active_at
+      ? (Date.now() - agentData.last_active_at.getTime()) / (1000 * 60 * 60)
+      : Infinity;
+    const onlineStatus = hoursAgo < 0.5 ? 'online' : hoursAgo < 24 ? 'idle' : hoursAgo < 72 ? 'away' : 'offline';
+
     return successResponse({
       agent: {
         id: agentData.id,
@@ -599,10 +706,13 @@ export async function agentRoutes(fastify: FastifyInstance): Promise<void> {
         twitter_handle: agentData.twitter_handle,
         status: agentData.status,
         availability: agentData.availability,
+        online_status: onlineStatus,
+        heartbeat_verified: !!agentData.heartbeat_verified_at,
         room_count: parseInt(roomCount?.count || '0', 10),
         created_at: agentData.created_at.toISOString(),
         claimed_at: agentData.claimed_at?.toISOString() ?? null,
         last_active_at: agentData.last_active_at?.toISOString() ?? null,
+        heartbeat_verified_at: agentData.heartbeat_verified_at?.toISOString() ?? null,
       },
     });
   });
@@ -704,6 +814,59 @@ export async function agentRoutes(fastify: FastifyInstance): Promise<void> {
         created_at: m.created_at,
       })),
     });
+  });
+
+  /**
+   * POST /v1/agents/me/explorations/:id/respond
+   * Agent submits a message in an active pre-screening conversation
+   */
+  fastify.post('/v1/agents/me/explorations/:id/respond', async (request, reply) => {
+    const authResult = await verifyAgentToken(request);
+    if (!authResult) {
+      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Authentication required', 401);
+    }
+
+    const { id } = request.params as { id: string };
+
+    const bodySchema = z.object({
+      content: z.string().min(1).max(2000),
+    });
+
+    const parseResult = bodySchema.safeParse(request.body);
+    if (!parseResult.success) {
+      throw new AppError(
+        ERROR_CODES.VALIDATION_ERROR,
+        'content is required (1-2000 characters)',
+        400,
+      );
+    }
+
+    const agent = await queryOne<{ owner_user_id: string }>(
+      `SELECT owner_user_id FROM agents WHERE id = $1 AND status = 'claimed'`,
+      [authResult.agentId],
+    );
+    if (!agent?.owner_user_id) {
+      throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Agent not claimed', 403);
+    }
+
+    try {
+      const result = await handleExplorationRespond(
+        id,
+        agent.owner_user_id,
+        authResult.agentId!,
+        parseResult.data.content,
+      );
+      return successResponse(result);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      if (message.includes('not your turn') || message.includes('not a participant')) {
+        throw new AppError(ERROR_CODES.FORBIDDEN, message, 403);
+      }
+      if (message.includes('not in_progress') || message.includes('not found')) {
+        throw new AppError(ERROR_CODES.VALIDATION_ERROR, message, 400);
+      }
+      throw error;
+    }
   });
 
   /**

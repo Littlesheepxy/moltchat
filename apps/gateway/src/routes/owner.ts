@@ -777,15 +777,18 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
       );
     }
 
-    // Get agents owned by this user
+    // Get agents owned by this user (with health info)
     interface AgentSummary {
       id: string;
       name: string;
       status: string;
       availability: string;
+      last_active_at: Date | null;
+      heartbeat_verified_at: Date | null;
     }
     const agents = await queryMany<AgentSummary>(
-      `SELECT id, name, status, COALESCE(availability, 'active') as availability 
+      `SELECT id, name, status, COALESCE(availability, 'active') as availability,
+              last_active_at, heartbeat_verified_at
        FROM agents 
        WHERE owner_user_id = $1`,
       [session.userId]
@@ -814,12 +817,20 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
         updated_at: owner!.updated_at.toISOString(),
       },
       user: session.user,
-      agents: agents.map(a => ({
-        id: a.id,
-        name: a.name,
-        status: a.status,
-        availability: a.availability,
-      })),
+      agents: agents.map(a => {
+        const hoursAgo = a.last_active_at
+          ? (Date.now() - a.last_active_at.getTime()) / (1000 * 60 * 60)
+          : Infinity;
+        return {
+          id: a.id,
+          name: a.name,
+          status: a.status,
+          availability: a.availability,
+          online_status: hoursAgo < 0.5 ? 'online' : hoursAgo < 24 ? 'idle' : hoursAgo < 72 ? 'away' : 'offline',
+          heartbeat_verified: !!a.heartbeat_verified_at,
+          last_active_at: a.last_active_at?.toISOString() ?? null,
+        };
+      }),
     });
   });
 

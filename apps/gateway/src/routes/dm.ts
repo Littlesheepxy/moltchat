@@ -326,13 +326,34 @@ export async function dmRoutes(fastify: FastifyInstance) {
 
       // Gate 3: Alignment check — 对齐度预演
       // TODO: 前期跳过对齐度检查，用户量上来后恢复
-      // const alignment = await checkAlignment(fromUserId, toUserId, activity_id);
-      // if (!alignment.passed) {
-      //   throw new AppError(ERROR_CODES.FORBIDDEN, 'Alignment score too low for direct outreach', 422, undefined, {
-      //     alignment: { score: alignment.score, threshold: 0.65, details: alignment.details },
-      //   });
-      // }
       const alignment = { score: 1.0, passed: true, details: {} };
+
+      // Gate 4: Target agent liveness — 心跳验证 + 活跃度检查
+      const targetLiveness = await queryOne<{ last_active_at: Date | null; heartbeat_verified_at: Date | null }>(
+        `SELECT last_active_at, heartbeat_verified_at FROM agents WHERE id = $1`,
+        [to_agent_id]
+      );
+
+      if (!targetLiveness?.heartbeat_verified_at) {
+        throw new AppError(ERROR_CODES.FORBIDDEN,
+          'Target agent has not activated heartbeat', 422,
+          'The target agent has never enabled heartbeat polling. DM pre-screening requires both agents to be actively polling.',
+          { gate: 'agent_no_heartbeat' },
+        );
+      }
+
+      const lastActive = targetLiveness.last_active_at;
+      const hoursInactive = lastActive
+        ? (Date.now() - lastActive.getTime()) / (1000 * 60 * 60)
+        : Infinity;
+
+      if (hoursInactive > 72) {
+        throw new AppError(ERROR_CODES.FORBIDDEN,
+          'Target agent is inactive', 422,
+          `The target agent has not been active in the last 72 hours (last seen ${Math.round(hoursInactive)}h ago). DM pre-screening requires both agents to be actively polling.`,
+          { gate: 'agent_inactive', last_active_hours_ago: Math.round(hoursInactive) },
+        );
+      }
 
       // Consume inbound budget slot
       await consumeInbound(toUserId);
@@ -1537,23 +1558,24 @@ export async function dmRoutes(fastify: FastifyInstance) {
     let decisionFilter = '';
     if (filter === 'pending') {
       decisionFilter = `AND (
-        (e.user_a_id = '${userId}' AND e.decision_a = 'pending') OR
-        (e.user_b_id = '${userId}' AND e.decision_b = 'pending')
+        (e.user_a_id = $1 AND e.decision_a = 'pending') OR
+        (e.user_b_id = $1 AND e.decision_b = 'pending')
       )`;
     } else if (filter === 'want_chat') {
       decisionFilter = `AND (
-        (e.user_a_id = '${userId}' AND e.decision_a = 'want_chat') OR
-        (e.user_b_id = '${userId}' AND e.decision_b IN ('want_chat', 'accept'))
+        (e.user_a_id = $1 AND e.decision_a = 'want_chat') OR
+        (e.user_b_id = $1 AND e.decision_b IN ('want_chat', 'accept'))
       )`;
     } else if (filter === 'passed') {
       decisionFilter = `AND (
-        (e.user_a_id = '${userId}' AND e.decision_a = 'pass') OR
-        (e.user_b_id = '${userId}' AND e.decision_b = 'pass')
+        (e.user_a_id = $1 AND e.decision_a = 'pass') OR
+        (e.user_b_id = $1 AND e.decision_b = 'pass')
       )`;
     }
 
     const explorations = await queryMany<{
       id: string; user_a_id: string; user_b_id: string; status: string;
+      total_rounds: number; max_rounds: number;
       match_score: number | null; match_highlights: any;
       summary_for_a: string | null; summary_for_b: string | null;
       collaboration_potential: string | null;
@@ -1566,6 +1588,7 @@ export async function dmRoutes(fastify: FastifyInstance) {
       other_tags: string[] | null;
     }>(
       `SELECT e.id, e.user_a_id, e.user_b_id, e.status,
+              e.total_rounds, e.max_rounds,
               e.match_score, e.match_highlights,
               e.summary_for_a, e.summary_for_b,
               e.collaboration_potential,
@@ -1603,6 +1626,8 @@ export async function dmRoutes(fastify: FastifyInstance) {
           return {
             id: e.id,
             status: e.status,
+            total_rounds: e.total_rounds,
+            max_rounds: e.max_rounds,
             match_score: e.match_score,
             match_highlights: e.match_highlights,
             summary: myRevealLevel >= 2 ? mySummary : null,

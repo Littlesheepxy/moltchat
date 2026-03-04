@@ -446,6 +446,8 @@ export interface ExplorationStats {
 export interface ExplorationItem {
   id: string;
   status: string;
+  total_rounds: number;
+  max_rounds: number;
   match_score: number | null;
   match_highlights: string[];
   summary: string | null;
@@ -481,6 +483,7 @@ export interface ExplorationDetail {
     chat_requested_by: string | null;
     dm_request_id: string | null;
     total_rounds: number;
+    max_rounds: number;
     other_party: {
       roles: string[];
       looking_for: string | null;
@@ -593,7 +596,7 @@ export interface ExplorationMessage {
 
 export interface ExplorationStatus {
   id: string;
-  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'timed_out';
   total_rounds: number;
   max_rounds: number;
   match_score: number | null;

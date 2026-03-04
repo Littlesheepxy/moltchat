@@ -588,23 +588,24 @@ export async function networkingRoutes(fastify: FastifyInstance) {
     let decisionFilter = '';
     if (filter === 'pending') {
       decisionFilter = `AND (
-        (e.user_a_id = '${session.userId}' AND e.decision_a = 'pending') OR
-        (e.user_b_id = '${session.userId}' AND e.decision_b = 'pending')
+        (e.user_a_id = $2 AND e.decision_a = 'pending') OR
+        (e.user_b_id = $2 AND e.decision_b = 'pending')
       )`;
     } else if (filter === 'want_chat') {
       decisionFilter = `AND (
-        (e.user_a_id = '${session.userId}' AND e.decision_a = 'want_chat') OR
-        (e.user_b_id = '${session.userId}' AND e.decision_b IN ('want_chat', 'accept'))
+        (e.user_a_id = $2 AND e.decision_a = 'want_chat') OR
+        (e.user_b_id = $2 AND e.decision_b IN ('want_chat', 'accept'))
       )`;
     } else if (filter === 'passed') {
       decisionFilter = `AND (
-        (e.user_a_id = '${session.userId}' AND e.decision_a = 'pass') OR
-        (e.user_b_id = '${session.userId}' AND e.decision_b = 'pass')
+        (e.user_a_id = $2 AND e.decision_a = 'pass') OR
+        (e.user_b_id = $2 AND e.decision_b = 'pass')
       )`;
     }
 
     const explorations = await queryMany<{
       id: string; user_a_id: string; user_b_id: string; status: string;
+      total_rounds: number; max_rounds: number;
       match_score: number | null; match_highlights: any;
       summary_for_a: string | null; summary_for_b: string | null;
       collaboration_potential: string | null;
@@ -616,6 +617,7 @@ export async function networkingRoutes(fastify: FastifyInstance) {
       other_looking_for: string | null; other_industry: string | null;
     }>(
       `SELECT e.id, e.user_a_id, e.user_b_id, e.status,
+              e.total_rounds, e.max_rounds,
               e.match_score, e.match_highlights,
               e.summary_for_a, e.summary_for_b,
               e.collaboration_potential,
@@ -655,6 +657,8 @@ export async function networkingRoutes(fastify: FastifyInstance) {
           return {
             id: e.id,
             status: e.status,
+            total_rounds: e.total_rounds,
+            max_rounds: e.max_rounds,
             match_score: e.match_score,
             match_highlights: e.match_highlights,
             summary: myRevealLevel >= 2 ? mySummary : null,

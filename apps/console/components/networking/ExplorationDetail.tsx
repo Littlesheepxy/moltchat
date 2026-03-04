@@ -9,7 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Sparkles, MessageSquare, ChevronDown, ChevronUp, ArrowLeft,
-  Send, X, Check, Loader2, Star, Lightbulb, Users, Share2, Globe, Lock,
+  Send, X, Check, Loader2, Star, Lightbulb, Users, Share2, Globe, Lock, Scale, Info,
+  Timer, AlertCircle,
 } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
@@ -129,7 +130,10 @@ export function ExplorationDetailView({ explorationId, onBack, onChatReady }: Ex
       {/* Match Score Bar */}
       <div className="mb-6">
         <div className="flex items-center justify-between text-sm mb-1">
-          <span className="text-muted-foreground">{t('networking.matchScore')}</span>
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <Scale className="h-3.5 w-3.5" />
+            <span>{t('networking.matchScore')}</span>
+          </div>
           <span className={cn('font-medium', scoreColor)}>{scorePercent}%</span>
         </div>
         <div className="h-2 bg-muted rounded-full overflow-hidden">
@@ -143,7 +147,36 @@ export function ExplorationDetailView({ explorationId, onBack, onChatReady }: Ex
             style={{ width: `${scorePercent}%` }}
           />
         </div>
+        <p className="text-[11px] text-muted-foreground/70 mt-1.5 flex items-center gap-1">
+          <Info className="h-3 w-3" />
+          {t('networking.refereeHint') || '由平台裁判基于对话内容中立评分 · 双方看到相同分数'}
+        </p>
       </div>
+
+      {/* Status Banners */}
+      {exploration.status === 'timed_out' && (
+        <div className="mb-4 p-3 bg-destructive/10 border border-destructive/20 rounded-xl flex items-start gap-2.5">
+          <Timer className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="text-sm font-medium text-destructive">{t('networking.timedOut')}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {t('networking.timedOutHint') || '对话因 48 小时内无活动被自动关闭。可重新发起 DM 请求。'}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {exploration.status === 'in_progress' && (
+        <div className="mb-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl flex items-start gap-2.5">
+          <Loader2 className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0 animate-spin" />
+          <div>
+            <p className="text-sm font-medium text-blue-600 dark:text-blue-400">{t('networking.inProgress')}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {t('networking.inProgressHint') || `双方 Agent 正在对话中 (${exploration.total_rounds}/${exploration.max_rounds ?? 10} 轮)，完成后将自动生成裁判评估。`}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Highlights */}
       {exploration.match_highlights && exploration.match_highlights.length > 0 && (
@@ -210,13 +243,19 @@ export function ExplorationDetailView({ explorationId, onBack, onChatReady }: Ex
         </CardContent>
       </Card>
 
-      {/* AI Summary */}
-      {exploration.summary && (
+      {/* AI Summary (by platform referee) */}
+      {exploration.summary ? (
         <Card className="mb-4">
           <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Lightbulb className="h-4 w-4 text-primary" />
-              <span className="text-sm font-medium">{t('networking.aiSummary')}</span>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Lightbulb className="h-4 w-4 text-primary" />
+                <span className="text-sm font-medium">{t('networking.aiSummary')}</span>
+              </div>
+              <span className="text-[10px] text-muted-foreground/60 flex items-center gap-1">
+                <Scale className="h-3 w-3" />
+                {t('networking.refereeBadge') || '裁判评估'}
+              </span>
             </div>
             <p className="text-sm leading-relaxed">{exploration.summary}</p>
             {exploration.collaboration_potential && (
@@ -227,6 +266,17 @@ export function ExplorationDetailView({ explorationId, onBack, onChatReady }: Ex
                 <p className="text-sm">{exploration.collaboration_potential}</p>
               </div>
             )}
+          </CardContent>
+        </Card>
+      ) : exploration.status === 'completed' && (
+        <Card className="mb-4">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <AlertCircle className="h-4 w-4" />
+              <p className="text-sm">
+                {t('networking.refereeUnavailable') || '裁判评估生成中或暂时不可用，请稍后刷新查看。'}
+              </p>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -331,7 +381,18 @@ export function ExplorationDetailView({ explorationId, onBack, onChatReady }: Ex
       {/* Decision Panel (sticky bottom) */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-background/80 backdrop-blur-lg border-t border-border/50 z-20">
         <div className="max-w-2xl mx-auto">
-          {isChatReady ? (
+          {exploration.status === 'timed_out' ? (
+            <div className="text-center text-sm text-muted-foreground py-2">
+              {t('networking.timedOutDecision') || '此对话已超时关闭'}
+            </div>
+          ) : exploration.status === 'in_progress' ? (
+            <div className="text-center py-2">
+              <Badge variant="outline" className="gap-1">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                {t('networking.waitingForCompletion') || '等待对话完成...'}
+              </Badge>
+            </div>
+          ) : isChatReady ? (
             <Button
               onClick={() => {
                 // Navigate to DM chat
