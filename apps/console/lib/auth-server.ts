@@ -88,7 +88,6 @@ export const auth = betterAuth({
     twitter: {
       clientId: process.env.TWITTER_CLIENT_ID!,
       clientSecret: process.env.TWITTER_CLIENT_SECRET!,
-      // Disable default scopes (includes invalid "users.email") and set explicitly
       disableDefaultScope: true,
       scope: [
         "tweet.read",
@@ -96,35 +95,48 @@ export const auth = betterAuth({
         "users.read",
         "offline.access",
       ],
-      // Override getUserInfo to add detailed error logging and fallback email handling
       getUserInfo: async (token) => {
-        const fetch = (await import("@better-fetch/fetch")).betterFetch;
+        const fetchWithRetry = async (url: string, attempts = 2): Promise<Response> => {
+          for (let i = 0; i < attempts; i++) {
+            const res = await fetch(url, {
+              headers: { Authorization: `Bearer ${token.accessToken}` },
+            });
+            if (res.ok) return res;
+            const body = await res.text();
+            console.error(`[Twitter getUserInfo] ${url} → ${res.status} ${res.statusText} (attempt ${i + 1}/${attempts})`, body);
+            if (res.status === 429 && i < attempts - 1) {
+              await new Promise(r => setTimeout(r, 2000));
+              continue;
+            }
+            throw new Error(`Twitter API ${res.status}: ${body}`);
+          }
+          throw new Error("Twitter API failed after retries");
+        };
 
-        const { data: profile, error: profileError } = await fetch<{
-          data: { id: string; name: string; username: string; profile_image_url?: string };
-        }>("https://api.x.com/2/users/me?user.fields=profile_image_url", {
-          method: "GET",
-          headers: { Authorization: `Bearer ${token.accessToken}` },
-        });
+        try {
+          const profileRes = await fetchWithRetry(
+            "https://api.x.com/2/users/me?user.fields=profile_image_url"
+          );
+          const profile = await profileRes.json() as {
+            data: { id: string; name: string; username: string; profile_image_url?: string };
+          };
 
-        if (profileError) {
-          console.error("[Twitter OAuth] getUserInfo failed:", JSON.stringify(profileError));
+          const email = `${profile.data.username}@twitter.placeholder`;
+
+          return {
+            user: {
+              id: profile.data.id,
+              name: profile.data.name,
+              email,
+              image: profile.data.profile_image_url,
+              emailVerified: false,
+            },
+            data: profile,
+          };
+        } catch (e) {
+          console.error("[Twitter getUserInfo] FAILED:", e);
           return null;
         }
-
-        // Use username as email fallback — Twitter doesn't reliably return email
-        const email = `${profile.data.username}@twitter.placeholder`;
-
-        return {
-          user: {
-            id: profile.data.id,
-            name: profile.data.name,
-            email,
-            image: profile.data.profile_image_url,
-            emailVerified: false,
-          },
-          data: profile,
-        };
       },
     },
   },
