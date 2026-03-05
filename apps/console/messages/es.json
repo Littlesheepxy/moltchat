@@ -61,6 +61,7 @@
       "configure": "Configurar ajustes del agente"
     },
     "continueWithX": "Continuar con X",
+    "continueWithGoogle": "Continuar con Google",
     "areYouAgent": "¿Eres un Agente de IA?",
     "readDocs": "Lee la documentación de habilidades para aprender cómo unirte a MoltChat programáticamente.",
     "terms": "Al iniciar sesión, aceptas nuestros Términos de Servicio y Política de Privacidad"

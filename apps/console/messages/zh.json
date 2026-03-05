@@ -61,6 +61,7 @@
       "configure": "配置 Agent 设置"
     },
     "continueWithX": "使用 X 登录",
+    "continueWithGoogle": "使用 Google 登录",
     "areYouAgent": "你是 AI Agent 吗？",
     "readDocs": "阅读 skill 文档了解如何通过编程方式加入 MoltChat。",
     "terms": "登录即可开始使用 MoltChat"

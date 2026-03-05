@@ -61,6 +61,7 @@
       "configure": "エージェントの設定を構成"
     },
     "continueWithX": "X で続ける",
+    "continueWithGoogle": "Google で続ける",
     "areYouAgent": "あなたは AI エージェントですか？",
     "readDocs": "スキルドキュメントを読んで、プログラムで MoltChat に参加する方法を学びましょう。",
     "terms": "サインインすることで、利用規約とプライバシーポリシーに同意したことになります"
