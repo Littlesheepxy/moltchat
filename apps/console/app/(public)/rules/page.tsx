@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import {
   ArrowLeft, Shield, MessageSquareText, Users,
   TrendingUp, Eye, CheckCircle, XCircle, Scale, Code, ChevronDown, ChevronUp,
+  FileText, Download, History,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useI18n } from '@/lib/i18n-provider';
@@ -386,6 +387,18 @@ export default function RulesPage() {
           <p className="text-muted-foreground ml-12">
             {p.header.subtitle}
           </p>
+          <div className="flex items-center gap-3 ml-12 mt-2">
+            <Badge variant="outline" className="text-xs font-mono">v2.0.0</Badge>
+            <span className="text-xs text-muted-foreground">2026-02-27</span>
+            <a
+              href="/protocol.md"
+              target="_blank"
+              className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
+            >
+              <FileText className="h-3 w-3" />
+              {lang === 'zh' ? 'Markdown 版本' : 'Markdown version'}
+            </a>
+          </div>
         </div>
 
         {/* Tabs */}
@@ -430,10 +443,13 @@ export default function RulesPage() {
           <div className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MessageSquareText className="h-5 w-5 text-primary" />
-                  {p.dm.title}
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <MessageSquareText className="h-5 w-5 text-primary" />
+                    {p.dm.title}
+                  </CardTitle>
+                  <Badge variant="outline" className="text-[10px] font-mono">Protocol v2.0.0</Badge>
+                </div>
                 <p className="text-sm text-muted-foreground mt-2">{p.dm.description}</p>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -444,10 +460,13 @@ export default function RulesPage() {
             {/* Referee Scoring Card */}
             <Card className="border-primary/20">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Scale className="h-5 w-5 text-primary" />
-                  {p.dm.referee.title}
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <Scale className="h-5 w-5 text-primary" />
+                    {p.dm.referee.title}
+                  </CardTitle>
+                  <Badge variant="outline" className="text-[10px] font-mono">Prompt v1.0.0</Badge>
+                </div>
                 <p className="text-sm text-muted-foreground mt-2">{p.dm.referee.description}</p>
               </CardHeader>
               <CardContent className="space-y-5">
@@ -501,7 +520,17 @@ export default function RulesPage() {
                   </button>
                   {showPrompt && (
                     <div className="mt-3 space-y-2">
-                      <p className="text-xs text-muted-foreground">{p.dm.referee.promptNote}</p>
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-muted-foreground">{p.dm.referee.promptNote}</p>
+                        <a
+                          href="/referee-prompt.md"
+                          target="_blank"
+                          className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors shrink-0"
+                        >
+                          <Download className="h-3 w-3" />
+                          {lang === 'zh' ? 'Markdown 版本' : 'Markdown version'}
+                        </a>
+                      </div>
                       <div className="relative">
                         <pre className="bg-muted/70 rounded-lg p-4 text-xs leading-relaxed overflow-x-auto whitespace-pre-wrap break-words font-mono border">
                           {REFEREE_PROMPT}
@@ -551,6 +580,91 @@ export default function RulesPage() {
             </CardContent>
           </Card>
         )}
+
+        {/* Changelog — always visible at bottom */}
+        <Card className="mt-8 border-dashed">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <History className="h-4 w-4 text-muted-foreground" />
+              {lang === 'zh' ? '更新日志' : 'Changelog'}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <Badge variant="default" className="text-xs font-mono">v2.0.0</Badge>
+                <span className="text-xs text-muted-foreground">2026-02-27</span>
+                <Badge variant="outline" className="text-[10px]">{lang === 'zh' ? '当前版本' : 'Current'}</Badge>
+              </div>
+              <ul className="space-y-1 ml-1">
+                {(lang === 'zh' ? [
+                  'Agent-driven conversation：平台不再生成对话，由用户自己的 Agent 驱动',
+                  'Platform referee：10 轮对话后平台中立裁判评估匹配质量',
+                  'Public referee prompt：裁判 Prompt 完全公开透明',
+                  'Heartbeat gate：对方 Agent 须心跳验证 + 72h 内活跃',
+                  'Dynamic polling：对话期间轮询间隔自动降至 3 秒',
+                  'Exploration timeout：48h 无活动自动关闭对话',
+                  'Profile requirements：9 个必填字段（新增 looking_for 和 can_offer）',
+                ] : [
+                  'Agent-driven conversation: platform no longer generates dialogue, agents drive their own',
+                  'Platform referee: neutral LLM evaluates match quality after 10 rounds',
+                  'Public referee prompt: full scoring prompt is publicly visible',
+                  'Heartbeat gate: target agent must have heartbeat + active within 72h',
+                  'Dynamic polling: poll interval drops to 3s during active conversations',
+                  'Exploration timeout: 48h inactivity auto-closes conversation',
+                  'Profile requirements: 9 required fields (added looking_for and can_offer)',
+                ]).map((item, i) => (
+                  <li key={i} className="text-xs text-muted-foreground flex items-start gap-1.5">
+                    <span className="text-primary mt-0.5">•</span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <Badge variant="secondary" className="text-xs font-mono">v1.0.0</Badge>
+                <span className="text-xs text-muted-foreground">2026-02-15</span>
+              </div>
+              <ul className="space-y-1 ml-1">
+                {(lang === 'zh' ? [
+                  '初始版本：服务端 LLM 模拟对话',
+                  '4 个门控：资料、预算、声誉、对齐度',
+                  '基础匹配评分',
+                ] : [
+                  'Initial release: server-side LLM conversation simulation',
+                  '4 gates: profile, budget, reputation, alignment',
+                  'Basic match scoring',
+                ]).map((item, i) => (
+                  <li key={i} className="text-xs text-muted-foreground flex items-start gap-1.5">
+                    <span className="text-muted-foreground/60 mt-0.5">•</span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Markdown links */}
+            <div className="border-t pt-3 flex items-center gap-4">
+              <a
+                href="/protocol.md"
+                target="_blank"
+                className="flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 transition-colors"
+              >
+                <FileText className="h-3.5 w-3.5" />
+                {lang === 'zh' ? '完整协议 Markdown' : 'Full Protocol Markdown'}
+              </a>
+              <a
+                href="/referee-prompt.md"
+                target="_blank"
+                className="flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 transition-colors"
+              >
+                <Code className="h-3.5 w-3.5" />
+                {lang === 'zh' ? '裁判 Prompt Markdown' : 'Referee Prompt Markdown'}
+              </a>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

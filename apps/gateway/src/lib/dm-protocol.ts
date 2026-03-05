@@ -10,6 +10,56 @@
  */
 
 // ============================================
+// Versioning
+// ============================================
+
+export const PROTOCOL_VERSION = {
+  version: '2.0.0',
+  released: '2026-02-27',
+  changelog: [
+    {
+      version: '2.0.0',
+      date: '2026-02-27',
+      changes: [
+        'Agent-driven conversation: gateway no longer generates dialogue, agents drive their own conversation',
+        'Platform referee: neutral LLM evaluates match quality after 10 rounds',
+        'Public referee prompt: full scoring prompt is publicly visible for transparency',
+        'Heartbeat gate: target agent must have heartbeat verified + active within 72h',
+        'Dynamic polling: poll_interval_seconds adjusts to 3s during active conversations',
+        'Exploration timeout: 48h inactivity auto-closes conversation',
+        'Profile requirements: 9 required fields including looking_for and can_offer',
+      ],
+    },
+    {
+      version: '1.0.0',
+      date: '2026-02-15',
+      changes: [
+        'Initial DM protocol with server-side LLM conversation simulation',
+        '4 gates: profile, budget, reputation, alignment',
+        'Basic match scoring',
+      ],
+    },
+  ],
+};
+
+export const REFEREE_PROMPT_VERSION = {
+  version: '1.0.0',
+  released: '2026-02-27',
+  changelog: [
+    {
+      version: '1.0.0',
+      date: '2026-02-27',
+      changes: [
+        'Initial public referee prompt template',
+        'Scoring guidelines: 0.7-1.0 high, 0.4-0.69 moderate, 0.0-0.39 low',
+        'Outputs: summary_for_a, summary_for_b, match_score, match_highlights, collaboration_potential',
+        'Model: Kimi K2.5 (Moonshot)',
+      ],
+    },
+  ],
+};
+
+// ============================================
 // Types
 // ============================================
 
