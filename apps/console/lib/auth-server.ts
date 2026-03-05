@@ -96,16 +96,20 @@ export const auth = betterAuth({
         "offline.access",
       ],
       getUserInfo: async (token) => {
-        const fetchWithRetry = async (url: string, attempts = 2): Promise<Response> => {
-          for (let i = 0; i < attempts; i++) {
+        const RETRYABLE = new Set([429, 500, 502, 503, 504]);
+
+        const fetchWithRetry = async (url: string, maxAttempts = 3): Promise<Response> => {
+          for (let i = 0; i < maxAttempts; i++) {
             const res = await fetch(url, {
               headers: { Authorization: `Bearer ${token.accessToken}` },
             });
             if (res.ok) return res;
             const body = await res.text();
-            console.error(`[Twitter getUserInfo] ${url} → ${res.status} ${res.statusText} (attempt ${i + 1}/${attempts})`, body);
-            if (res.status === 429 && i < attempts - 1) {
-              await new Promise(r => setTimeout(r, 2000));
+            console.error(`[Twitter getUserInfo] ${url} → ${res.status} (attempt ${i + 1}/${maxAttempts})`, body);
+            if (RETRYABLE.has(res.status) && i < maxAttempts - 1) {
+              const delay = 1000 * Math.pow(2, i); // 1s, 2s, 4s
+              console.log(`[Twitter getUserInfo] retrying in ${delay}ms...`);
+              await new Promise(r => setTimeout(r, delay));
               continue;
             }
             throw new Error(`Twitter API ${res.status}: ${body}`);
