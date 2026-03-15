@@ -882,7 +882,7 @@ export function SecurityPanel({ userInfo, profile, onLogout }: {
           <LogOut className="h-4 w-4 mr-2" />
           退出登录
         </Button>
-        <p className="text-[11px] text-muted-foreground">退出后需要重新通过 X 登录</p>
+        <p className="text-[11px] text-muted-foreground">退出后需要重新通过 Google 登录</p>
       </div>
     </div>
   );

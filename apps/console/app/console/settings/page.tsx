@@ -78,6 +78,8 @@ export default function SettingsPage() {
   const [backgroundMd, setBackgroundMd] = useState('');
   const [topics, setTopics] = useState('');
   const [notificationLevel, setNotificationLevel] = useState('important');
+  const [twitterHandle, setTwitterHandle] = useState('');
+  const [savingTwitter, setSavingTwitter] = useState(false);
 
   // Budget state
   const [inboundLimit, setInboundLimit] = useState(30);
@@ -113,6 +115,7 @@ export default function SettingsPage() {
           setBackgroundMd(data.data.profile?.bio_md || '');
           setTopics(data.data.profile?.topics_of_interest?.join(', ') || '');
           setNotificationLevel(data.data.profile?.notification_level || 'important');
+          setTwitterHandle(data.data.profile?.twitter_handle || '');
         } else {
           setError(data.error?.message || 'Failed to load profile');
         }
@@ -145,6 +148,7 @@ export default function SettingsPage() {
           bio_md: backgroundMd,
           topics_of_interest: topics.split(',').map(t => t.trim()).filter(Boolean),
           notification_level: notificationLevel,
+          twitter_handle: twitterHandle.trim() || null,
         }),
       });
 
@@ -301,6 +305,57 @@ export default function SettingsPage() {
             />
             <p className="text-xs text-muted-foreground mt-1">
               Comma-separated list of topics you care about
+            </p>
+          </div>
+
+          <div>
+            <Label htmlFor="twitterHandle">X (Twitter) Handle</Label>
+            <div className="flex items-center gap-2 mt-1">
+              <div className="relative flex-1">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">@</span>
+                <Input
+                  id="twitterHandle"
+                  value={twitterHandle}
+                  onChange={(e) => setTwitterHandle(e.target.value.replace(/^@/, ''))}
+                  placeholder="your_handle"
+                  className="pl-7"
+                />
+              </div>
+              {profile?.twitter_handle && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive hover:text-destructive"
+                  onClick={async () => {
+                    setSavingTwitter(true);
+                    try {
+                      const res = await fetch('/api/gateway/v1/owners/me/profile', {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ twitter_handle: '' }),
+                      });
+                      const data = await res.json();
+                      if (data.success) {
+                        setTwitterHandle('');
+                        setProfile(data.data.profile);
+                        toast.success('X account unlinked');
+                      }
+                    } catch {
+                      toast.error('Failed to unlink');
+                    } finally {
+                      setSavingTwitter(false);
+                    }
+                  }}
+                  disabled={savingTwitter}
+                >
+                  {savingTwitter ? 'Unlinking...' : 'Unlink'}
+                </Button>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {profile?.twitter_handle
+                ? `Linked: @${profile.twitter_handle}`
+                : 'Link your X account so others can find you'}
             </p>
           </div>
 

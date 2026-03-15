@@ -183,7 +183,7 @@ function LoginContent() {
                   variant="outline" 
                   className="w-full text-muted-foreground"
                 >
-                  跳过 X 登录（使用测试账号）
+                  跳过 Google 登录（使用测试账号）
                 </Button>
               </Link>
             </div>

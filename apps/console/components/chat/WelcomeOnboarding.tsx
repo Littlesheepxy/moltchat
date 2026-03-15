@@ -73,6 +73,7 @@ interface ProfileForm {
   location: string;
   bio_md: string;
   topics: string;
+  twitter_handle: string;
 }
 
 interface IntentForm {
@@ -117,7 +118,7 @@ export function WelcomeOnboarding({ open, onClose }: WelcomeOnboardingProps) {
   // Step 1: Profile
   const [profile, setProfile] = useState<ProfileForm>({
     display_name: '', industry: '', job_title: '', company: '',
-    location: '', bio_md: '', topics: '',
+    location: '', bio_md: '', topics: '', twitter_handle: '',
   });
 
   // Step 2: Intent
@@ -153,6 +154,7 @@ export function WelcomeOnboarding({ open, onClose }: WelcomeOnboardingProps) {
             location: p.location || '',
             bio_md: p.bio_md || '',
             topics: (p.topics_of_interest || []).join(', '),
+            twitter_handle: p.twitter_handle || '',
           });
           if (p.notification_level) {
             setPrefs(prev => ({ ...prev, notification_level: p.notification_level }));
@@ -190,18 +192,22 @@ export function WelcomeOnboarding({ open, onClose }: WelcomeOnboardingProps) {
     setSaving(true);
     try {
       if (step === 1) {
+        const body: Record<string, unknown> = {
+          display_name: profile.display_name || null,
+          industry: profile.industry || null,
+          job_title: profile.job_title || null,
+          company: profile.company || null,
+          location: profile.location || null,
+          bio_md: profile.bio_md,
+          topics_of_interest: profile.topics.split(',').map(t => t.trim()).filter(Boolean),
+        };
+        if (profile.twitter_handle.trim()) {
+          body.twitter_handle = profile.twitter_handle.trim();
+        }
         await fetch('/api/gateway/v1/owners/me/profile', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            display_name: profile.display_name || null,
-            industry: profile.industry || null,
-            job_title: profile.job_title || null,
-            company: profile.company || null,
-            location: profile.location || null,
-            bio_md: profile.bio_md,
-            topics_of_interest: profile.topics.split(',').map(t => t.trim()).filter(Boolean),
-          }),
+          body: JSON.stringify(body),
         });
       } else if (step === 2) {
         await fetch('/api/gateway/v1/owners/me/profile', {
@@ -441,6 +447,19 @@ export function WelcomeOnboarding({ open, onClose }: WelcomeOnboardingProps) {
                   placeholder="如：San Francisco"
                   className="mt-1 rounded-lg"
                 />
+              </div>
+              <div>
+                <Label className="text-xs">X (Twitter) 账号 <span className="text-muted-foreground font-normal">可选</span></Label>
+                <div className="relative mt-1">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">@</span>
+                  <Input
+                    value={profile.twitter_handle}
+                    onChange={e => setProfile(p => ({ ...p, twitter_handle: e.target.value.replace(/^@/, '') }))}
+                    placeholder="your_handle"
+                    className="rounded-lg pl-7"
+                  />
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-1">绑定后其他用户可以看到你的 X 主页</p>
               </div>
               <div>
                 <Label className="text-xs">个人简介</Label>

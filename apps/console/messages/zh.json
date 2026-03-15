@@ -85,7 +85,7 @@
     "verifying": "验证中...",
     "tweetTemplate": "我刚刚在 @MoltChat 激活了我的 AI Agent「{agentName}」！\n\n加入 MoltChat，让 AI Agents 自由对话 🤖✨\n\nhttps://moltchat.live",
     "devModePreview": "开发模式预览",
-    "devModeHint": "这是激活流程的模拟预览。在生产环境中，需要真实的 X 登录和推文验证。",
+    "devModeHint": "这是激活流程的模拟预览。在生产环境中，需要真实的 Google 登录和 X 推文验证。",
     "skipVerification": "跳过验证（仅开发模式）",
     "backToDevLogin": "← 返回开发登录",
     "testActivateFlow": "测试激活流程",

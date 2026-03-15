@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { query, queryOne } from '../db/client.js';
+import { query, queryOne, transaction } from '../db/client.js';
 import { AppError, ERROR_CODES, successResponse } from '../lib/errors.js';
 import {
   parseTweetUrl,
@@ -415,35 +415,31 @@ export async function claimRoutes(fastify: FastifyInstance): Promise<void> {
 
     logger.info({ claimId, userId: session.userId }, 'Verification successful');
 
-    // Update claim to verified
-    await query(
-      `UPDATE claims SET status = 'verified', verified_at = NOW(), error_code = NULL, error_message = NULL WHERE id = $1`,
-      [claimId]
-    );
-
-    // Update agent to claimed, set twitter_handle and owner_user_id
-    await query(
-      `UPDATE agents 
-       SET status = 'claimed', claimed_at = NOW(), twitter_handle = $1, owner_user_id = $2 
-       WHERE id = $3`,
-      [claim.twitter_handle, session.userId, claim.agent_id]
-    );
-
-    // Create/update owner profile for this user
-    await query(
-      `INSERT INTO owner_profiles (user_id, display_name, created_at, updated_at)
-       VALUES ($1, $2, NOW(), NOW())
-       ON CONFLICT (user_id) DO UPDATE SET updated_at = NOW()`,
-      [session.userId, session.user.name]
-    );
-
-    // Record tweet verification
-    await query(
-      `INSERT INTO tweet_verifications (user_id, agent_id, tweet_url, status, verified_at)
-       VALUES ($1, $2, $3, 'verified', NOW())
-       ON CONFLICT DO NOTHING`,
-      [session.userId, claim.agent_id, claim.tweet_url]
-    );
+    // All DB mutations in a single transaction — claim, agent, owner profile, tweet record
+    await transaction(async (client) => {
+      await client.query(
+        `UPDATE claims SET status = 'verified', verified_at = NOW(), error_code = NULL, error_message = NULL WHERE id = $1`,
+        [claimId]
+      );
+      await client.query(
+        `UPDATE agents 
+         SET status = 'claimed', claimed_at = NOW(), twitter_handle = $1, owner_user_id = $2 
+         WHERE id = $3`,
+        [claim.twitter_handle, session.userId, claim.agent_id]
+      );
+      await client.query(
+        `INSERT INTO owner_profiles (user_id, display_name, created_at, updated_at)
+         VALUES ($1, $2, NOW(), NOW())
+         ON CONFLICT (user_id) DO UPDATE SET updated_at = NOW()`,
+        [session.userId, session.user.name]
+      );
+      await client.query(
+        `INSERT INTO tweet_verifications (user_id, agent_id, tweet_url, status, verified_at)
+         VALUES ($1, $2, $3, 'verified', NOW())
+         ON CONFLICT DO NOTHING`,
+        [session.userId, claim.agent_id, claim.tweet_url]
+      );
+    });
 
     // Create Matrix user for the agent (if Matrix is enabled)
     let matrixUserId: string | null = null;
@@ -561,10 +557,27 @@ export async function claimRoutes(fastify: FastifyInstance): Promise<void> {
     }
 
     // Verify the agent exists and is claimed
-    const agent = await queryOne<AgentRow & { matrix_user_id: string | null }>(
+    let agent = await queryOne<AgentRow & { matrix_user_id: string | null }>(
       `SELECT id, name, twitter_handle, status, claimed_at, matrix_user_id FROM agents WHERE id = $1`,
       [claim.agent_id]
     );
+    if (!agent) {
+      throw new AppError(ERROR_CODES.NOT_FOUND, 'Agent not found', 404);
+    }
+
+    // Self-heal: claim is verified but agent status wasn't updated (partial failure during verify)
+    if (agent.status === 'pending_claim' && claim.status === 'verified' && claim.twitter_handle) {
+      logger.warn({ agentId: claim.agent_id, claimId }, 'Self-healing: claim verified but agent still pending_claim');
+      await query(
+        `UPDATE agents SET status = 'claimed', claimed_at = COALESCE(claimed_at, $1), twitter_handle = COALESCE(twitter_handle, $2) WHERE id = $3`,
+        [claim.verified_at, claim.twitter_handle, claim.agent_id]
+      );
+      agent = await queryOne<AgentRow & { matrix_user_id: string | null }>(
+        `SELECT id, name, twitter_handle, status, claimed_at, matrix_user_id FROM agents WHERE id = $1`,
+        [claim.agent_id]
+      );
+    }
+
     if (!agent || agent.status !== 'claimed') {
       throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Agent is not in claimed state', 400);
     }

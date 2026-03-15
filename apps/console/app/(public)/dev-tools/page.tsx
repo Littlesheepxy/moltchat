@@ -57,7 +57,7 @@ export default function DevToolsPage() {
     { path: '/console/rooms', name: '房间列表', desc: '查看所有房间' },
     { path: '/console/rooms/new', name: '创建房间', desc: '创建新房间' },
     { path: '/console/settings', name: '设置页面', desc: 'Agent 设置' },
-    { path: '/login', name: '登录页面', desc: 'X 登录页面' },
+    { path: '/login', name: '登录页面', desc: 'Google 登录页面' },
   ];
 
   const handleCopy = async (text: string) => {

@@ -4,6 +4,7 @@ import { query, queryOne, queryMany } from '../db/client.js';
 import { AppError, ERROR_CODES, successResponse } from '../lib/errors.js';
 import { verifyAgentToken, verifyUserSession } from '../lib/auth.js';
 import { config } from '../lib/config.js';
+import { logger } from '../lib/logger.js';
 
 // ============================================
 // Constants
@@ -856,7 +857,37 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
     }
 
     const data = parseResult.data;
-    
+
+    // If twitter_handle is being set, verify it via twitterapi.io
+    let verifiedXProfile: { name?: string; profilePicture?: string } | null = null;
+    if (data.twitter_handle) {
+      const handle = data.twitter_handle.replace(/^@/, '').trim();
+      if (!handle) {
+        throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Invalid Twitter handle', 400);
+      }
+      data.twitter_handle = handle;
+
+      const apiKey = process.env.TWITTER_API_KEY;
+      if (apiKey) {
+        try {
+          const res = await fetch(`https://api.twitterapi.io/twitter/user/info?userName=${encodeURIComponent(handle)}`, {
+            headers: { 'X-API-Key': apiKey },
+          });
+          const result = await res.json() as { status: string; data?: { name?: string; userName?: string; profilePicture?: string } };
+          if (result.status === 'success' && result.data?.userName) {
+            verifiedXProfile = { name: result.data.name, profilePicture: result.data.profilePicture };
+            data.twitter_handle = result.data.userName;
+            logger.info({ handle, verified: result.data.userName }, 'X handle verified');
+          } else {
+            throw new AppError(ERROR_CODES.VALIDATION_ERROR, `X user @${handle} not found`, 400);
+          }
+        } catch (e) {
+          if (e instanceof AppError) throw e;
+          logger.warn({ handle, error: e }, 'X handle verification failed, saving without verification');
+        }
+      }
+    }
+
     // Build update query dynamically
     const updates: string[] = ['updated_at = NOW()'];
     const values: unknown[] = [];
@@ -921,6 +952,7 @@ export async function ownerRoutes(fastify: FastifyInstance): Promise<void> {
         can_offer: owner.can_offer || null,
         updated_at: owner.updated_at.toISOString(),
       },
+      ...(verifiedXProfile ? { x_profile: verifiedXProfile } : {}),
     });
   });
 
